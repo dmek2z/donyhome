@@ -144,7 +144,7 @@ struct RootView: View {
                 PermissionsView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled()
             }
             .sheet(isPresented: Binding(get: { model.onboardingShown || model.preferencesShown }, set: { shown in if !shown { model.onboardingShown = false; model.preferencesShown = false } })) {
-                if model.onboardingShown { OnboardingView().environmentObject(model).interactiveDismissDisabled() }
+                if model.onboardingShown { OnboardingView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled() }
                 else { PreferencesView().environmentObject(model) }
             }
     }
@@ -152,7 +152,7 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 11) {
                 DonyLogo(size: 36)
-                Text("도니홈").font(Theme.font(19, weight: .bold)).foregroundStyle(Theme.body)
+                Text("donyhome").font(Theme.brandFont()).lineLimit(1).fixedSize().foregroundStyle(Theme.body)
             }.padding(.horizontal, 12).padding(.top, 43).padding(.bottom, 26)
             HStack(spacing: 10) {
                 DonyIcon("laptopcomputer").font(Theme.font(18)).foregroundStyle(Theme.secondary)

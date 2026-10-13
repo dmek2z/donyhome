@@ -27,9 +27,12 @@ enum Theme {
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .custom("PretendardVariable-Regular", size: size).weight(weight)
     }
+    static func brandFont(_ size: CGFloat = 23) -> Font { .custom("Fredoka-SemiBold", size: size) }
     static func registerFonts() {
-        if let url = Bundle.main.url(forResource: "PretendardVariable", withExtension: "ttf", subdirectory: "Fonts") {
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        for name in ["PretendardVariable", "Fredoka"] {
+            if let url = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: "Fonts") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
         }
     }
 }
