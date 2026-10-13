@@ -22,8 +22,8 @@ struct ClipboardView: View {
                     Divider()
                     Button("고정하지 않은 기록 지우기") { controller.clear() }
                     Button("모든 기록 지우기…", role: .destructive) { if ConfirmationDialog.show(title: "모든 기록을 지울까요?", message: "고정한 항목을 포함해 클립보드 기록을 지워요.", action: "모두 지우기", destructive: true, paths: []) { controller.clear(includePinned: true) } }
-                } label: { DonyIcon("ellipsis", size: 18).frame(width: 42, height: 42).background(.white).clipShape(RoundedRectangle(cornerRadius: 10)) }.menuStyle(.borderlessButton).frame(width: 42)
-            }
+                } label: { Text("⋯").font(Theme.font(18)).frame(width: 42, height: 42) }.menuStyle(.borderlessButton).frame(width: 42, height: 42).accessibilityLabel("클립보드 작업")
+            }.frame(height: 42)
             HStack(spacing: 12) {
                 DonySearchField(placeholder: "텍스트 · 파일 이름 검색", text: $controller.query)
                 Chip(text: controller.preferences.paused ? "기록 일시 정지" : "\(controller.items.count)개 기록", color: controller.preferences.paused ? Theme.amber : Theme.primary)
@@ -43,7 +43,7 @@ struct ClipboardView: View {
                 }.menuStyle(.borderlessButton).frame(width: 130) }.panel(16)
             }
             if controller.visibleItems.isEmpty {
-                EmptyState(icon: "doc.on.clipboard", title: controller.query.isEmpty ? "복사한 내용을 여기서 다시 만나요" : "검색 결과가 없어요", subtitle: "텍스트, 이미지, 서식과 파일을 이 Mac에 저장해요. 비밀번호 앱과 보호된 복사는 기록하지 않아요.")
+                EmptyState(icon: "doc.on.clipboard", title: controller.query.isEmpty ? "복사한 내용이 여기에 저장돼요" : "검색 결과가 없어요", subtitle: "")
             } else {
                 LazyVStack(spacing: 10) {
                     ForEach(controller.visibleItems) { item in
