@@ -31,6 +31,7 @@ import DonyCore
     private var stackRequiresExplicitNext = false
     private var suppressStackUntil = Date.distantPast
     var visibleItems: [ClipboardItem] { ClipboardHistory.search(ClipboardHistory.sorted(items, by: preferences.sort, pinsAtBottom: preferences.pinsAtBottom), query: query, mode: preferences.search) }
+    var pinnedItems: [ClipboardItem] { ClipboardHistory.sorted(items, by: preferences.sort, pinsAtBottom: preferences.pinsAtBottom).filter(\.pinned) }
     var accessibilityAllowed: Bool { AXIsProcessTrusted() }
     var needsRecovery: Bool { !storeWritable }
     init(pasteboard: NSPasteboard = .general, storeURL: URL? = nil, defaults: UserDefaults = .standard) {
@@ -59,6 +60,8 @@ import DonyCore
         registerHotkey()
     }
     func stop() {
+        if preferences.behavior?.clearOnQuit == true { clear(includePinned: true) }
+        if preferences.behavior?.clearSystemOnQuit == true { pasteboard.clearContents() }
         timer?.invalidate(); timer = nil
         if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }; activationObserver = nil
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil
@@ -91,7 +94,7 @@ import DonyCore
         items[index].pinLetter = letter; persist()
     }
     func movePin(_ item: ClipboardItem, up: Bool) {
-        let pins = visibleItems.filter(\.pinned)
+        let pins = pinnedItems
         guard let position = pins.firstIndex(where: { $0.id == item.id }) else { return }
         let other = position + (up ? -1 : 1)
         guard pins.indices.contains(other), let first = items.firstIndex(where: { $0.id == item.id }), let second = items.firstIndex(where: { $0.id == pins[other].id }) else { return }
@@ -126,6 +129,16 @@ import DonyCore
     func edit(_ item: ClipboardItem, text: String) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index].representations = [[ClipboardRepresentation(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))]]; persist()
+    }
+    func renamePin(_ item: ClipboardItem, title: String) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[index].customTitle = title; persist()
+    }
+    func selectItem(_ item: ClipboardItem, flags: NSEvent.ModifierFlags = []) {
+        switch ClipboardSelection.action(behavior: preferences.behavior, command: flags.contains(.command), option: flags.contains(.option), shift: flags.contains(.shift)) {
+        case .paste(let plainText): paste(item, plainText: plainText)
+        case .copy: _ = copy(item); panel?.orderOut(nil)
+        }
     }
     @discardableResult func copy(_ item: ClipboardItem, plainText: Bool = false) -> Bool {
         guard ClipboardCapture.write(item, to: pasteboard, plainText: plainText) else { status = "클립보드에 복사하지 못했어요."; return false }
@@ -217,7 +230,13 @@ import DonyCore
             window.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }))
             panel = window
         }
-        panel?.center(); panel?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        if preferences.appearance?.popupPosition == "중앙" { panel?.center() }
+        else if let panel {
+            let point = NSEvent.mouseLocation
+            let bounds = NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame ?? NSScreen.main!.visibleFrame
+            panel.setFrameOrigin(NSPoint(x: min(max(bounds.minX, point.x), bounds.maxX - panel.frame.width), y: min(max(bounds.minY, point.y - panel.frame.height), bounds.maxY - panel.frame.height)))
+        }
+        panel?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
     private func registerHotkey() {
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil

@@ -8,6 +8,10 @@ enum Theme {
     static let controlRadius: CGFloat = 10
     static let actionWidth: CGFloat = 128
     static let filterWidth: CGFloat = 160
+    static let listRowHeight: CGFloat = 64
+    static let quickRowHeight: CGFloat = 36
+    static let settingsWidth: CGFloat = 760
+    static let settingsHeight: CGFloat = 600
     static let controlFill = Color(hex: 0xe8ebef)
     static let ink = Color(hex: 0x191f28)
     static let body = Color(hex: 0x333d4b)

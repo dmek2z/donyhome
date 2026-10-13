@@ -1,8 +1,33 @@
 import Testing
 import AppKit
+import Carbon
 @testable import DonyCore
 
 @Suite struct ClipboardHistoryTests {
+    @Test func selectionModifiersOverrideAutomaticPasteWithoutLosingPlainTextChoice() {
+        var settings = ClipboardBehavior(); settings.pasteAutomatically = true
+        #expect(ClipboardSelection.action(behavior: settings, command: false, option: false, shift: false) == .paste(plainText: false))
+        #expect(ClipboardSelection.action(behavior: settings, command: true, option: false, shift: false) == .copy)
+        #expect(ClipboardSelection.action(behavior: nil, command: false, option: true, shift: true) == .paste(plainText: true))
+        settings.plainText = true
+        #expect(ClipboardSelection.action(behavior: settings, command: false, option: false, shift: false) == .paste(plainText: true))
+        #expect(ClipboardSelection.action(behavior: nil, command: false, option: false, shift: false) == .copy)
+    }
+    @Test func originalPreferencesAndHistorySurviveNewSettingsMigration() throws {
+        var original = ClipboardPreferences(); original.limit = 73; original.ignoredApps = ["fixture.app"]; original.hotkeyKeyCode = 19
+        let data = try JSONEncoder().encode(original)
+        let restored = try JSONDecoder().decode(ClipboardPreferences.self, from: data)
+        #expect(restored.limit == 73 && restored.hotkeyKeyCode == 19 && restored.ignoredApps == ["fixture.app"])
+        #expect(restored.appearance == nil && restored.behavior == nil)
+        var changed = restored; changed.appearance = ClipboardAppearance(); changed.appearance?.popupPosition = "중앙"; changed.behavior = ClipboardBehavior(); changed.behavior?.pasteAutomatically = true
+        #expect(try JSONDecoder().decode(ClipboardPreferences.self, from: JSONEncoder().encode(changed)) == changed)
+        var item = ClipboardItem(representations: [[ClipboardRepresentation(type: "public.utf8-plain-text", data: Data("original".utf8))]])
+        item.pinned = true; item.customTitle = "renamed"
+        let saved = try JSONDecoder().decode(ClipboardItem.self, from: JSONEncoder().encode(item))
+        #expect(saved.title == "renamed" && saved.text == "original")
+        #expect(ClipboardHistory.search([saved], query: "original", mode: .exact).count == 1)
+        #expect(ClipboardPreferences().hotkeyModifiers == UInt32(cmdKey | shiftKey))
+    }
     @Test @MainActor func testPrivatePasteboardRoundTripsRichTextImageAndMultipleFiles() throws {
         let board = NSPasteboard(name: NSPasteboard.Name("donyhome-tests-\(UUID().uuidString)"))
         defer { board.releaseGlobally() }

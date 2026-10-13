@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Carbon
+import ServiceManagement
 import DonyCore
 
 struct ClipboardView: View {
@@ -14,11 +15,11 @@ struct ClipboardView: View {
             HStack {
                 PageHeader(title: "클립보드")
                 Spacer()
+                Button("설정") { showSettings = true }.buttonStyle(QuietButton())
                 Button("빠르게 열기") { controller.showPopup() }.buttonStyle(QuietButton())
                 DonyIconMenu(title: "클립보드 작업", size: Theme.controlHeight) {
                     Button(controller.preferences.paused ? "기록 다시 시작" : "기록 일시 정지") { controller.preferences.paused.toggle() }
                     Button("다음 복사 한 번 무시") { controller.ignoreNextCopy = true }
-                    Button("클립보드 설정") { showSettings = true }
                     Divider()
                     Button("고정하지 않은 기록 지우기") { controller.clear() }
                     Button("모든 기록 지우기…", role: .destructive) { if ConfirmationDialog.show(title: "모든 기록을 지울까요?", message: "고정한 항목을 포함해 클립보드 기록을 지워요.", action: "모두 지우기", destructive: true, paths: []) { controller.clear(includePinned: true) } }
@@ -45,14 +46,15 @@ struct ClipboardView: View {
             if controller.visibleItems.isEmpty {
                 EmptyState(icon: "doc.on.clipboard", title: controller.query.isEmpty ? "복사한 내용이 여기에 저장돼요" : "검색 결과가 없어요", subtitle: "")
             } else {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: 0) {
                     ForEach(controller.visibleItems) { item in
                         ClipboardItemRow(item: item, controller: controller, edit: { editing = item; editText = item.text ?? "" })
+                        if item.id != controller.visibleItems.last?.id { Divider().padding(.leading, 60) }
                     }
-                }
+                }.panel(0)
             }
         }.font(Theme.font(14)).foregroundStyle(Theme.ink)
-        .sheet(isPresented: $showSettings) { ClipboardSettingsView(controller: controller).padding(24).frame(width: 560, height: 620).font(Theme.font(14)).background(Theme.canvas).preferredColorScheme(.light) }
+        .sheet(isPresented: $showSettings) { ClipboardSettingsView(controller: controller).padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight).font(Theme.font(14)).background(Theme.canvas).preferredColorScheme(.light) }
         .sheet(item: $editing) { item in
             VStack(alignment: .leading, spacing: 18) {
                 Text("텍스트 편집").font(Theme.font(22, weight: .bold))
@@ -71,10 +73,10 @@ struct ClipboardItemRow: View {
     var body: some View {
         HStack(spacing: 14) {
             if let data = item.imageData, let image = NSImage(data: data) {
-                Image(nsImage: image).resizable().scaledToFit().frame(width: 48, height: 48).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 10))
-            } else { DonyIcon(item.fileURLs.isEmpty ? "doc.on.clipboard" : "folder", size: 22).foregroundStyle(Theme.primary).frame(width: 48, height: 48).background(Theme.blueWash).clipShape(RoundedRectangle(cornerRadius: 10)) }
+                Image(nsImage: image).resizable().scaledToFit().frame(width: 32, height: 32).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 10))
+            } else { DonyIcon(item.fileURLs.isEmpty ? "doc.on.clipboard" : "folder", size: 18).foregroundStyle(Theme.primary).frame(width: 32, height: 32).background(Theme.blueWash).clipShape(RoundedRectangle(cornerRadius: 10)) }
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 5) { if item.pinned { DonyIcon("pin.fill", size: 10).foregroundStyle(Theme.primary) }; Text(item.title).font(Theme.font(14, weight: .medium)).lineLimit(2) }
+                HStack(spacing: 5) { if item.pinned { DonyIcon("pin.fill", size: 10).foregroundStyle(Theme.primary) }; Text(item.title).font(Theme.font(14, weight: .medium)).lineLimit(1).truncationMode(.middle).help(item.text ?? item.title) }
                 Text("\(item.application ?? "앱 정보 없음") · \(item.lastCopiedAt.formatted(date: .abbreviated, time: .shortened)) · \(item.numberOfCopies)회").font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Button("복사") { controller.copy(item) }.buttonStyle(QuietButton())
@@ -95,7 +97,7 @@ struct ClipboardItemRow: View {
                 Button(controller.pasteStack.contains(item.id) ? "붙여넣기 순서에서 제거" : "붙여넣기 순서에 추가") { controller.toggleStack(item) }
                 Button("삭제", role: .destructive) { controller.delete(item) }
             }
-        }.panel(16)
+        }.padding(.horizontal, 16).frame(height: Theme.listRowHeight).contentShape(Rectangle())
     }
 }
 struct ClipboardSettingsView: View {
@@ -104,43 +106,98 @@ struct ClipboardSettingsView: View {
     private func listBinding(_ keyPath: WritableKeyPath<ClipboardPreferences, [String]>) -> Binding<String> {
         Binding(get: { controller.preferences[keyPath: keyPath].joined(separator: "\n") }, set: { controller.preferences[keyPath: keyPath] = $0.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } })
     }
+    @State private var category = "일반"
+    @State private var exclusion = "앱"
+    @State private var loginEnabled = SMAppService.mainApp.status == .enabled
+    private func appearance<Value>(_ key: WritableKeyPath<ClipboardAppearance, Value>) -> Binding<Value> {
+        Binding(get: { (controller.preferences.appearance ?? ClipboardAppearance())[keyPath: key] }, set: { value in var settings = controller.preferences.appearance ?? ClipboardAppearance(); settings[keyPath: key] = value; controller.preferences.appearance = settings })
+    }
+    private func behavior(_ key: WritableKeyPath<ClipboardBehavior, Bool>) -> Binding<Bool> {
+        Binding(get: { (controller.preferences.behavior ?? ClipboardBehavior())[keyPath: key] }, set: { value in var settings = controller.preferences.behavior ?? ClipboardBehavior(); settings[keyPath: key] = value; controller.preferences.behavior = settings })
+    }
+    private func choices(_ title: String, options: [String], selection: Binding<String>) -> some View {
+        HStack { Text(title); Spacer(); DonyMenuButton(title: selection.wrappedValue, width: Theme.filterWidth) { ForEach(options, id: \.self) { value in Button(value) { selection.wrappedValue = value } } } }.frame(minHeight: 52)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack { Text("클립보드 설정").font(Theme.font(22, weight: .bold)); Spacer(); Button("완료") { dismiss() }.buttonStyle(QuietButton()) }
+            DonyTabs(options: ["일반", "보관", "모양", "고정", "제외", "고급"], selection: $category)
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Toggle("복사 기록 일시 정지", isOn: $controller.preferences.paused).toggleStyle(DonySwitch())
-                    HStack { Text("최대 기록 수"); Spacer(); TextField("200", value: $controller.preferences.limit, format: .number).frame(width: 90).textFieldStyle(.roundedBorder).onChange(of: controller.preferences.limit) { _, value in controller.preferences.limit = max(1, min(10000, value)) } }
-                    Text("고정한 항목은 기록 수 제한과 별도로 보존해요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                    Text("정렬").font(Theme.font(13, weight: .semibold))
-                    DonyChoices(options: ["최근 복사", "처음 복사", "복사 횟수"], selection: Binding(get: { ["최근 복사", "처음 복사", "복사 횟수"][ClipboardSort.allCases.firstIndex(of: controller.preferences.sort) ?? 0] }, set: { controller.preferences.sort = ClipboardSort.allCases[["최근 복사", "처음 복사", "복사 횟수"].firstIndex(of: $0) ?? 0] }))
-                    Toggle("고정 항목을 아래에 표시", isOn: $controller.preferences.pinsAtBottom).toggleStyle(DonySwitch())
-                    Text("검색 방식").font(Theme.font(13, weight: .semibold))
-                    DonyChoices(options: ["포함", "정규식", "유사", "혼합"], selection: Binding(get: { ["포함", "정규식", "유사", "혼합"][ClipboardSearch.allCases.firstIndex(of: controller.preferences.search) ?? 0] }, set: { controller.preferences.search = ClipboardSearch.allCases[["포함", "정규식", "유사", "혼합"].firstIndex(of: $0) ?? 0] }))
-                    Divider()
-                    Toggle("빠른 창 단축키", isOn: $controller.preferences.hotkeyEnabled).toggleStyle(DonySwitch())
-                    ClipboardShortcutRecorder(controller: controller)
-                    SettingsActionRow(title: "붙여넣기 접근 권한", actionTitle: controller.accessibilityAllowed ? "허용됨" : "권한 요청", enabled: !controller.accessibilityAllowed) { controller.requestAccessibility() }
-                    Text("권한 없이도 기록과 복사를 사용할 수 있어요. 붙여넣기는 마지막으로 사용한 다른 앱에만 실행해요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                    Divider()
-                    Text("기록할 콘텐츠").font(Theme.font(13, weight: .semibold))
-                    ForEach([( "텍스트", ["public.utf8-plain-text"]), ("서식", ["public.rtf", "public.html"]), ("이미지", ["public.png", "public.tiff", "public.jpeg", "public.heic"]), ("파일", ["public.file-url"])], id: \.0) { title, types in
-                        Toggle(title, isOn: Binding(get: { types.contains { controller.preferences.enabledTypes.contains($0) } }, set: { enabled in controller.preferences.enabledTypes.removeAll { types.contains($0) }; if enabled { controller.preferences.enabledTypes += types } })).toggleStyle(DonySwitch())
+                VStack(alignment: .leading, spacing: 16) {
+                    switch category {
+                    case "일반":
+                        Toggle("로그인할 때 도니홈 실행", isOn: $loginEnabled).toggleStyle(DonySwitch()).onChange(of: loginEnabled) { _, value in do { if value { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { loginEnabled = SMAppService.mainApp.status == .enabled; controller.status = error.localizedDescription } }
+                        Divider()
+                        Toggle("빠른 창 단축키", isOn: $controller.preferences.hotkeyEnabled).toggleStyle(DonySwitch())
+                        ClipboardShortcutRecorder(controller: controller)
+                        ClipboardShortcutRecorder(controller: controller, kind: "고정")
+                        ClipboardShortcutRecorder(controller: controller, kind: "삭제")
+                        choices("검색 방식", options: ["포함", "정규식", "유사", "혼합"], selection: Binding(get: { ["포함", "정규식", "유사", "혼합"][ClipboardSearch.allCases.firstIndex(of: controller.preferences.search) ?? 0] }, set: { controller.preferences.search = ClipboardSearch.allCases[["포함", "정규식", "유사", "혼합"].firstIndex(of: $0) ?? 0] }))
+                        Divider()
+                        Toggle("선택하면 바로 붙여넣기", isOn: behavior(\.pasteAutomatically)).toggleStyle(DonySwitch())
+                        Toggle("서식 없이 붙여넣기", isOn: behavior(\.plainText)).toggleStyle(DonySwitch())
+                        SettingsActionRow(title: "붙여넣기 접근 권한", actionTitle: controller.accessibilityAllowed ? "허용됨" : "권한 요청", enabled: !controller.accessibilityAllowed) { controller.requestAccessibility() }
+                    case "보관":
+                        ForEach([( "텍스트", ["public.utf8-plain-text"]), ("서식", ["public.rtf", "public.html"]), ("이미지", ["public.png", "public.tiff", "public.jpeg", "public.heic"]), ("파일", ["public.file-url"])], id: \.0) { title, types in
+                            Toggle(title, isOn: Binding(get: { types.contains { controller.preferences.enabledTypes.contains($0) } }, set: { enabled in controller.preferences.enabledTypes.removeAll { types.contains($0) }; if enabled { controller.preferences.enabledTypes += types } })).toggleStyle(DonySwitch())
+                        }
+                        Divider()
+                        HStack { Text("최대 기록 수"); Spacer(); TextField("200", value: $controller.preferences.limit, format: .number).frame(width: 90).textFieldStyle(.roundedBorder).onChange(of: controller.preferences.limit) { _, value in controller.preferences.limit = max(1, min(10000, value)) }; Text("개") }
+                        choices("정렬 기준", options: ["최근 복사", "처음 복사", "복사 횟수"], selection: Binding(get: { ["최근 복사", "처음 복사", "복사 횟수"][ClipboardSort.allCases.firstIndex(of: controller.preferences.sort) ?? 0] }, set: { controller.preferences.sort = ClipboardSort.allCases[["최근 복사", "처음 복사", "복사 횟수"].firstIndex(of: $0) ?? 0] }))
+                        Text("기록 용량 · " + DisplayFormat.bytes(Int64(controller.items.reduce(0) { $0 + $1.byteCount }))).font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    case "모양":
+                        choices("빠른 창 위치", options: ["커서", "중앙"], selection: appearance(\.popupPosition))
+                        HStack { Text("이미지 높이"); Spacer(); Slider(value: Binding(get: { Double(appearance(\.imageHeight).wrappedValue) }, set: { appearance(\.imageHeight).wrappedValue = Int($0) }), in: 24...64, step: 4).frame(width: 180); Text("\(appearance(\.imageHeight).wrappedValue)pt").frame(width: 48) }
+                        HStack { Text("미리보기 지연"); Spacer(); TextField("1500", value: appearance(\.previewDelay), format: .number).frame(width: 90).textFieldStyle(.roundedBorder).onChange(of: controller.preferences.appearance?.previewDelay) { _, value in if let value { appearance(\.previewDelay).wrappedValue = max(0, min(5000, value)) } }; Text("ms") }
+                        Divider()
+                        Toggle("특수 기호 표시", isOn: appearance(\.showSpecialCharacters)).toggleStyle(DonySwitch())
+                        Toggle("앱 아이콘 표시", isOn: appearance(\.showAppIcons)).toggleStyle(DonySwitch())
+                        Toggle("빠른 창 제목 표시", isOn: appearance(\.showTitle)).toggleStyle(DonySwitch())
+                        Toggle("빠른 창 하단 메뉴 표시", isOn: appearance(\.showFooter)).toggleStyle(DonySwitch())
+                    case "고정":
+                        Toggle("고정 항목을 아래에 표시", isOn: $controller.preferences.pinsAtBottom).toggleStyle(DonySwitch())
+                        Divider()
+                        if !controller.items.contains(where: \.pinned) { Text("고정한 항목이 없어요").foregroundStyle(Theme.secondary) }
+                        ForEach(controller.pinnedItems) { item in
+                            HStack { DonyMenuButton(title: item.pinLetter.map { "⌘" + $0.uppercased() } ?? "키 선택") { ForEach(controller.availablePinLetters, id: \.self) { letter in Button("⌘" + letter.uppercased()) { controller.assignPinLetter(item, letter: letter) } } }; TextField("제목", text: Binding(get: { item.title }, set: { controller.renamePin(item, title: $0) })).textFieldStyle(.roundedBorder); Button("편집") { pinEditing = item; pinText = item.text ?? "" }.buttonStyle(QuietButton()).disabled(item.text == nil); DonyIconMenu(title: "고정 항목 작업") { Button("위로") { controller.movePin(item, up: true) }; Button("아래로") { controller.movePin(item, up: false) }; Button("고정 해제") { controller.setPinned(item) } } }.frame(height: Theme.listRowHeight)
+                        }
+                    case "제외":
+                        DonyChoices(options: ["앱", "클립보드 타입", "정규식"], selection: $exclusion)
+                        if exclusion == "앱" {
+                            TextEditor(text: listBinding(\.ignoredApps)).frame(height: 180).padding(8).background(Theme.canvas)
+                            HStack { Text("bundle identifier · 한 줄에 하나").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer(); Button("앱 추가") { addExcludedApp() }.buttonStyle(QuietButton()) }
+                            Toggle("목록의 앱만 기록", isOn: $controller.preferences.onlyListedApps).toggleStyle(DonySwitch())
+                        } else if exclusion == "클립보드 타입" {
+                            TextEditor(text: listBinding(\.ignoredTypes)).frame(height: 180).padding(8).background(Theme.canvas)
+                            Text("타입을 한 줄에 하나 입력하세요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        } else {
+                            TextEditor(text: listBinding(\.ignoredPatterns)).frame(height: 180).padding(8).background(Theme.canvas)
+                            Text("패턴을 한 줄에 하나 입력하세요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        }
+                    default:
+                        Toggle("복사 기록 일시 정지", isOn: $controller.preferences.paused).toggleStyle(DonySwitch())
+                        SettingsActionRow(title: "다음 복사 한 번 무시", actionTitle: "무시") { controller.ignoreNextCopy = true }
+                        Divider()
+                        Toggle("도니홈 종료 시 기록 지우기", isOn: behavior(\.clearOnQuit)).toggleStyle(DonySwitch())
+                        Toggle("종료 시 시스템 클립보드도 지우기", isOn: behavior(\.clearSystemOnQuit)).toggleStyle(DonySwitch())
+                        Text("고정한 기록도 지워요. 지운 기록은 복구할 수 없어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        if controller.needsRecovery { SettingsActionRow(title: "기록 파일 복구", actionTitle: "초기화 검토") { controller.resetUnreadableStore() } }
                     }
-                    Text("앱 목록 · bundle identifier, 한 줄에 하나").font(Theme.font(13, weight: .semibold))
-                    TextEditor(text: listBinding(\.ignoredApps)).frame(height: 65).padding(8).background(Theme.canvas)
-                    Toggle("목록의 앱만 기록", isOn: $controller.preferences.onlyListedApps).toggleStyle(DonySwitch())
-                    Text("제외할 pasteboard 타입 · 한 줄에 하나").font(Theme.font(13, weight: .semibold))
-                    TextEditor(text: listBinding(\.ignoredTypes)).frame(height: 55).padding(8).background(Theme.canvas)
-                    Text("제외할 텍스트 정규식 · 한 줄에 하나").font(Theme.font(13, weight: .semibold))
-                    TextEditor(text: listBinding(\.ignoredPatterns)).frame(height: 55).padding(8).background(Theme.canvas)
-                    Text("보호됨·일시적·자동 생성 타입과 주요 비밀번호 앱은 항상 제외해요. 기록은 이 Mac의 로컬 파일에 저장해요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                    if controller.needsRecovery { SettingsActionRow(title: "기록 파일 복구", actionTitle: "보존 후 초기화") { controller.resetUnreadableStore() } }
-                    Text("Maccy의 MIT 코드 기반 · Alex Rodionov").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                }.font(Theme.font(14)).padding(.bottom, 12)
+                }.font(Theme.font(14)).frame(maxWidth: .infinity, alignment: .leading).panel(20).padding(.bottom, 12)
             }
         }.font(Theme.font(14)).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+        .sheet(item: $pinEditing) { item in
+            VStack(spacing: 16) { Text("고정 텍스트 편집").font(Theme.font(20, weight: .bold)); TextEditor(text: $pinText).frame(height: 220); HStack { Spacer(); Button("취소") { pinEditing = nil }.buttonStyle(QuietButton()); Button("저장") { controller.edit(item, text: pinText); pinEditing = nil }.buttonStyle(PrimaryButton()) } }.padding(24).frame(width: 520)
+        }
     }
+    @State private var pinEditing: ClipboardItem?
+    @State private var pinText = ""
+    private func addExcludedApp() {
+        let picker = NSOpenPanel(); picker.canChooseDirectories = false; picker.canChooseFiles = true; picker.allowsMultipleSelection = true; picker.allowedContentTypes = [.application]; picker.directoryURL = URL(fileURLWithPath: "/Applications")
+        guard picker.runModal() == .OK else { return }
+        for url in picker.urls { if let id = Bundle(url: url)?.bundleIdentifier, !controller.preferences.ignoredApps.contains(id) { controller.preferences.ignoredApps.append(id) } }
+    }
+
 }
 struct ClipboardQuickView: View {
     @ObservedObject var controller: ClipboardController
@@ -148,48 +205,86 @@ struct ClipboardQuickView: View {
     @State private var selected = 0
     @FocusState private var searchFocused: Bool
     @State private var monitor: Any?
+    @State private var showSettings = false
+    @State private var hovered: UUID?
+    @State private var preview: ClipboardItem?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack { Text("클립보드").font(Theme.font(20, weight: .bold)); Spacer(); Chip(text: !controller.pasteStack.isEmpty ? "\(controller.pasteStack.count)개 선택" : (controller.preferences.paused ? "일시 정지" : "\(controller.items.count)개")) }
+            HStack { if controller.preferences.appearance?.showTitle != false { Text("클립보드").font(Theme.font(20, weight: .bold)) }; Spacer(); Chip(text: !controller.pasteStack.isEmpty ? "\(controller.pasteStack.count)개 선택" : (controller.preferences.paused ? "일시 정지" : "\(controller.items.count)개")) }
             TextField("복사한 내용 검색", text: $controller.query).textFieldStyle(.plain).font(Theme.font(14)).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 10)).focused($searchFocused)
             ScrollViewReader { reader in
                 ScrollView {
-                    LazyVStack(spacing: 5) {
+                    LazyVStack(spacing: 0) {
                         ForEach(Array(controller.visibleItems.enumerated()), id: \.element.id) { index, item in
-                            Button { controller.copy(item); dismiss() } label: {
+                            Button { controller.selectItem(item, flags: NSApp.currentEvent?.modifierFlags ?? []) } label: {
                                 HStack(spacing: 12) {
                                     if controller.pasteStack.contains(item.id) { DonyIcon("checkmark", size: 12).foregroundStyle(Theme.primary) }
                                     if item.pinned { DonyIcon("pin.fill", size: 12).foregroundStyle(Theme.primary) }
-                                    if let data = item.imageData, let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFit().frame(width: 35, height: 35) }
-                                    Text(item.title).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                                    if let data = item.imageData, let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFit().frame(width: CGFloat(controller.preferences.appearance?.imageHeight ?? 40), height: CGFloat(controller.preferences.appearance?.imageHeight ?? 40)) }
+                                    if controller.preferences.appearance?.showAppIcons == true, let id = item.application, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) { Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 20, height: 20) }
+                                    Text(displayTitle(item.title)).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
                                     if let letter = item.pinLetter, item.pinned { Text("⌘" + letter.uppercased()).font(Theme.font(11)).foregroundStyle(Theme.secondary) }
                                     else if let numericIndex = controller.visibleItems.filter({ !$0.pinned }).firstIndex(where: { $0.id == item.id }), numericIndex < 9 { Text("⌘\(numericIndex + 1)").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
-                                }.font(Theme.font(13)).padding(12).background(selected == index ? Theme.blueWash : .white).clipShape(RoundedRectangle(cornerRadius: 10))
-                            }.buttonStyle(.plain).id(index)
+                                }.font(Theme.font(13)).padding(.horizontal, 12).frame(height: item.imageData == nil ? Theme.quickRowHeight : CGFloat(controller.preferences.appearance?.imageHeight ?? 40) + 8).background(selected == index ? Theme.blueWash : .white).clipShape(RoundedRectangle(cornerRadius: 10))
+                            }.buttonStyle(.plain).id(index).onHover { active in if active { selected = index; hovered = item.id } else if hovered == item.id { hovered = nil; preview = nil } }
                         }
                     }
                 }.onChange(of: selected) { _, value in reader.scrollTo(value) }
             }
             if !controller.status.isEmpty { Text(controller.status).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(2) }
-            Text("↵ 복사 · ⌥↵ 붙여넣기 · ⇧↵ 순서 준비 · ⌘A 모두 선택 · ⌥S 선택 · ⌥R 역순").font(Theme.font(10)).foregroundStyle(Theme.secondary)
+            if controller.preferences.appearance?.showFooter != false {
+                Divider()
+                HStack { Button("설정") { showSettings = true }.buttonStyle(QuietButton()); Spacer(); Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary); DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } } }
+            }
         }.padding(22).background(Theme.canvas).foregroundStyle(Theme.ink)
-        .onChange(of: controller.query) { _, _ in selected = 0 }
+        .sheet(isPresented: $showSettings) { ClipboardSettingsView(controller: controller).padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight).background(Theme.canvas).preferredColorScheme(.light) }
+        .task(id: hovered) {
+            preview = nil
+            guard let id = hovered, !showSettings else { return }
+            try? await Task.sleep(for: .milliseconds(controller.preferences.appearance?.previewDelay ?? 1500))
+            guard !Task.isCancelled, hovered == id else { return }
+            preview = controller.items.first { $0.id == id }
+        }
+        .popover(item: $preview) { item in
+            ScrollView { if let data = item.imageData, let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFit() } else { Text(item.text ?? item.title).font(Theme.font(13)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }.padding(16).frame(width: 360, height: 240)
+        }
+        .onChange(of: showSettings) { _, shown in if shown { hovered = nil; preview = nil } }
+        .onChange(of: controller.query) { _, _ in selected = 0; hovered = nil; preview = nil }
         .onAppear { searchFocused = true; if monitor == nil { monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in handle(event) ? nil : event } } }
         .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
+    }
+    private func matches(_ event: NSEvent, shortcut: ClipboardKeyShortcut) -> Bool {
+        let flags = event.modifierFlags
+        var value: UInt32 = 0
+        if flags.contains(.command) { value |= UInt32(cmdKey) }
+        if flags.contains(.option) { value |= UInt32(optionKey) }
+        if flags.contains(.shift) { value |= UInt32(shiftKey) }
+        if flags.contains(.control) { value |= UInt32(controlKey) }
+        return UInt32(event.keyCode) == shortcut.keyCode && value == shortcut.modifiers
+    }
+    private func displayTitle(_ value: String) -> String {
+        guard controller.preferences.appearance?.showSpecialCharacters == true else { return value.replacingOccurrences(of: "\n", with: " ") }
+        return value.replacingOccurrences(of: "\t", with: "⇥").replacingOccurrences(of: "\n", with: "↵").replacingOccurrences(of: " ", with: "·")
     }
     private func handle(_ event: NSEvent) -> Bool {
         guard NSApp.keyWindow?.title == "클립보드" else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let values = controller.visibleItems
+        if flags.contains(.command), event.charactersIgnoringModifiers == "," { showSettings = true; return true }
         if event.keyCode == 53 { dismiss(); return true }
         if event.keyCode == 125 { selected = min(max(0, values.count - 1), selected + 1); return true }
         if event.keyCode == 126 { selected = max(0, selected - 1); return true }
+        if values.indices.contains(selected) {
+            let item = values[selected]
+            if matches(event, shortcut: controller.preferences.deleteShortcut ?? ClipboardKeyShortcut(keyCode: 51, modifiers: UInt32(optionKey))) { controller.delete(item); selected = min(selected, max(0, values.count - 2)); return true }
+            if matches(event, shortcut: controller.preferences.pinShortcut ?? ClipboardKeyShortcut(keyCode: 35, modifiers: UInt32(optionKey))) { controller.setPinned(item); return true }
+        }
         if let letter = event.charactersIgnoringModifiers?.lowercased(), let pinned = values.first(where: { $0.pinned && $0.pinLetter == letter }), flags.contains(.command) || flags.contains(.option) {
-            if flags.contains(.option) { controller.paste(pinned, plainText: flags.contains(.shift)) } else { controller.copy(pinned); dismiss() }; return true
+            controller.selectItem(pinned, flags: flags); return true
         }
         let numericItems = values.filter { !$0.pinned }
         if let character = event.charactersIgnoringModifiers, let number = Int(character), (1...9).contains(number), number <= numericItems.count {
-            if flags.contains(.option) { controller.paste(numericItems[number - 1], plainText: flags.contains(.shift)); return true }
+            if flags.contains(.option) { controller.selectItem(numericItems[number - 1], flags: flags); return true }
             if flags.contains(.command) { controller.copy(numericItems[number - 1]); dismiss(); return true }
         }
         if flags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "a" { controller.selectStack(values); return true }
@@ -197,27 +292,27 @@ struct ClipboardQuickView: View {
         if flags.contains([.option, .command]), event.keyCode == 51 { controller.clear(includePinned: flags.contains(.shift)); selected = 0; return true }
         guard values.indices.contains(selected) else { return false }; let item = values[selected]
         if flags.contains(.option), event.charactersIgnoringModifiers?.lowercased() == "s" { controller.toggleStack(item); return true }
-        if event.keyCode == 36 || event.keyCode == 76 { if flags.contains(.shift), !flags.contains(.option), !controller.pasteStack.isEmpty { controller.startStack(); dismiss() } else if flags.contains(.option) { controller.paste(item, plainText: flags.contains(.shift)) } else { controller.copy(item); dismiss() }; return true }
-        if flags.contains(.option), event.keyCode == 51 { controller.delete(item); selected = min(selected, max(0, values.count - 2)); return true }
-        if flags.contains(.option), event.charactersIgnoringModifiers?.lowercased() == "p" { controller.setPinned(item); return true }
+        if event.keyCode == 36 || event.keyCode == 76 { if flags.contains(.shift), !flags.contains(.option), !controller.pasteStack.isEmpty { controller.startStack(); dismiss() } else { controller.selectItem(item, flags: flags) }; return true }
         return false
     }
 }
 
 struct ClipboardShortcutRecorder: View {
     @ObservedObject var controller: ClipboardController
+    var kind = "열기"
     @State private var recording = false
     @State private var monitor: Any?
     var body: some View {
         HStack {
-            Text("빠른 창 단축키").font(Theme.font(14, weight: .medium))
+            Text(kind == "열기" ? "빠른 창 단축키" : kind + " 단축키").font(Theme.font(14, weight: .medium))
             Spacer()
             Button(recording ? "조합키 입력 · Esc 취소" : shortcutName) { beginRecording() }.buttonStyle(QuietButton())
         }.onDisappear { endRecording() }
     }
     private var shortcutName: String {
-        let mods = controller.preferences.hotkeyModifiers
-        return (mods & UInt32(controlKey) != 0 ? "⌃" : "") + (mods & UInt32(optionKey) != 0 ? "⌥" : "") + (mods & UInt32(shiftKey) != 0 ? "⇧" : "") + (mods & UInt32(cmdKey) != 0 ? "⌘" : "") + ClipboardKeyboardLayout.name(for: UInt16(controller.preferences.hotkeyKeyCode))
+        let shortcut = kind == "고정" ? (controller.preferences.pinShortcut ?? ClipboardKeyShortcut(keyCode: 35, modifiers: UInt32(optionKey))) : kind == "삭제" ? (controller.preferences.deleteShortcut ?? ClipboardKeyShortcut(keyCode: 51, modifiers: UInt32(optionKey))) : ClipboardKeyShortcut(keyCode: controller.preferences.hotkeyKeyCode, modifiers: controller.preferences.hotkeyModifiers)
+        let mods = shortcut.modifiers
+        return (mods & UInt32(controlKey) != 0 ? "⌃" : "") + (mods & UInt32(optionKey) != 0 ? "⌥" : "") + (mods & UInt32(shiftKey) != 0 ? "⇧" : "") + (mods & UInt32(cmdKey) != 0 ? "⌘" : "") + ClipboardKeyboardLayout.name(for: UInt16(shortcut.keyCode))
     }
     private func beginRecording() {
         endRecording(); recording = true
@@ -230,8 +325,10 @@ struct ClipboardShortcutRecorder: View {
             if flags.contains(.option) { modifiers |= UInt32(optionKey) }
             if flags.contains(.control) { modifiers |= UInt32(controlKey) }
             if flags.contains(.shift) { modifiers |= UInt32(shiftKey) }
-            controller.preferences.hotkeyKeyCode = UInt32(event.keyCode)
-            controller.preferences.hotkeyModifiers = modifiers
+            let shortcut = ClipboardKeyShortcut(keyCode: UInt32(event.keyCode), modifiers: modifiers)
+            if kind == "고정" { controller.preferences.pinShortcut = shortcut }
+            else if kind == "삭제" { controller.preferences.deleteShortcut = shortcut }
+            else { controller.preferences.hotkeyKeyCode = shortcut.keyCode; controller.preferences.hotkeyModifiers = shortcut.modifiers }
             endRecording(); return nil
         }
     }

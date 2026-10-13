@@ -262,7 +262,7 @@ struct PreferencesView: View {
                 }.padding(.horizontal, 24).padding(.bottom, 24)
             }
         }.frame(width: 560, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
-            .sheet(isPresented: $clipboardSettingsShown) { ClipboardSettingsView(controller: clipboard).padding(24).frame(width: 560, height: 620).background(Theme.canvas).preferredColorScheme(.light) }
+            .sheet(isPresented: $clipboardSettingsShown) { ClipboardSettingsView(controller: clipboard).padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight).background(Theme.canvas).preferredColorScheme(.light) }
             .sheet(isPresented: $informationShown) { AboutView() }
             .sheet(isPresented: $model.permissionsShown) { PermissionsView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled() }
     }
