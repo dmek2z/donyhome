@@ -41,17 +41,10 @@ public enum ProjectCleanup {
     public static func latestChange(_ root: URL, token: ScanToken, ignoringDirectoryDates: Set<String> = []) throws -> Date {
         let fp = try FileSafety.fingerprint(root)
         var latest = ignoringDirectoryDates.contains(root.path) ? 0 : Double(fp.seconds) + Double(fp.nanoseconds) / 1e9
-        var failure: Error?
-        guard let iterator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, errorHandler: { _, error in failure = error; return false }) else { throw DonyError.unsupported }
-        var count = 0
-        for case let url as URL in iterator {
-            try token.check(); count += 1
-            guard count <= 100_000 else { throw DonyError.scanLimit }
-            let child = try FileSafety.fingerprint(url)
+        try ProjectFileWalker.walk(root: root, token: token) { url, child in
             guard child.isRegular || child.isDirectory else { throw DonyError.unsafePath }
             if !child.isDirectory || !ignoringDirectoryDates.contains(url.path) { latest = max(latest, Double(child.seconds) + Double(child.nanoseconds) / 1e9) }
         }
-        if let failure { throw failure }
         return Date(timeIntervalSince1970: latest)
     }
     private static func eligible(_ project: LinkedProject, days: Int, scope: ProjectCleanupScope, activePaths: [String], runningTools: Set<AITool>, now: Date, token: ScanToken, ignoringDirectoryDates: Set<String> = []) throws -> URL {
@@ -129,16 +122,9 @@ public enum ProjectCleanup {
             rows.append("\(url.path):\(fp.identity):\(fp.mode):\(fp.isDirectory ? 0 : fp.size):\(age)")
         }
         try row(root)
-        var failure: Error?
-        guard let iterator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, errorHandler: { _, error in failure = error; return false }) else { throw DonyError.unsupported }
-        var count = 0
-        for case let url as URL in iterator {
-            try token.check(); count += 1
-            guard count <= 100_000 else { throw DonyError.scanLimit }
-            if excluded.contains(url.path) { iterator.skipDescendants(); continue }
-            try row(url)
+        try ProjectFileWalker.walk(root: root, token: token, shouldDescend: { !excluded.contains($0.path) }) { url, _ in
+            if !excluded.contains(url.path) { try row(url) }
         }
-        if let failure { throw failure }
         var hash = SHA256()
         for row in rows.sorted() { hash.update(data: Data((row + "\n").utf8)) }
         return hash.finalize().map { String(format: "%02x", $0) }.joined()

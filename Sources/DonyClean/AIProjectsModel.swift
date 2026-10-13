@@ -52,7 +52,8 @@ extension AppModel {
         saveProjectSettings()
     }
     func discoverProjects(includeInventory: Bool = true) {
-        guard let (token, _) = begin("AI 작업 이력에서 프로젝트 찾기") else { return }
+        guard let (token, epoch) = begin(includeInventory ? "프로젝트 파일 검사" : "개발 도구 연동 확인") else { return }
+        let report = progress(epoch)
         Task {
             let selectedTools = connectedTools
             let processes = snapshot.processes; let applicationTools = aiApplicationTools
@@ -62,7 +63,7 @@ extension AppModel {
                 var runtime = DevelopmentRuntime.discover(tools: selectedTools, token: token)
                 runtime.projects += DevelopmentRuntime.runningProjects(processes: processes, currentUID: getuid(), applicationTools: applicationTools, tools: selectedTools)
                 let worktrees = ProjectInventory.discoverManagedWorktrees(token: token).filter { selectedTools.contains($0.tool) }
-                let inventory = includeInventory ? ProjectInventory.inspect(projects: history.projects + runtime.projects + worktrees + linkedProjectsSnapshot, token: token) : []
+                let inventory = includeInventory ? ProjectInventory.inspect(projects: history.projects + runtime.projects + worktrees + linkedProjectsSnapshot, token: token, progress: report) : []
                 return (history, runtime, worktrees, inventory)
             }.value
             mergeDiscoveredProjects(result.0.projects + result.1.projects + result.2)

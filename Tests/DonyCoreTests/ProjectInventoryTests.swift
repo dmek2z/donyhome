@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Testing
 @testable import DonyCore
 
@@ -32,4 +33,18 @@ import Testing
         #expect(row.managedWorktree)
         #expect(throws: (any Error).self) { try ProjectCleanup.projectRoot(root.path) }
     }
+    @Test func metadataWalkerDoesNotOpenFIFOAndHonorsCancellationAndBounds() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        #expect(mkfifo(root.appendingPathComponent("pipe").path, 0o600) == 0)
+        try Data("source".utf8).write(to: root.appendingPathComponent("code"))
+        var regular = 0
+        try ProjectFileWalker.walk(root: root, token: ScanToken()) { _, stamp in if stamp.isRegular { regular += 1 } }
+        #expect(regular == 1)
+        let cancelled = ScanToken(); cancelled.cancel()
+        #expect(throws: (any Error).self) { try ProjectFileWalker.walk(root: root, token: cancelled) { _, _ in } }
+        #expect(throws: (any Error).self) { try ProjectFileWalker.walk(root: root, token: ScanToken(), limit: 1) { _, _ in } }
+    }
+
 }

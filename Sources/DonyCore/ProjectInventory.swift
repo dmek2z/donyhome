@@ -31,27 +31,24 @@ public enum ProjectInventory {
                 let fp = try FileSafety.fingerprint(root)
                 guard fp.isDirectory, FileSafety.allowedRoot(root, kind: .project) else { throw DonyError.unsafePath }
                 entry.managedWorktree = (try? FileSafety.fingerprint(root.appendingPathComponent(".git")))?.isRegular == true
-                var failure: Error?
-                guard let iterator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, errorHandler: { _, error in failure = error; return false }) else { throw DonyError.unsupported }
                 var visited = 0
-                for case let file as URL in iterator {
-                    try token.check(); visited += 1
-                    guard visited <= 100_000 else { throw DonyError.scanLimit }
-                    let child = try FileSafety.fingerprint(file)
-                    guard child.isDirectory || child.isRegular else { continue }
+                try ProjectFileWalker.walk(root: root, token: token) { file, child in
+                    visited += 1
+                    guard child.isDirectory || child.isRegular else { return }
                     let date = Date(timeIntervalSince1970: Double(child.seconds))
                     entry.lastActivity = max(entry.lastActivity ?? .distantPast, date)
-                    guard child.isRegular else { continue }
+                    if visited.isMultiple(of: 250) { progress?(visited, root.lastPathComponent) }
+                    guard child.isRegular else { return }
                     let relative = String(file.path.dropFirst(root.path.count + 1))
                     entry.bytes += child.size; entry.files += 1
                     if ProjectCleanup.generatedPaths.contains(where: { relative.hasPrefix($0 + "/") }) { entry.generatedBytes += child.size }
                     if contextPaths.contains(where: { relative == $0 || relative.hasPrefix($0 + "/") }) { entry.contextBytes += child.size; entry.contextFiles += 1 }
-                    if visited.isMultiple(of: 250) { progress?(visited, root.lastPathComponent) }
                 }
-                if let failure { throw failure }
                 progress?(visited, root.lastPathComponent + " · 원격 저장 확인")
                 entry.backup = entry.managedWorktree ? GitBackupReport(false, "관리 도구 worktree") : GitBackup.check(root: root)
-            } catch { if !token.isCancelled { entry.issues.append(ScanIssue(path: path, error: error)) } }
+            } catch {
+                entry.issues.append(token.isCancelled ? ScanIssue(path: path, message: "검사 중단 · 일부 결과") : ScanIssue(path: path, error: error))
+            }
             entries.append(entry)
         }
         return entries

@@ -66,34 +66,23 @@ public enum GitBackup {
     }
     public static func containsNestedRepository(root: URL) throws -> Bool {
         let base = try FileSafety.canonicalRoot(root)
-        var failure: Error?
-        guard let iterator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil, errorHandler: { _, error in failure = error; return false }) else { throw DonyError.unsupported }
-        var count = 0
-        for case let file as URL in iterator {
-            count += 1
-            guard count <= 100_000 else { throw DonyError.scanLimit }
-            if file.path == base.appendingPathComponent(".git").path { iterator.skipDescendants(); continue }
-            if file.lastPathComponent == ".git" { return true }
+        var found = false
+        try ProjectFileWalker.walk(root: base, token: ScanToken(), shouldDescend: { $0.lastPathComponent != ".git" }) { file, _ in
+            if file.path != base.appendingPathComponent(".git").path, file.lastPathComponent == ".git" { found = true }
         }
-        if let failure { throw failure }
-        return false
+        return found
     }
 
     public static func structuralCheck(root: URL, run: ((URL) throws -> String)? = nil) -> GitBackupReport {
         do {
             let base = try FileSafety.canonicalRoot(root)
             var repositories: [URL] = []
-            var failure: Error?
-            guard let iterator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil, errorHandler: { _, error in failure = error; return false }) else { throw DonyError.unsupported }
-            var count = 0
-            for case let file as URL in iterator {
-                count += 1; guard count <= 100_000 else { throw DonyError.scanLimit }
+            try ProjectFileWalker.walk(root: base, token: ScanToken(), shouldDescend: { $0.lastPathComponent != ".git" }) { file, stamp in
                 if file.lastPathComponent == ".git" {
-                    guard try FileSafety.fingerprint(file).isDirectory else { return GitBackupReport(false, "관리 도구 worktree · 보관") }
-                    repositories.append(file.deletingLastPathComponent()); iterator.skipDescendants()
+                    guard stamp.isDirectory else { throw DonyError.unsupported }
+                    repositories.append(file.deletingLastPathComponent())
                 }
             }
-            if let failure { throw failure }
             for repository in repositories {
                 let listing: String
                 if let run { listing = try run(repository) }
