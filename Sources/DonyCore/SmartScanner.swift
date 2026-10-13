@@ -8,12 +8,13 @@ public struct SmartScanResult: Sendable {
     public var developer = DeveloperResult()
     public var leftovers = LeftoverResult()
     public var clutter = ClutterResult()
+    public var trash = ScanResult()
     public var similar = SimilarResult()
     public var space = SpaceResult()
     public var applications = ApplicationResult()
     public var cancelled = false
     public var recommended: [FileCandidate] { cleanup.items.filter { decisions[$0.id]?.isRecommended == true } }
-    public var issues: [ScanIssue] { cleanup.issues + developer.issues + largeFiles.issues + duplicates.issues + applications.issues + leftovers.issues + clutter.oldFiles.issues + space.issues + similar.issues }
+    public var issues: [ScanIssue] { cleanup.issues + developer.issues + largeFiles.issues + duplicates.issues + applications.issues + leftovers.issues + clutter.oldFiles.issues + space.issues + similar.issues + trash.issues }
     public init() {}
 }
 
@@ -75,7 +76,11 @@ public enum SmartScanner {
             progress?(0, "유사 사진")
             result.similar = SimilarPhotoFinder.find(root: folder, token: token, progress: progress)
         }
-        result.cancelled = result.similar.cancelled || result.developer.cancelled || result.leftovers.cancelled || result.clutter.oldFiles.cancelled || result.clutter.installers.cancelled || result.space.cancelled || token.isCancelled || result.cleanup.cancelled || result.largeFiles.cancelled || result.duplicates.cancelled || result.applications.cancelled
+        if !token.isCancelled {
+            progress?(0, "휴지통 항목")
+            result.trash = TrashEmptyService.scan(home: home, token: token)
+        }
+        result.cancelled = result.trash.cancelled || result.similar.cancelled || result.developer.cancelled || result.leftovers.cancelled || result.clutter.oldFiles.cancelled || result.clutter.installers.cancelled || result.space.cancelled || token.isCancelled || result.cleanup.cancelled || result.largeFiles.cancelled || result.duplicates.cancelled || result.applications.cancelled
         // Partial results are useful for review, but never become an executable recommendation plan.
         if result.cancelled { result.decisions.removeAll() }
         return result

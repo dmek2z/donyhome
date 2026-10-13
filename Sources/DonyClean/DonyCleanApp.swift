@@ -25,7 +25,7 @@ import DonyCore
             let output: [String: Any] = [
                 "readOnly": true, "cancelled": result.cancelled, "folder": folder.path,
                 "developerFound": result.developer.items.count, "developerRecommended": result.developer.recommended.count,
-                "similarGroups": result.similar.groups.count, "leftoverCandidates": result.leftovers.items.count, "oldFiles": result.clutter.oldFiles.items.count, "installers": result.clutter.installers.items.count, "mappedBytes": result.space.totalBytes,
+                "trashItems": result.trash.items.count, "trashBytes": result.trash.totalBytes, "similarGroups": result.similar.groups.count, "leftoverCandidates": result.leftovers.items.count, "oldFiles": result.clutter.oldFiles.items.count, "installers": result.clutter.installers.items.count, "mappedBytes": result.space.totalBytes,
                 "cleanupFound": result.cleanup.items.count, "cleanupRecommended": result.recommended.count,
                 "duplicateGroups": result.duplicates.groups.count, "duplicateCopies": result.duplicates.groups.flatMap(\.copies).count,
                 "largeFiles": result.largeFiles.items.count, "applications": result.applications.apps.count,

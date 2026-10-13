@@ -7,6 +7,7 @@ struct ToolsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "유지보수")
+            TrashView()
             task("DNS 캐시 초기화", detail: "DNS 변경 후 사이트가 연결되지 않을 때", icon: "arrow.clockwise", action: .flushDNS)
             task("Spotlight 재색인", detail: "파일 검색이 누락되거나 정확하지 않을 때", icon: "magnifyingglass", action: .reindexSpotlight)
             VStack(alignment: .leading, spacing: 16) {

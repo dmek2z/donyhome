@@ -50,6 +50,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var filesDate: Date?
     @Published var duplicateDate: Date?
     @Published var folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+    @Published var trashItems = ScanResult()
+    @Published var trashDate: Date?
     @Published var similar = SimilarResult()
     @Published var similarDate: Date?
     @Published var developer = DeveloperResult()
@@ -218,6 +220,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             clutter = result.clutter; clutterDate = smartDate
             spaceMap = result.space; spaceRoot = folder; spaceDate = smartDate
             similar = result.similar; similarDate = smartDate
+            trashItems = result.trash; trashDate = smartDate
             finish(result.cancelled, issues: result.issues)
         }
     }

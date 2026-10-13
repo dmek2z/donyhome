@@ -42,3 +42,5 @@
 - [x] Independent focused review, fix Important findings with regressions, update local installed app and commit.
 
 User-scope addition: SimilarPhotoFinder/Vision CPU image comparison, user-chosen retained photo, preview/manual Trash and cross-recommendation protection. 200-image bound, source identity validation, exact duplicate overlap and corrupted-image errors tested.
+
+Final addition: current-user Trash inspection and immutable-confirmation-list permanent emptying, exact root/fingerprint/new-entry/running-app guards, verified only on generated temporary fixtures. Final 53 tests / 14 suites pass.

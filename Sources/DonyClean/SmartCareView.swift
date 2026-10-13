@@ -41,6 +41,8 @@ struct SmartCareView: View {
                     Divider()
                     reviewRow("폴더 용량 지도", icon: "externaldrive", detail: DisplayFormat.bytes(model.spaceMap.totalBytes), section: .space)
                     Divider()
+                    reviewRow("휴지통", icon: "trash", detail: "\(model.trashItems.items.count)개 · " + DisplayFormat.bytes(model.trashItems.totalBytes), section: .tools)
+                    Divider()
                     reviewRow("설치 앱", icon: "square.stack.3d.up", detail: "\(model.applications.apps.count)개", section: .applications, mode: "설치 앱")
                 }
                 HStack {
