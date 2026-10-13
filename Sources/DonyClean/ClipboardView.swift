@@ -130,6 +130,8 @@ struct ClipboardSettingsView: View {
                         Divider()
                         Toggle("빠른 창 단축키", isOn: $controller.preferences.hotkeyEnabled).toggleStyle(DonySwitch())
                         ClipboardShortcutRecorder(controller: controller)
+                        if let issue = controller.hotkeyError { Text(issue).font(Theme.font(12)).foregroundStyle(Theme.red) }
+                        else if controller.hotkeyRegistered { Chip(text: "전역 단축키 사용 가능", color: Theme.success) }
                         ClipboardShortcutRecorder(controller: controller, kind: "고정")
                         ClipboardShortcutRecorder(controller: controller, kind: "삭제")
                         choices("검색 방식", options: ["포함", "정규식", "유사", "혼합"], selection: Binding(get: { ["포함", "정규식", "유사", "혼합"][ClipboardSearch.allCases.firstIndex(of: controller.preferences.search) ?? 0] }, set: { controller.preferences.search = ClipboardSearch.allCases[["포함", "정규식", "유사", "혼합"].firstIndex(of: $0) ?? 0] }))
@@ -215,6 +217,7 @@ struct ClipboardQuickView: View {
             ScrollViewReader { reader in
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        if controller.visibleItems.isEmpty { Text(controller.query.isEmpty ? "아직 복사 기록이 없어요" : "검색 결과가 없어요").font(Theme.font(13)).foregroundStyle(Theme.secondary).frame(maxWidth: .infinity, minHeight: 40) }
                         ForEach(Array(controller.visibleItems.enumerated()), id: \.element.id) { index, item in
                             Button { controller.selectItem(item, flags: NSApp.currentEvent?.modifierFlags ?? []) } label: {
                                 HStack(spacing: 12) {
@@ -236,7 +239,8 @@ struct ClipboardQuickView: View {
                 Divider()
                 HStack { Button("설정") { showSettings = true }.buttonStyle(QuietButton()); Spacer(); Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary); DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } } }
             }
-        }.padding(22).background(Theme.canvas).foregroundStyle(Theme.ink)
+        }.padding(22).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 20)).foregroundStyle(Theme.ink)
+        .onChange(of: controller.popupGeneration) { _, _ in selected = 0; searchFocused = true; hovered = nil; preview = nil }
         .sheet(isPresented: $showSettings) { ClipboardSettingsView(controller: controller).padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight).background(Theme.canvas).preferredColorScheme(.light) }
         .task(id: hovered) {
             preview = nil

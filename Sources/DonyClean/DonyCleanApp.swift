@@ -73,6 +73,7 @@ struct DonyHomeApp: App {
             DonyMenuView().environmentObject(model).environmentObject(clipboard)
         } label: {
             CodingCharacterLabel(animator: model.menuAnimator)
+                .onAppear { lifecycle.clipboard = clipboard; clipboard.start() }
         }.menuBarExtraStyle(.window)
     }
 }
@@ -125,6 +126,7 @@ struct RootView: View {
             }.background(Theme.canvas)
         }.foregroundStyle(Theme.ink).tint(Theme.primary)
             .onAppear {
+                // Idempotent fallback; menu-bar startup also runs without this window.
                 lifecycle.clipboard = clipboard
                 clipboard.start()
                 model.resumePendingScan()

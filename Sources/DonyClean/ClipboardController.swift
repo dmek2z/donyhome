@@ -4,12 +4,21 @@ import Carbon
 import Vision
 import DonyCore
 
+/// Takes keyboard focus without activating or raising the utility's main window.
+private final class ClipboardPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor final class ClipboardController: ObservableObject {
     @Published private(set) var items: [ClipboardItem] = []
     @Published var preferences: ClipboardPreferences { didSet { savePreferences(); if oldValue.hotkeyEnabled != preferences.hotkeyEnabled || oldValue.hotkeyKeyCode != preferences.hotkeyKeyCode || oldValue.hotkeyModifiers != preferences.hotkeyModifiers { registerHotkey() } } }
     @Published var query = ""
     @Published var status = ""
     @Published var ignoreNextCopy = false
+    @Published private(set) var hotkeyRegistered = false
+    @Published private(set) var hotkeyError: String?
+    @Published private(set) var popupGeneration = 0
     @Published private(set) var pasteStack: [UUID] = []
     private let pasteboard: NSPasteboard
     private let store: ClipboardStore
@@ -24,6 +33,7 @@ import DonyCore
     private var activationObserver: NSObjectProtocol?
     private var pendingPaste: Task<Void, Never>?
     private var stackMonitor: Any?
+    private var outsideClickMonitor: Any?
     private var stackActive = false
     private var stackPlain = false
     private var stackPreparedCount: Int?
@@ -67,6 +77,7 @@ import DonyCore
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil
         if let handler { RemoveEventHandler(handler) }; handler = nil
         pendingPaste?.cancel(); if let stackMonitor { NSEvent.removeMonitor(stackMonitor) }; stackMonitor = nil; panel?.close()
+        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }; outsideClickMonitor = nil
     }
     private func rememberSource(_ app: NSRunningApplication?) {
         guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
@@ -224,33 +235,50 @@ import DonyCore
     }
     func showPopup() {
         rememberSource(NSWorkspace.shared.frontmostApplication); query = ""
+        popupGeneration += 1
         if panel == nil {
-            let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 600, height: 620), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
+            let window = ClipboardPanel(contentRect: NSRect(x: 0, y: 0, width: 600, height: 620), styleMask: [.nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
             window.title = "클립보드"; window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-            window.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }))
+            window.backgroundColor = .clear; window.isOpaque = false; window.hasShadow = true; window.hidesOnDeactivate = false
+            window.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }).preferredColorScheme(.light))
             panel = window
+            outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                MainActor.assumeIsolated { guard self?.panel?.attachedSheet == nil else { return }; self?.panel?.orderOut(nil) }
+            }
         }
-        if preferences.appearance?.popupPosition == "중앙" { panel?.center() }
-        else if let panel {
+        if let panel {
             let point = NSEvent.mouseLocation
-            let bounds = NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame ?? NSScreen.main!.visibleFrame
-            panel.setFrameOrigin(NSPoint(x: min(max(bounds.minX, point.x), bounds.maxX - panel.frame.width), y: min(max(bounds.minY, point.y - panel.frame.height), bounds.maxY - panel.frame.height)))
+            guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main else { status = "목록을 표시할 화면을 찾지 못했어요."; return }
+            let bounds = screen.visibleFrame
+            let contentHeight = visibleItems.prefix(30).reduce(CGFloat(0)) { $0 + ($1.imageData == nil ? Theme.quickRowHeight : CGFloat(preferences.appearance?.imageHeight ?? 40) + 8) }
+            let size = ClipboardPopupLayout.size(availableWidth: bounds.width, availableHeight: bounds.height, contentHeight: contentHeight)
+            panel.setContentSize(NSSize(width: size.width, height: size.height))
+            if preferences.appearance?.popupPosition == "중앙" { panel.setFrameOrigin(NSPoint(x: bounds.midX - panel.frame.width / 2, y: bounds.midY - panel.frame.height / 2)) }
+            else { panel.setFrameOrigin(NSPoint(x: min(max(bounds.minX, point.x), bounds.maxX - panel.frame.width), y: min(max(bounds.minY, point.y - panel.frame.height), bounds.maxY - panel.frame.height))) }
         }
-        panel?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        panel?.makeKeyAndOrderFront(nil)
     }
     private func registerHotkey() {
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil
+        hotkeyRegistered = false; hotkeyError = nil
         guard timer != nil, preferences.hotkeyEnabled else { return }
         if handler == nil {
             var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
+            let installed = InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
                 guard let context else { return OSStatus(eventNotHandledErr) }
+                var identity = EventHotKeyID()
+                guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &identity) == noErr, identity.signature == 0x444F4E59, identity.id == 1 else { return OSStatus(eventNotHandledErr) }
                 let controller = Unmanaged<ClipboardController>.fromOpaque(context).takeUnretainedValue()
-                Task { @MainActor in controller.showPopup() }; return noErr
+                Task { @MainActor in
+                    if controller.panel?.isVisible == true { controller.panel?.orderOut(nil) }
+                    else { controller.showPopup() }
+                }; return noErr
             }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
+            guard installed == noErr else { hotkeyError = "전역 단축키를 준비하지 못했어요. 다시 실행해 주세요."; status = hotkeyError!; return }
         }
         let result = RegisterEventHotKey(preferences.hotkeyKeyCode, preferences.hotkeyModifiers, EventHotKeyID(signature: 0x444F4E59, id: 1), GetApplicationEventTarget(), 0, &hotkey)
-        if result != noErr { status = "단축키를 등록하지 못했어요. 다른 앱의 단축키와 겹치는지 확인해 주세요." }
+        hotkeyRegistered = result == noErr
+        if result != noErr { hotkeyError = "다른 앱과 단축키가 겹치거나 등록이 거부됐어요. Maccy가 같은 키를 사용한다면 둘 중 하나의 단축키를 바꿔주세요."; status = hotkeyError! }
     }
     private func persist() {
         guard storeWritable else { return }

@@ -4,6 +4,16 @@ import Carbon
 @testable import DonyCore
 
 @Suite struct ClipboardHistoryTests {
+    @Test func quickPopupFitsTheActiveScreenAndDoesNotWasteHeightForShortHistory() {
+        let short = ClipboardPopupLayout.size(availableWidth: 1200, availableHeight: 1000, contentHeight: 72)
+        let long = ClipboardPopupLayout.size(availableWidth: 1200, availableHeight: 1000, contentHeight: 2000)
+        #expect(short.height < long.height)
+        let small = ClipboardPopupLayout.size(availableWidth: 480, availableHeight: 400, contentHeight: 2000)
+        #expect(small.width <= 480 && small.height <= 400)
+        #expect(small.width > 0 && small.height > 0)
+        let unavailable = ClipboardPopupLayout.size(availableWidth: 0, availableHeight: 0, contentHeight: 2000)
+        #expect(unavailable.width == 0 && unavailable.height == 0)
+    }
     @Test func selectionModifiersOverrideAutomaticPasteWithoutLosingPlainTextChoice() {
         var settings = ClipboardBehavior(); settings.pasteAutomatically = true
         #expect(ClipboardSelection.action(behavior: settings, command: false, option: false, shift: false) == .paste(plainText: false))
