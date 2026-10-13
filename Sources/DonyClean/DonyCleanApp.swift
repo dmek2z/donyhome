@@ -87,7 +87,9 @@ struct RootView: View {
                         HStack(spacing: 10) {
                             DonyIcon("info.circle").foregroundStyle(Theme.secondary)
                             Text(banner).font(Theme.font(12)).fixedSize(horizontal: false, vertical: true)
-                            Spacer(); Button { model.banner = nil } label: { DonyIcon("xmark", size: 14) }.buttonStyle(.plain)
+                            Spacer()
+                            if !model.blockedPaths.isEmpty { Button("권한 설정") { model.showPermissionGuidance() }.buttonStyle(QuietButton()) }
+                            Button { model.banner = nil } label: { DonyIcon("xmark", size: 14) }.buttonStyle(.plain)
                         }.panel(14)
                     }
                     ScanProgressView()
@@ -210,20 +212,16 @@ struct PreferencesView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
                     VStack(alignment: .leading, spacing: 16) {
                         Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch())
-                        Button("로그인 항목 설정") { model.openLoginSettings() }.buttonStyle(QuietButton())
+                        SettingsActionRow(title: "로그인 항목", actionTitle: "설정 열기") { model.openLoginSettings() }
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
                     VStack(alignment: .leading, spacing: 14) {
                         Text("메뉴 막대 캐릭터").font(Theme.font(17, weight: .semibold))
-                        HStack(spacing: 12) {
-                            Image(nsImage: model.menuAnimator.image).interpolation(.none).frame(width: 36, height: 28)
-                            DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
-                        }
+                        DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
+                        CharacterPreviewView(mode: model.characterMode)
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
                     AutomaticCleanupView()
-                    Button("초기 설정 다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.buttonStyle(QuietButton())
-                    Button { model.section = .development; dismiss() } label: {
-                        HStack { Text("개발 설정"); Spacer(); DonyIcon("chevron.right", size: 14) }.font(Theme.font(14, weight: .medium)).foregroundStyle(Theme.body).padding(22).frame(maxWidth: .infinity).background(.white).clipShape(RoundedRectangle(cornerRadius: 20))
-                    }.buttonStyle(.plain)
+                    SettingsActionRow(title: "초기 설정", actionTitle: "다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)
+                    SettingsActionRow(title: "개발", actionTitle: "설정 열기") { model.section = .development; dismiss() }.panel(24)
                 }.padding(.horizontal, 24).padding(.bottom, 24)
             }
         }.frame(width: 560, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)

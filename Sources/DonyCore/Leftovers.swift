@@ -46,9 +46,9 @@ public enum LeftoverScanner {
                     do {
                         let candidate = try FileCandidate.capture(url: url, root: root, kind: .support, token: token)
                         if candidate.bytes > 0 { result.items.append(LeftoverItem(bundleID: stem, candidate: candidate)) }
-                    } catch { if token.isCancelled { throw error }; result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                    } catch { if token.isCancelled { throw error }; result.issues.append(ScanIssue(path: url.path, error: error)) }
                 }
-            } catch { if token.isCancelled { result.cancelled = true; break }; result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)) }
+            } catch { if token.isCancelled { result.cancelled = true; break }; result.issues.append(ScanIssue(path: root.path, error: error)) }
         }
         result.items.sort { $0.id < $1.id }
         return result

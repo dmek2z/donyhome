@@ -45,8 +45,8 @@ struct OnboardingView: View {
                         Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch()).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                         Text("관리자 인증은 유지보수 실행 시 요청됩니다").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     default:
-                        HStack { Spacer(); Image(nsImage: model.menuAnimator.image).interpolation(.none).scaleEffect(3).frame(width: 140, height: 100); Spacer() }.padding(.vertical, 30)
                         DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
+                        CharacterPreviewView(mode: model.characterMode)
                     }
                 }.padding(24)
             }

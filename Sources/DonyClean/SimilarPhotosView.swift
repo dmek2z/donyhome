@@ -8,17 +8,12 @@ struct SimilarPhotosView: View {
     private var selected: [FileCandidate] { model.similar.groups.flatMap { $0.copies.map(\.candidate) }.filter { selection.contains($0.id) } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "파일 정리")
-            DonyTabs(options: ["큰 파일", "중복 파일", "오래된 파일", "설치 파일", "유사 사진"], selection: $model.filesMode).disabled(model.busy)
-            HStack {
-                VStack(alignment: .leading, spacing: 6) { Text(model.folder.path).font(Theme.font(12)).lineLimit(1).truncationMode(.middle); Text("\(model.similar.groups.count)개 유사 사진 그룹").font(Theme.font(17, weight: .semibold)) }
-                Spacer(); Button("폴더 선택") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)
-                Button("사진 검사") { model.scanSimilar() }.buttonStyle(PrimaryButton()).disabled(model.busy)
-            }.panel()
+            FileScanHeader()
             if model.similar.cancelled { Chip(text: "중단됨 · 일부 비교 결과", color: Theme.amber) }
             if model.similarDate == nil { EmptyState(icon: "doc.on.doc", title: "유사 사진을 검사해 주세요", subtitle: "") }
             else if model.similar.groups.isEmpty { EmptyState(icon: "checkmark.circle", title: "유사 사진 후보가 없어요", subtitle: "") }
             else {
+                HStack { Text("\(model.similar.groups.count)개 사진 그룹").font(Theme.font(13, weight: .medium)); Spacer(); SelectionControl(selection: $selection, ids: model.similar.groups.flatMap { $0.copies.map { $0.candidate.id } }).disabled(model.busy) }
                 ForEach(model.similar.groups) { group in
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 14) {

@@ -24,12 +24,13 @@ struct SmartCareView: View {
             }.font(Theme.font(12))
             if let smart = model.smart {
                 if smart.cancelled { Chip(text: "중단됨 · 다시 점검해 주세요", color: Theme.amber) }
+                DisclosureGroup("검사 결과") {
                 VStack(spacing: 0) {
                     recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $cleanCaches, section: .cleanup, mode: "캐시 · 로그")
                     Divider()
                     recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $cleanCopies, section: .files, mode: "중복 파일")
                     Divider()
-                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloper.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloper.reduce(0) { $0 + $1.bytes }), selected: $cleanDeveloper, section: .cleanup, mode: "개발 캐시")
+                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloper.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloper.reduce(0) { $0 + $1.bytes }), selected: $cleanDeveloper, section: .development, mode: "캐시")
                     Divider()
                     reviewRow("큰 파일", icon: "folder", detail: "\(model.largeFiles.items.count)개 · " + DisplayFormat.bytes(model.largeFiles.totalBytes), section: .files, mode: "큰 파일")
                     Divider()
@@ -37,14 +38,15 @@ struct SmartCareView: View {
                     Divider()
                     reviewRow("유사 사진 후보", icon: "doc.fill", detail: "\(model.similar.groups.count)개 그룹", section: .files, mode: "유사 사진")
                     Divider()
-                    reviewRow("앱 잔여물 후보", icon: "square.stack.3d.up", detail: "\(model.leftovers.items.count)개", section: .applications, mode: "잔여물 후보")
+                    reviewRow("남은 앱 파일", icon: "square.stack.3d.up", detail: "\(model.leftovers.items.count)개", section: .applications, mode: "남은 앱 파일")
                     Divider()
-                    reviewRow("폴더 용량 지도", icon: "externaldrive", detail: DisplayFormat.bytes(model.spaceMap.totalBytes), section: .space)
+                    reviewRow("폴더 용량", icon: "externaldrive", detail: DisplayFormat.bytes(model.spaceMap.totalBytes), section: .space)
                     Divider()
                     reviewRow("휴지통", icon: "trash", detail: "\(model.trashItems.items.count)개 · " + DisplayFormat.bytes(model.trashItems.totalBytes), section: .tools)
                     Divider()
                     reviewRow("설치 앱", icon: "square.stack.3d.up", detail: "\(model.applications.apps.count)개", section: .applications, mode: "설치 앱")
                 }
+                }.font(Theme.font(13)).tint(Theme.secondary)
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("\(selectedCount)개 추천 · " + DisplayFormat.bytes(selectedBytes)).font(Theme.font(21, weight: .semibold))
@@ -57,17 +59,12 @@ struct SmartCareView: View {
                     Text("개발 캐시: 7일 이상 변경 없고 관련 도구가 종료된 생성물. 캐시: 확인된 앱 8종 중 14일 이상 변경이 없는 항목. 로그: 30일 이상 지난 .log 및 회전 로그. 실행 중인 앱·최근 변경·링크가 포함된 항목은 제외합니다. 중복은 내용이 같은 파일만 추리며 원본 한 개를 남깁니다.").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
                 }.font(Theme.font(12)).tint(Theme.secondary)
                 if !smart.issues.isEmpty { Text("확인하지 못한 항목 \(smart.issues.count)개 · 각 결과에서 확인").font(Theme.font(12)).foregroundStyle(Theme.amber) }
-            } else {
-                HStack {
-                    Text("캐시 · 생성물 · 중복 · 오래된 파일 · 잔여물 · 용량을 함께 확인해요.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
-                    Spacer()
-                }.padding(.vertical, 8)
             }
         }.panel()
     }
     private func open(_ section: Section, mode: String?) {
         if let mode {
-            switch section { case .cleanup: model.cleanupMode = mode; case .files: model.filesMode = mode; case .applications: model.applicationsMode = mode; default: break }
+            switch section { case .cleanup: model.cleanupMode = mode; case .development: model.developmentMode = mode; case .files: model.filesMode = mode; case .applications: model.applicationsMode = mode; default: break }
         }
         model.section = section
     }

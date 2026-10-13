@@ -47,7 +47,7 @@ public enum ProjectDiscovery {
                     }
                 }
             }
-        } catch { if !token.isCancelled { result.issues.append(ScanIssue(path: codex.path, message: error.localizedDescription)) } }
+        } catch { if !token.isCancelled { result.issues.append(ScanIssue(path: codex.path, error: error)) } }
         // Claude JSONL session headers and Cursor workspace metadata are bounded reads.
         for (relative, tool) in [(".claude/projects", AITool.claude), ("Library/Application Support/Cursor/User/workspaceStorage", .cursor)] {
             let root = home.appendingPathComponent(relative)
@@ -74,7 +74,7 @@ public enum ProjectDiscovery {
                     for chunk in chunks { for path in paths(in: chunk) { add(tool: tool, path: path, date: date) } }
                 }
                 if let failure { throw failure }
-            } catch { if !token.isCancelled { result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)) } }
+            } catch { if !token.isCancelled { result.issues.append(ScanIssue(path: root.path, error: error)) } }
         }
         result.projects.sort { $0.path < $1.path }
         return result

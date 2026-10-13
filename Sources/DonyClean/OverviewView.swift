@@ -5,13 +5,13 @@ struct OverviewView: View {
     @EnvironmentObject var model: AppModel
     private var diskUsage: Double? {
         guard let total = model.snapshot.diskTotal, let available = model.snapshot.diskAvailable, total > 0 else { return nil }
-        return Double(total - available) / Double(total)
+        return Double(available) / Double(total)
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             HStack {
                 PageHeader(title: "한눈에 보기")
-                Button { model.scanSmart() } label: { Text(model.smartDate == nil ? "스마트 점검" : "다시 점검") }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                Button { model.scanSmart() } label: { Text(model.smartDate == nil ? "전체 검사" : "다시 점검") }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }
             HStack(spacing: 16) {
                 MetricCard(title: "CPU 사용량", symbol: "cpu", value: DisplayFormat.percent(model.snapshot.cpuPercent), detail: "전체 코어", values: model.cpuHistory)
@@ -36,7 +36,6 @@ struct OverviewView: View {
                         Text("실행 중인 프로세스").font(Theme.font(13)).foregroundStyle(Theme.secondary)
                         Text("\(model.snapshot.processes.count)개").font(Theme.font(17, weight: .semibold))
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                    Button("CPU · 메모리 관리") { model.section = .performance }.buttonStyle(QuietButton())
                 }
             }.panel()
             HStack(spacing: 16) {
@@ -56,12 +55,7 @@ struct OverviewView: View {
                 }.frame(maxWidth: .infinity).panel(20)
             }
             SmartCareView()
-            AutomaticCleanupView()
-            HStack(spacing: 16) {
-                shortcut("큰 파일 · 중복", icon: "folder", target: .files)
-                shortcut("앱 관리", icon: "square.stack.3d.up", target: .applications)
-                shortcut("정리 기록", icon: "clock.arrow.circlepath", target: .history)
-            }
+
         }
     }
     private func shortcut(_ title: String, icon: String, target: Section) -> some View {

@@ -9,16 +9,16 @@ struct SpaceView: View {
     private let colors: [Color] = [Theme.primary, Color(hex: 0x25b79a), Color(hex: 0x8662ed), Color(hex: 0xf5a623), Color(hex: 0xf45b78)]
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "용량 지도")
+            PageHeader(title: "폴더 용량")
             HStack {
                 VStack(alignment: .leading, spacing: 7) {
                     Text((model.spaceRoot ?? model.folder).path).font(Theme.font(13)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
-                    Text(DisplayFormat.bytes(model.spaceMap.totalBytes)).font(Theme.font(28, weight: .semibold))
+                    Text(model.spaceDate == nil ? "—" : DisplayFormat.bytes(model.spaceMap.totalBytes)).font(Theme.font(28, weight: .semibold))
                 }
                 Spacer()
                 if let root = model.spaceRoot, root.path != model.folder.path { Button("상위 폴더") { model.scanSpace(root.deletingLastPathComponent()) }.buttonStyle(QuietButton()).disabled(model.busy) }
                 Button("폴더 선택") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)
-                Button("검사") { model.scanSpace(model.spaceRoot) }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                Button("용량 검사") { model.scanSpace(model.spaceRoot) }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }.panel()
             if model.spaceMap.cancelled { Chip(text: "중단됨 · 일부 용량", color: Theme.amber) }
             if model.spaceDate == nil {
@@ -26,6 +26,7 @@ struct SpaceView: View {
             } else if model.spaceMap.entries.isEmpty {
                 EmptyState(icon: "folder", title: "표시할 항목이 없어요", subtitle: "")
             } else {
+                HStack { Text("\(model.spaceMap.entries.count)개 항목").font(Theme.font(13)); Spacer(); SelectionControl(selection: $selection, ids: model.spaceMap.entries.filter(\.selectable).map(\.id)).disabled(model.busy) }
                 GeometryReader { geometry in
                     HStack(spacing: 2) {
                         ForEach(Array(model.spaceMap.entries.prefix(10).enumerated()), id: \.element.id) { index, entry in

@@ -36,7 +36,18 @@ public struct ScanIssue: Identifiable, Codable, Sendable {
     public var id: String { path + message }
     public let path: String
     public let message: String
-    public init(path: String, message: String) { self.path = path; self.message = message }
+    public let permissionDenied: Bool?
+    public init(path: String, message: String) { self.path = path; self.message = message; permissionDenied = nil }
+    public init(path: String, error: Error) {
+        self.path = path; message = error.localizedDescription
+        var current = error as NSError
+        var denied = false
+        for _ in 0..<8 {
+            if (current.domain == NSPOSIXErrorDomain && [1, 13].contains(current.code)) || (current.domain == NSCocoaErrorDomain && [257, 513].contains(current.code)) { denied = true; break }
+            guard let nested = current.userInfo[NSUnderlyingErrorKey] as? NSError else { break }; current = nested
+        }
+        permissionDenied = denied
+    }
 }
 
 public struct ScanResult: Sendable {
@@ -75,7 +86,7 @@ public enum DonyError: LocalizedError {
 
 public enum DisplayFormat {
     public static func bytes(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: max(0, bytes), countStyle: .file)
+        bytes <= 0 ? "0 B" : ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
     public static func percent(_ value: Double?) -> String { value.map { String(format: "%.0f%%", $0) } ?? "—" }
 }

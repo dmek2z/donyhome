@@ -15,7 +15,7 @@ private struct UsageRow: Identifiable {
 struct PerformanceView: View {
     @EnvironmentObject var model: AppModel
     @State private var scope = "내 앱"
-    @State private var memorySort = false
+    @State private var memorySort = true
     @State private var search = ""
     @State private var selection = Set<String>()
     private var displayedRows: [UsageRow] { Array(rows.prefix(100)) }
@@ -50,29 +50,16 @@ struct PerformanceView: View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "CPU · 메모리")
             HStack(spacing: 14) {
-                MetricCard(title: "전체 CPU", symbol: "cpu", value: DisplayFormat.percent(model.snapshot.cpuPercent), detail: "전체 코어 기준 · 최근 사용량", values: model.cpuHistory)
-                MetricCard(title: "메모리 압박", symbol: "memorychip", value: model.snapshot.pressure.label, detail: "사용 " + (model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—") + " / " + DisplayFormat.bytes(model.snapshot.memoryTotal), color: model.pressureColor, values: model.memoryHistory)
-                MetricCard(title: "스왑 사용", symbol: "arrow.left.arrow.right", value: model.snapshot.swapUsed.map(DisplayFormat.bytes) ?? "—", detail: "압축 메모리 " + (model.snapshot.memoryCompressed.map(DisplayFormat.bytes) ?? "—"), color: Theme.secondary)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack { Text("CPU").font(Theme.font(13, weight: .medium)); Spacer(); Text(DisplayFormat.percent(model.snapshot.cpuPercent)).font(Theme.font(24, weight: .semibold)).monospacedDigit() }
+                    Sparkline(values: model.cpuHistory, title: "CPU")
+                }.frame(maxWidth: .infinity).frame(height: 104, alignment: .top).panel(20)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack { Text("메모리").font(Theme.font(13, weight: .medium)); Spacer(); Chip(text: model.snapshot.pressure.label, color: model.pressureColor) }
+                    Text((model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—") + " / " + DisplayFormat.bytes(model.snapshot.memoryTotal)).font(Theme.font(21, weight: .semibold)).monospacedDigit()
+                    Sparkline(values: model.memoryHistory, color: model.pressureColor, title: "메모리 사용량")
+                }.frame(maxWidth: .infinity).frame(height: 104, alignment: .top).panel(20)
             }
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    DonyIcon("memorychip", size: 24).foregroundStyle(Theme.primary)
-                    Text("앱을 종료해 사용량 줄이기").font(Theme.font(15, weight: .semibold))
-                    Spacer()
-                    Button("메모리순 보기") { memorySort = true; scope = "내 앱"; search = "" }.buttonStyle(QuietButton())
-                }
-                HStack {
-                    Button("사용량 높은 앱 선택") {
-                        scope = "내 앱"; search = ""
-                        selection = Set(rows.filter { model.canQuit($0.process) && (($0.cpu ?? 0) >= 50 || $0.memory >= 1_000_000_000) }.map(\.id))
-                    }.buttonStyle(QuietButton()).disabled(model.busy)
-                    Button("전체 선택") { selection = Set(selectableRows.map(\.id)) }.buttonStyle(QuietButton()).disabled(model.busy || selectableRows.isEmpty)
-                    Button("선택 해제") { selection.removeAll() }.buttonStyle(QuietButton()).disabled(selection.isEmpty)
-                    Text("\(selectedRows.count)개 선택").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                    Spacer()
-                    Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)); selection.removeAll() }.buttonStyle(PrimaryButton()).disabled(selectedRows.isEmpty || model.busy)
-                }
-            }.panel()
             if let relief = model.lastRelief {
                 VStack(alignment: .leading, spacing: 9) {
                     Text(relief.app + " 종료 요청 후 관측").font(Theme.font(13, weight: .semibold))
@@ -84,20 +71,27 @@ struct PerformanceView: View {
                 }.panel(16)
             }
             HStack(spacing: 12) {
-                DonyTabs(options: ["내 앱", "내 프로세스", "전체 프로세스"], selection: Binding(get: { scope }, set: { scope = $0; selection.removeAll() }))
+                Menu {
+                    Button("실행 중인 앱") { scope = "내 앱"; selection.removeAll() }
+                    Button("내 프로세스") { scope = "내 프로세스"; selection.removeAll() }
+                    Button("전체 프로세스") { scope = "전체 프로세스"; selection.removeAll() }
+                } label: { Text(scope == "내 앱" ? "실행 중인 앱" : scope).font(Theme.font(14, weight: .semibold)).foregroundStyle(Theme.body) }
+                    .menuStyle(.borderlessButton).frame(width: 130, height: 42)
+                Text("\(rows.count)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 Spacer()
-                HStack(spacing: 6) { DonyIcon("magnifyingglass").foregroundStyle(Theme.secondary); TextField("앱 이름 또는 PID", text: $search).textFieldStyle(.plain) }.font(Theme.font(11)).padding(9).background(.white).clipShape(RoundedRectangle(cornerRadius: 8)).frame(width: 160)
+                DonySearchField(placeholder: "이름 검색", text: $search).frame(width: 160)
+                DonyChoices(options: ["메모리순", "CPU순"], selection: Binding(get: { memorySort ? "메모리순" : "CPU순" }, set: { memorySort = $0 == "메모리순" })).frame(width: 170)
+                SelectionControl(selection: $selection, ids: selectableRows.map(\.id)).disabled(model.busy)
             }
-            HStack {
-                Text("\(rows.count)개 " + (scope == "내 앱" ? "앱" : "프로세스")).font(Theme.font(12, weight: .medium))
-                Spacer(); Button(memorySort ? "메모리순 ↓" : "CPU순 ↓") { memorySort.toggle() }.buttonStyle(QuietButton())
+            if !selectedRows.isEmpty {
+                HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)); selection.removeAll() }.buttonStyle(PrimaryButton()).disabled(model.busy) }
             }
             if rows.isEmpty {
                 EmptyState(icon: "waveform.path.ecg", title: "표시할 항목이 없어요", subtitle: "검색 조건을 바꾸거나 다음 시스템 측정을 기다려 주세요.")
             } else {
                 LazyVStack(spacing: 0) {
                     HStack {
-                        Text("앱 / 프로세스"); Spacer(); Text("CPU").frame(width: 70, alignment: .trailing); Text(scope == "내 앱" ? "메모리 합산" : "메모리").frame(width: 90, alignment: .trailing); Text("관리").frame(width: 100, alignment: .trailing)
+                        Text("앱 / 프로세스"); Spacer(); Text("CPU").help("앱 CPU는 코어당 100% 기준").frame(width: 70, alignment: .trailing); Text(scope == "내 앱" ? "메모리 합산" : "메모리").frame(width: 90, alignment: .trailing); Text("관리").frame(width: 100, alignment: .trailing)
                     }.font(Theme.font(10, weight: .medium)).foregroundStyle(Theme.secondary).padding(.horizontal, 18).padding(.vertical, 12).background(Theme.canvas)
                     ForEach(displayedRows) { row in
                         HStack(spacing: 10) {
@@ -108,7 +102,7 @@ struct PerformanceView: View {
                             }.frame(width: 28, height: 28)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(row.name).font(Theme.font(12, weight: .medium)).lineLimit(1)
-                                Text("PID \(row.process.pid)" + (scope == "내 앱" ? " · 프로세스 \(row.count)개" : "")).font(Theme.font(9)).foregroundStyle(Theme.secondary)
+                                Text(scope == "내 앱" ? "프로세스 \(row.count)개" : "PID \(row.process.pid)").font(Theme.font(9)).foregroundStyle(Theme.secondary)
                             }
                             Spacer(minLength: 4)
                             Text(DisplayFormat.percent(row.cpu)).foregroundStyle((row.cpu ?? 0) > 85 ? Theme.amber : Theme.ink).frame(width: 70, alignment: .trailing)
@@ -125,8 +119,11 @@ struct PerformanceView: View {
                 }.panel(0)
                 if rows.count > 100 { Text("상위 100개를 표시합니다. 검색으로 특정 프로세스를 찾을 수 있어요.").font(Theme.font(10)).foregroundStyle(Theme.secondary) }
             }
-            Text("앱 CPU: 코어당 100% · 메모리 합산: 공유 메모리 중복 가능").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-            Button("활동 모니터 열기") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")) }.buttonStyle(QuietButton())
+            DisclosureGroup("시스템 상세 정보") {
+                HStack { Text("스왑 " + (model.snapshot.swapUsed.map(DisplayFormat.bytes) ?? "—")); Spacer(); Text("압축 메모리 " + (model.snapshot.memoryCompressed.map(DisplayFormat.bytes) ?? "—")) }.font(Theme.font(12)).padding(.vertical, 12)
+                Text("앱 메모리 합산에는 공유 메모리가 중복될 수 있어요").font(Theme.font(11)).foregroundStyle(Theme.secondary)
+                HStack { Spacer(); Button("활동 모니터 열기") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")) }.buttonStyle(QuietButton()) }
+            }.font(Theme.font(12)).tint(Theme.secondary).panel(20)
         }
     }
 }

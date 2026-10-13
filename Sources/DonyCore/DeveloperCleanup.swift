@@ -62,7 +62,7 @@ public enum DeveloperCleanup {
                 }
             } catch {
                 if token.isCancelled { result.cancelled = true; break }
-                result.issues.append(ScanIssue(path: target.path, message: error.localizedDescription))
+                result.issues.append(ScanIssue(path: target.path, error: error))
             }
         }
         result.items.sort { $0.bytes > $1.bytes }

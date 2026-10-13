@@ -10,9 +10,9 @@ struct HistoryView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(DisplayFormat.bytes(model.movedBytes)).font(Theme.font(29, weight: .semibold))
-                    Text("보관된 기록에서 휴지통으로 이동한 항목 크기").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    Text("누적 휴지통 이동").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 }; Spacer()
-                Button("Finder 휴지통 열기") {
+                Button("휴지통 열기") {
                     NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".Trash"))
                 }.buttonStyle(QuietButton())
             }.panel()
@@ -29,11 +29,13 @@ struct HistoryView: View {
                                     Text(record.kind + " · " + URL(fileURLWithPath: record.sourcePath).lastPathComponent).font(Theme.font(12, weight: .semibold)).lineLimit(1)
                                     Spacer(); Text(record.timestamp, format: .dateTime.month().day().hour().minute()).font(Theme.font(10)).foregroundStyle(Theme.secondary)
                                 }
+                                DisclosureGroup("상세") {
                                 Text(record.sourcePath).font(.system(size: 10, design: .monospaced)).foregroundStyle(Theme.secondary).textSelection(.enabled)
                                 Text(record.message).font(Theme.font(11)).foregroundStyle(record.success ? Theme.secondary : Theme.amber)
                                 if record.bytes > 0 { Text(DisplayFormat.bytes(record.bytes)).font(Theme.font(11, weight: .medium)) }
+                                }.font(Theme.font(11)).tint(Theme.secondary)
                                 if let trash = record.trashPath, FileManager.default.fileExists(atPath: trash) {
-                                    Button("휴지통의 항목 보기") { model.showFinder(URL(fileURLWithPath: trash)) }.buttonStyle(.plain).font(Theme.font(11)).foregroundStyle(Theme.primary)
+                                    HStack { Spacer(); Button("항목 보기") { model.showFinder(URL(fileURLWithPath: trash)) }.buttonStyle(QuietButton()) }
                                 }
                             }
                         }.padding(18); Divider().padding(.leading, 45)

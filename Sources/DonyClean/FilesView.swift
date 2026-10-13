@@ -14,20 +14,9 @@ struct FilesView: View {
     var body: some View {
         if mode == "유사 사진" { SimilarPhotosView() } else {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "파일 정리")
-            HStack(spacing: 12) {
-                DonyIcon("folder.fill").font(Theme.font(22)).foregroundStyle(Theme.primary)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(model.folder.lastPathComponent).font(Theme.font(14, weight: .semibold))
-                    Text(model.folder.path).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
-                }
-                Spacer(); Button("폴더 선택") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)
-            }.panel()
-            HStack {
-                DonyTabs(options: ["큰 파일", "중복 파일", "오래된 파일", "설치 파일", "유사 사진"], selection: $model.filesMode).disabled(model.busy)
-                Spacer(); Button { if mode == "오래된 파일" || mode == "설치 파일" { model.scanClutter() } else { model.scanFiles(duplicatesOnly: mode == "중복 파일") } } label: { DonyLabel(mode + " 검사", icon: "magnifyingglass") }.buttonStyle(PrimaryButton()).disabled(model.busy)
-            }
+            FileScanHeader()
             Text(mode == "큰 파일" ? "100 MB 이상" : mode == "중복 파일" ? "원본 1개는 보관" : mode == "오래된 파일" ? "180일 이상 변경 없는 파일 · 직접 선택" : "dmg · pkg · iso · 직접 선택").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+            if !items.isEmpty { HStack { Spacer(); SelectionControl(selection: $selection, ids: items.map(\.id)).disabled(model.busy) } }
             if (mode == "중복 파일" ? model.duplicates.cancelled : mode == "큰 파일" ? model.largeFiles.cancelled : (model.clutter.oldFiles.cancelled || model.clutter.installers.cancelled)) { Chip(text: "중단됨 · 일부 결과", color: Theme.amber) }
             if !scanned {
                 EmptyState(icon: mode == "큰 파일" ? "doc.text.magnifyingglass" : "doc.on.doc", title: "검사를 시작해 주세요", subtitle: "")
@@ -63,5 +52,28 @@ struct FilesView: View {
             IssuesView(issues: issues)
         }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }.onChange(of: mode) { _, _ in selection.removeAll() }
         }
+    }
+}
+
+struct FileScanHeader: View {
+    @EnvironmentObject var model: AppModel
+    var body: some View {
+        PageHeader(title: "파일 검사")
+        DonyTabs(options: ["큰 파일", "중복 파일", "오래된 파일", "설치 파일", "유사 사진"], selection: $model.filesMode).disabled(model.busy)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(model.folder.lastPathComponent).font(Theme.font(14, weight: .semibold))
+                Text(model.folder.path).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(model.folder.path)
+            }
+            Spacer()
+            Button("폴더 선택") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)
+            Button("검사") {
+                switch model.filesMode {
+                case "유사 사진": model.scanSimilar()
+                case "오래된 파일", "설치 파일": model.scanClutter()
+                default: model.scanFiles(duplicatesOnly: model.filesMode == "중복 파일")
+                }
+            }.buttonStyle(PrimaryButton()).disabled(model.busy)
+        }.panel(24)
     }
 }

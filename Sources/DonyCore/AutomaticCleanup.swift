@@ -16,7 +16,7 @@ public enum AutomaticCleanup {
                 let base = try FileSafety.canonicalRoot(root)
                 guard FileSafety.allowedRoot(base, kind: kind), try FileSafety.fingerprint(base).isDirectory else { throw DonyError.unsafePath }
                 guard let iterator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey], options: [], errorHandler: { url, error in
-                    if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                    if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, error: error)) }
                     return true
                 }) else { throw DonyError.unsupported }
                 for case let url as URL in iterator {
@@ -39,11 +39,11 @@ public enum AutomaticCleanup {
                         if try policy.reason(for: candidate, now: now, runningBundleIDs: runningOwners, token: token).isRecommended { result.items.append(candidate) }
                     } catch {
                         if token.isCancelled { throw DonyError.cancelled }
-                        if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                        if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, error: error)) }
                     }
                 }
             } catch {
-                if !token.isCancelled { result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)) }
+                if !token.isCancelled { result.issues.append(ScanIssue(path: root.path, error: error)) }
                 if case DonyError.scanLimit = error { result.cancelled = true; break }
             }
         }

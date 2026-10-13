@@ -4,24 +4,24 @@ import DonyCore
 
 struct AIProjectsView: View {
     @EnvironmentObject var model: AppModel
-    @State private var tab = "도구"
+    private var tab: String { model.developmentMode }
     @State private var projectTools: Set<AITool> = [.codex]
     private var projects: [LinkedProject] { model.linkedProjects.filter { model.projectSource == "모두" || $0.discovered == (model.projectSource == "작업 이력") } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "개발")
-            DonyTabs(options: ["도구", "프로젝트"], selection: $tab)
+            DonyTabs(options: ["도구", "프로젝트", "캐시"], selection: $model.developmentMode)
             if tab == "도구" {
                 usagePanel
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("프로젝트 정리").font(Theme.font(17, weight: .semibold))
-                        Text("\(model.selectedProjects.count)개 선택 · \(model.projectRetentionDays)일 보관").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        Text("\(Set(model.selectedProjects.map(\.path)).count)개 선택 · \(model.projectRetentionDays)일 보관").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }
                     Spacer()
-                    Button("프로젝트 관리") { tab = "프로젝트" }.buttonStyle(QuietButton())
+                    Button("프로젝트 관리") { model.developmentMode = "프로젝트" }.buttonStyle(QuietButton())
                 }.frame(maxWidth: .infinity, alignment: .leading).panel()
-            } else {
+            } else if tab == "캐시" { DeveloperView() } else {
                 settingsPanel
                 projectsPanel
                 if let summary = model.projectSummary { Text(summary).font(Theme.font(12)).foregroundStyle(Theme.secondary) }
@@ -32,7 +32,7 @@ struct AIProjectsView: View {
                             Spacer()
                             Text(DisplayFormat.bytes(model.projectScan.totalBytes)).font(Theme.font(15, weight: .semibold))
                         }
-                        ForEach(model.projectScan.items) { item in Text(item.id).font(Theme.font(11)).foregroundStyle(Theme.secondary).textSelection(.enabled) }
+                        DisclosureGroup("대상 경로") { ForEach(model.projectScan.items) { item in Text(item.id).font(Theme.font(11)).foregroundStyle(Theme.secondary).textSelection(.enabled) } }.font(Theme.font(12))
                         HStack { Spacer(); Button("휴지통으로 이동") { model.runProjectCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy || model.projectScan.cancelled) }
                     }.frame(maxWidth: .infinity, alignment: .leading).panel()
                 }
@@ -69,10 +69,11 @@ struct AIProjectsView: View {
         VStack(alignment: .leading, spacing: 24) {
             Text("정리 설정").font(Theme.font(18, weight: .semibold))
             VStack(alignment: .leading, spacing: 10) {
-                settingLabel("프로젝트 찾기")
+                settingLabel("프로젝트 목록")
                 DonyChoices(options: ["직접 등록", "작업 이력", "모두"], selection: $model.projectSource).disabled(model.busy)
             }
-            VStack(alignment: .leading, spacing: 10) {
+            DisclosureGroup("프로젝트 연결") {
+                VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     settingLabel("연결할 도구")
                     Spacer()
@@ -81,12 +82,13 @@ struct AIProjectsView: View {
                 }
                 ToolSelectionView(selection: $projectTools).disabled(model.busy)
                 HStack {
+                    Spacer()
                     Button("폴더 연결") { model.addProjects(tools: projectTools) }.buttonStyle(QuietButton()).disabled(model.busy || projectTools.isEmpty)
                     if model.projectSource != "직접 등록" { Button("작업 이력에서 찾기") { model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy) }
-                    Spacer()
                 }
                 if model.projectSource != "직접 등록" { Text("작업 이력 · 실행 중인 터미널 프로젝트").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
-            }
+                }.padding(.top, 12)
+            }.font(Theme.font(14, weight: .medium)).tint(Theme.secondary)
             Divider()
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -116,7 +118,7 @@ struct AIProjectsView: View {
                 Text("프로젝트").font(Theme.font(18, weight: .semibold))
                 Text("\(Set(projects.map(\.path)).count)").font(Theme.font(15, weight: .medium)).foregroundStyle(Theme.secondary)
                 Spacer()
-                Button("후보 검사") { model.scanAIProjects() }.buttonStyle(QuietButton()).disabled(model.busy || model.selectedProjects.isEmpty)
+                Button("정리 대상 확인") { model.scanAIProjects() }.buttonStyle(QuietButton()).disabled(model.busy || model.selectedProjects.isEmpty)
             }
             if projects.isEmpty { Text("연결된 프로젝트가 없어요").font(Theme.font(14)).foregroundStyle(Theme.secondary).padding(.vertical, 20) }
             ForEach(Array(Set(projects.map(\.path))).sorted(), id: \.self) { path in

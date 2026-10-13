@@ -32,7 +32,7 @@ extension AppModel {
         }
     }
     func scanLeftovers() {
-        guard let (token, _) = begin("앱 잔여물 후보 검사") else { return }
+        guard let (token, _) = begin("남은 앱 파일 검사") else { return }
         let running = runningBundleIDs
         Task {
             let result = await Task.detached(priority: .utility) {

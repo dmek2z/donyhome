@@ -1,5 +1,45 @@
 import SwiftUI
 
+struct DonySearchField: View {
+    let placeholder: String
+    @Binding var text: String
+    var body: some View {
+        HStack(spacing: 6) {
+            DonyIcon("magnifyingglass", size: 14).foregroundStyle(Theme.secondary)
+            TextField(placeholder, text: $text).textFieldStyle(.plain)
+        }.font(Theme.font(12)).padding(.horizontal, 12).frame(height: 42).background(.white).clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// Settings and utility rows share one action column, regardless of label length.
+struct SettingsActionRow: View {
+    let title: String
+    let actionTitle: String
+    var enabled = true
+    let action: () -> Void
+    var body: some View {
+        HStack(spacing: 16) {
+            Text(title).font(Theme.font(16, weight: .semibold))
+            Spacer(minLength: 12)
+            Button(action: action) { Text(actionTitle).frame(width: 104) }.buttonStyle(QuietButton()).disabled(!enabled)
+        }
+    }
+}
+
+struct SelectionControl: View {
+    @Binding var selection: Set<String>
+    let ids: [String]
+    var recommended: [String]? = nil
+    var body: some View {
+        Menu {
+            Button("전체 선택") { selection = Set(ids) }
+            if let recommended { Button("추천 항목 선택") { selection = Set(recommended) } }
+            Button("선택 해제") { selection.removeAll() }
+        } label: { Text(selection.isEmpty ? "선택" : "\(selection.count)개 선택").font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.body) }
+            .menuStyle(.borderlessButton).padding(.horizontal, 12).frame(width: 112, height: 42).background(Color(hex: 0xe8ebef)).clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 struct DonySwitch: ToggleStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {

@@ -9,13 +9,12 @@ struct CacheCleanupView: View {
     private var selected: [FileCandidate] { model.cleanup.items.filter { selection.contains($0.id) } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            AutomaticCleanupView()
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(model.cleanupDate == nil ? "정리 후보를 찾아볼까요?" : DisplayFormat.bytes(model.cleanup.totalBytes)).font(Theme.font(26, weight: .semibold))
-                    Text(model.cleanupDate == nil ? "검사는 파일을 변경하지 않아요." : "검사된 \(model.cleanup.items.count)개 항목의 크기").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    Text(model.cleanupDate == nil ? "—" : DisplayFormat.bytes(model.cleanup.totalBytes)).font(Theme.font(26, weight: .semibold))
+                    if model.cleanupDate != nil { Text("\(model.cleanup.items.count)개 항목").font(Theme.font(12)).foregroundStyle(Theme.secondary) }
                 }
-                Spacer(); Button { model.scanCleanup() } label: { DonyLabel("캐시 · 로그 검사", icon: "magnifyingglass") }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                Spacer(); Button("검사") { model.scanCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }.panel()
             if model.cleanup.cancelled { Chip(text: "중단됨 · 일부 결과", color: Theme.amber) }
             if model.cleanupDate == nil {
@@ -25,8 +24,7 @@ struct CacheCleanupView: View {
             } else {
                 HStack {
                     DonyTabs(options: ["전체", "캐시", "로그"], selection: $filter)
-                    Spacer(); Button("추천 항목 선택") { selection = Set(model.recommendedCleanup.map(\.id)) }.buttonStyle(QuietButton()).disabled(model.busy || model.cleanup.cancelled)
-                    Button("선택 해제") { selection.removeAll() }.buttonStyle(.plain).font(Theme.font(11)).foregroundStyle(Theme.secondary)
+                    Spacer(); SelectionControl(selection: $selection, ids: visible.map(\.id), recommended: model.recommendedCleanup.map(\.id)).disabled(model.busy || model.cleanup.cancelled)
                 }
                 LazyVStack(spacing: 0) {
                     ForEach(visible) { candidate in
@@ -45,9 +43,8 @@ struct CleanupView: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "저장 공간 정리")
-            DonyTabs(options: ["캐시 · 로그", "개발 캐시"], selection: $model.cleanupMode)
-            if model.cleanupMode == "개발 캐시" { DeveloperView() } else { CacheCleanupView() }
+            PageHeader(title: "캐시·로그 정리")
+            CacheCleanupView()
         }
     }
 }

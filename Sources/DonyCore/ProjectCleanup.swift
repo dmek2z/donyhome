@@ -85,7 +85,7 @@ public enum ProjectCleanup {
                     if item.bytes > 0 { result.items.append(item) }
                 }
             } catch {
-                if !token.isCancelled && result.issues.count < 100 { result.issues.append(ScanIssue(path: project.path, message: error.localizedDescription)) }
+                if !token.isCancelled && result.issues.count < 100 { result.issues.append(ScanIssue(path: project.path, error: error)) }
             }
         }
         result.cancelled = token.isCancelled

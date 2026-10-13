@@ -8,7 +8,7 @@ enum Section: String, CaseIterable, Identifiable {
     case overview, cleanup, files, space, performance, development, applications, tools, history
     var id: String { rawValue }
     var title: String {
-        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "저장 공간 정리"; case .files: return "파일 정리"; case .space: return "용량 지도"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록" }
+        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .space: return "폴더 용량"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록" }
     }
     var iconColor: Color {
         switch self {
@@ -29,8 +29,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
 
 @MainActor final class AppModel: ObservableObject {
     @Published var cleanupMode = "캐시 · 로그"
+    @Published var developmentMode = "도구"
     @Published var filesMode = "큰 파일"
     @Published var applicationsMode = "설치 앱"
+    @Published var blockedPaths: [String] = []
+    private var permissionNotices = Set<String>()
     @Published var section: Section = .overview
     @Published var snapshot = SystemSnapshot()
     @Published var cpuHistory: [Double] = []
@@ -215,8 +218,15 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     }
     func finish(_ cancelled: Bool, issues: [ScanIssue]) {
         activity = nil; token = nil
-        if cancelled { banner = "검사를 중단했습니다. 일부 결과가 표시될 수 있습니다." }
-        else if !issues.isEmpty { banner = "\(issues.count)개 항목을 확인하지 못했습니다. 검사 결과의 건너뛴 항목을 확인해 주세요." }
+        blockedPaths = issues.filter { $0.permissionDenied == true }.map(\.path)
+        if cancelled { banner = "검사 중단 · 일부 결과" }
+        else if !issues.isEmpty {
+            banner = blockedPaths.isEmpty ? "건너뛴 항목 \(issues.count)개 · 결과에서 확인" : "접근 권한 필요 \(blockedPaths.count)개 · 기타 건너뛴 항목 \(issues.count - blockedPaths.count)개"
+            let key = blockedPaths.sorted().joined(separator: "\n")
+            if !blockedPaths.isEmpty, permissionNotices.insert(key).inserted {
+                Task { @MainActor in self.showPermissionGuidance() }
+            }
+        } else { banner = nil }
         sample()
     }
     func cancel() { token?.cancel(); activity?.detail = "중단하는 중…" }
@@ -305,7 +315,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                 for item in result.items {
                     if token.isCancelled { result.cancelled = true; break }
                     do { decisions[item.id] = try CleanupPolicy().reason(for: item, runningBundleIDs: exclusions, token: token) }
-                    catch { if !token.isCancelled { result.issues.append(ScanIssue(path: item.id, message: error.localizedDescription)) } }
+                    catch { if !token.isCancelled { result.issues.append(ScanIssue(path: item.id, error: error)) } }
                 }
                 return (result, decisions)
             }.value
@@ -466,15 +476,10 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         do { try store.save(history); return nil } catch { return "기록을 저장하지 못했습니다: " + error.localizedDescription }
     }
     func confirm(_ title: String, message: String, action: String, destructive: Bool, paths: [String] = []) -> Bool {
-        let alert = NSAlert(); alert.messageText = title; alert.informativeText = message; alert.alertStyle = destructive ? .warning : .informational
-        alert.addButton(withTitle: action); alert.addButton(withTitle: "취소")
-        // Return defaults to cancellation for destructive confirmations.
-        if destructive { alert.buttons[0].keyEquivalent = ""; alert.buttons[1].keyEquivalent = "\r" }
-        if !paths.isEmpty {
-            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 430, height: 160)); scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
-            let text = NSTextView(frame: scroll.bounds); text.isEditable = false; text.isSelectable = true; text.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-            text.string = paths.joined(separator: "\n\n"); text.textContainerInset = NSSize(width: 8, height: 8); scroll.documentView = text; alert.accessoryView = scroll
-        }
-        return alert.runModal() == .alertFirstButtonReturn
+        ConfirmationDialog.show(title: title, message: message, action: action, destructive: destructive, paths: paths)
+    }
+    func showPermissionGuidance() {
+        guard !blockedPaths.isEmpty else { return }
+        if ConfirmationDialog.show(title: "파일 접근 권한을 확인해 주세요", message: "macOS가 \(blockedPaths.count)개 경로의 접근을 거부했습니다. 시스템 설정의 전체 디스크 접근에서 도니클린을 추가하거나 파일 및 폴더 권한을 확인한 뒤 다시 검사하세요.", action: "권한 설정 열기", destructive: false, paths: blockedPaths) { openPrivacySettings() }
     }
 }

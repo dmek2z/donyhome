@@ -33,7 +33,7 @@ public enum DuplicateFinder {
                 do { hashes[try digest(candidate, token: token), default: []].append(candidate) }
                 catch {
                     if token.isCancelled { result.cancelled = true; return result }
-                    result.issues.append(ScanIssue(path: candidate.url.path, message: error.localizedDescription))
+                    result.issues.append(ScanIssue(path: candidate.url.path, error: error))
                 }
             }
             for (_, matches) in hashes where matches.count > 1 {
@@ -51,7 +51,7 @@ public enum DuplicateFinder {
                             else { different.append(candidate) }
                         } catch {
                             if token.isCancelled { result.cancelled = true; return result }
-                            result.issues.append(ScanIssue(path: candidate.url.path, message: error.localizedDescription))
+                            result.issues.append(ScanIssue(path: candidate.url.path, error: error))
                         }
                     }
                     if !copies.isEmpty { result.groups.append(DuplicateGroup(original: original, copies: copies)) }

@@ -42,7 +42,7 @@ struct Panel: ViewModifier {
         content.padding(padding).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }
-extension View { func panel(_ padding: CGFloat = 28) -> some View { modifier(Panel(padding: padding)) } }
+extension View { func panel(_ padding: CGFloat = 24) -> some View { modifier(Panel(padding: padding)) } }
 
 struct PrimaryButton: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
@@ -111,12 +111,12 @@ struct IssuesView: View {
     let issues: [ScanIssue]
     var body: some View {
         if !issues.isEmpty {
-            DisclosureGroup("건너뛴 항목 \(issues.count)개 · 권한 또는 상태 확인 필요") {
+            DisclosureGroup("건너뛴 항목 \(issues.count)개") {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(issues.enumerated()), id: \.offset) { _, issue in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(issue.path).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
-                            Text(issue.message).font(Theme.font(11)).foregroundStyle(Theme.secondary)
+                            Text((issue.permissionDenied == true ? "접근 권한 필요 · " : "") + issue.message).font(Theme.font(11)).foregroundStyle(Theme.secondary)
                         }
                     }
                 }.padding(.top, 12).frame(maxWidth: .infinity, alignment: .leading)
@@ -203,6 +203,7 @@ struct SelectionBar: View {
     let selected: [FileCandidate]
     let action: () -> Void
     var body: some View {
+        if !selected.isEmpty {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(selected.count)개 선택 · \(DisplayFormat.bytes(selected.reduce(0) { $0 + $1.bytes }))").font(Theme.font(13, weight: .semibold))
@@ -210,5 +211,6 @@ struct SelectionBar: View {
             }
             Spacer(); Button(action: action) { DonyLabel("휴지통으로 이동", icon: "trash") }.buttonStyle(PrimaryButton()).disabled(selected.isEmpty || model.busy)
         }.panel(16)
+        }
     }
 }

@@ -29,7 +29,7 @@ public enum SmartScanner {
             if token.isCancelled { break }
             do { result.decisions[item.id] = try policy.reason(for: item, runningBundleIDs: runningBundleIDs, token: token) }
             catch {
-                if !token.isCancelled { result.cleanup.issues.append(ScanIssue(path: item.id, message: error.localizedDescription)) }
+                if !token.isCancelled { result.cleanup.issues.append(ScanIssue(path: item.id, error: error)) }
             }
         }
         if !token.isCancelled {

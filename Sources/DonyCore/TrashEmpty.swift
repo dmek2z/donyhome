@@ -11,9 +11,9 @@ public enum TrashEmptyService {
             guard try FileSafety.canonicalRoot(root).path == base.appendingPathComponent(".Trash").path else { throw DonyError.unsafePath }
             for url in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).sorted(by: { $0.path < $1.path }) {
                 do { try token.check(); result.items.append(try FileCandidate.capture(url: url, root: root, kind: .trash, token: token)) }
-                catch { if token.isCancelled { result.cancelled = true; break }; result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                catch { if token.isCancelled { result.cancelled = true; break }; result.issues.append(ScanIssue(path: url.path, error: error)) }
             }
-        } catch { result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)) }
+        } catch { result.issues.append(ScanIssue(path: root.path, error: error)) }
         return result
     }
     public static func remove(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> ActionRecord {

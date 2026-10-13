@@ -15,10 +15,11 @@ struct InstalledAppsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                Button { model.openLoginSettings() } label: { DonyLabel("로그인 · 백그라운드 앱 관리", icon: "power") }.buttonStyle(QuietButton())
-                Spacer(); Button { model.scanApplications() } label: { DonyLabel("앱 목록 새로고침", icon: "arrow.clockwise") }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                Text("\(apps.count)개 앱").font(Theme.font(13, weight: .semibold))
+                Spacer()
+                DonySearchField(placeholder: "앱 검색", text: $search).frame(width: 180)
+                Button("새로고침") { model.scanApplications() }.buttonStyle(QuietButton()).disabled(model.busy)
             }
-            HStack { Text("\(model.applications.apps.count)개 사용자 설치 앱").font(Theme.font(13, weight: .semibold)); Spacer(); TextField("앱 검색", text: $search).textFieldStyle(.roundedBorder).frame(width: 210) }
             if model.applications.cancelled { Chip(text: "중단됨 · 일부 결과", color: Theme.amber) }
             if apps.isEmpty {
                 EmptyState(icon: "square.stack.3d.up", title: "표시할 앱이 없어요", subtitle: model.inventoryDate == nil ? "앱 목록을 확인하는 중입니다." : "검색 조건 또는 설치된 앱 경로를 확인해 주세요.")
@@ -33,7 +34,7 @@ struct InstalledAppsView: View {
                                         Text(app.name).font(Theme.font(12, weight: .medium)).lineLimit(1)
                                         Text("버전 " + app.version).font(Theme.font(10)).foregroundStyle(Theme.secondary)
                                     }; Spacer(); DonyIcon("chevron.right", size: 12).foregroundStyle(Theme.secondary)
-                                }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(model.inspectedApp?.id == app.id ? Theme.blueWash : .white)
+                                }.padding(.horizontal, 14).frame(height: 56).frame(maxWidth: .infinity, alignment: .leading).background(model.inspectedApp?.id == app.id ? Theme.blueWash : .white)
                             }.buttonStyle(.plain).disabled(model.busy)
                             Divider().padding(.leading, 54)
                         }
@@ -47,6 +48,7 @@ struct InstalledAppsView: View {
                                 if appRunning { Chip(text: "실행 중 · 종료 후 제거 가능", color: Theme.amber) }
                             }.panel(16)
                             if !model.appFiles.items.isEmpty {
+                                HStack { Spacer(); SelectionControl(selection: $selection, ids: model.appFiles.items.map(\.id)).disabled(model.busy || appRunning) }
                                 VStack(spacing: 0) {
                                     ForEach(model.appFiles.items) { candidate in
                                         CandidateRow(candidate: candidate, selection: $selection)
@@ -75,8 +77,8 @@ struct ApplicationsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "앱 관리")
-            DonyTabs(options: ["설치 앱", "잔여물 후보"], selection: $model.applicationsMode)
-            if model.applicationsMode == "잔여물 후보" { LeftoversView() } else { InstalledAppsView() }
+            DonyTabs(options: ["설치 앱", "남은 앱 파일"], selection: $model.applicationsMode)
+            if model.applicationsMode == "남은 앱 파일" { LeftoversView() } else { InstalledAppsView() }
         }
     }
 }

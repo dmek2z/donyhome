@@ -74,3 +74,13 @@ public struct AIToolUsage: Identifiable, Sendable {
 public enum CharacterMode: String, Codable, CaseIterable { case color, monochrome
     public var title: String { self == .color ? "컬러" : "흑백" }
 }
+
+public enum CharacterActivity: String, CaseIterable, Sendable {
+    case relaxed, working, overloaded
+    public static func resolve(cpu: Double?, pressure: MemoryPressure) -> Self {
+        if pressure == .critical || (cpu ?? 0) >= 85 { return .overloaded }
+        if pressure == .warning || (cpu ?? 0) >= 50 { return .working }
+        return .relaxed
+    }
+    public var interval: Double { switch self { case .relaxed: 0.65; case .working: 0.22; case .overloaded: 0.10 } }
+}
