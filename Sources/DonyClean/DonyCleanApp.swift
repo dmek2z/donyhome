@@ -43,23 +43,27 @@ import DonyCore
             return
         }
         Theme.registerFonts()
-        DonyCleanApp.main()
+        DonyHomeApp.main()
     }
 }
 
-struct DonyCleanApp: App {
+struct DonyHomeApp: App {
     @NSApplicationDelegateAdaptor(DonyAppDelegate.self) private var lifecycle
     @StateObject private var model = AppModel()
+    @StateObject private var clipboard = ClipboardController()
     var body: some Scene {
-        Window("DonyClean · 도니클린", id: "main") {
-            RootView(lifecycle: lifecycle).environmentObject(model).font(Theme.font(14)).preferredColorScheme(.light).frame(minWidth: 960, minHeight: 680)
+        Window("donyhome · 도니홈", id: "main") {
+            RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light).frame(minWidth: 960, minHeight: 680)
         }.windowStyle(.hiddenTitleBar).defaultSize(width: 1130, height: 790).defaultPosition(.center)
             .commands {
-                CommandGroup(replacing: .appSettings) { Button("도니클린 설정…") { model.preferencesShown = true }.keyboardShortcut(",") }
-                CommandGroup(after: .newItem) { Button("통합 점검") { model.section = .overview; model.scanSmart() }.keyboardShortcut("r") }
+                CommandGroup(replacing: .appSettings) { Button("도니홈 설정…") { model.preferencesShown = true }.keyboardShortcut(",") }
+                CommandGroup(after: .newItem) {
+                    Button("전체 검사") { model.section = .overview; model.scanSmart() }.keyboardShortcut("r")
+                    Button("클립보드 빠르게 열기") { clipboard.showPopup() }
+                }
             }
         MenuBarExtra {
-            DonyMenuView().environmentObject(model)
+            DonyMenuView().environmentObject(model).environmentObject(clipboard)
         } label: {
             CodingCharacterLabel(animator: model.menuAnimator)
         }.menuBarExtraStyle(.window)
@@ -68,6 +72,8 @@ struct DonyCleanApp: App {
 
 @MainActor final class DonyAppDelegate: NSObject, NSApplicationDelegate {
     var openMainWindow: (() -> Void)?
+    weak var clipboard: ClipboardController?
+    func applicationWillTerminate(_ notification: Notification) { clipboard?.stop() }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openMainWindow?()
         return true
@@ -78,6 +84,7 @@ struct RootView: View {
     let lifecycle: DonyAppDelegate
     @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var clipboard: ClipboardController
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -100,6 +107,8 @@ struct RootView: View {
                     case .space: SpaceView()
                     case .tools: ToolsView()
                     case .performance: PerformanceView()
+                    case .battery: BatteryManagementView()
+                    case .clipboard: ClipboardView(controller: clipboard)
                     case .development: AIProjectsView()
                     case .applications: ApplicationsView()
                     case .history: HistoryView()
@@ -108,9 +117,11 @@ struct RootView: View {
             }.background(Theme.canvas)
         }.foregroundStyle(Theme.ink).tint(Theme.primary)
             .onAppear {
+                lifecycle.clipboard = clipboard
+                clipboard.start()
                 lifecycle.openMainWindow = {
                     openWindow(id: "main")
-                    if let window = NSApp.windows.first(where: { $0.title == "DonyClean · 도니클린" && $0.sheetParent == nil }) {
+                    if let window = NSApp.windows.first(where: { $0.title == "donyhome · 도니홈" && $0.sheetParent == nil }) {
                         if window.isMiniaturized { window.deminiaturize(nil) }
                         window.makeKeyAndOrderFront(nil)
                     }
@@ -126,13 +137,15 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 11) {
                 DonyLogo(size: 36)
-                Text("도니클린").font(Theme.font(19, weight: .bold)).foregroundStyle(Theme.body)
+                Text("도니홈").font(Theme.font(19, weight: .bold)).foregroundStyle(Theme.body)
             }.padding(.horizontal, 12).padding(.top, 43).padding(.bottom, 26)
             HStack(spacing: 10) {
                 DonyIcon("laptopcomputer").font(Theme.font(18)).foregroundStyle(Theme.secondary)
                 Text("Dony의 Mac").font(Theme.font(14, weight: .medium))
             }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(Color(hex: 0xe8ebef).opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: 10)).padding(.bottom, 24)
-            ForEach(Section.allCases) { section in
+            ScrollView {
+              VStack(spacing: 0) {
+               ForEach(Section.allCases) { section in
                 Button { model.section = section } label: {
                     HStack(spacing: 12) {
                         if section == .development { Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 20, height: 20).accessibilityLabel("픽셀 개발자") } else { DonyIcon(section.icon).foregroundStyle(section.iconColor) }
@@ -142,13 +155,14 @@ struct RootView: View {
                         .padding(.horizontal, 12).frame(height: 36)
                         .background(model.section == section ? Color(hex: 0xe8ebef) : .clear).clipShape(RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain).padding(.bottom, 4)
-            }
-            Spacer(minLength: 40)
+               }
+              }
+            }.scrollIndicators(.hidden)
             VStack(alignment: .leading, spacing: 12) {
                 Rectangle().fill(Theme.line).frame(height: 1)
                 HStack {
-                    Text("DonyClean " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")).font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer()
-                    Button { model.preferencesShown = true } label: { DonyIcon("gearshape").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("도니클린 설정")
+                    Text("donyhome " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")).font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer()
+                    Button { model.preferencesShown = true } label: { DonyIcon("gearshape").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("도니홈 설정")
                 }
             }.padding(.horizontal, 10).padding(.bottom, 25)
         }.padding(.horizontal, 18).frame(width: 240).frame(maxHeight: .infinity).background(Theme.sidebar).overlay(alignment: .trailing) { Rectangle().fill(Theme.line).frame(width: 1) }
@@ -157,12 +171,15 @@ struct RootView: View {
 
 struct DonyMenuView: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var clipboard: ClipboardController
     @Environment(\.openWindow) var openWindow
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("도니클린").font(Theme.font(18, weight: .semibold))
-                Spacer(); Button("종료") { NSApp.terminate(nil) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                Text("도니홈").font(Theme.font(18, weight: .semibold))
+                Spacer()
+                Button { clipboard.showPopup() } label: { DonyIcon("clipboard", size: 18) }.buttonStyle(.plain).help("클립보드 · ⇧⌘C")
+                Button("종료") { NSApp.terminate(nil) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)
             }
             VStack(spacing: 12) {
                 metric("CPU", value: DisplayFormat.percent(model.snapshot.cpuPercent))
@@ -182,7 +199,7 @@ struct DonyMenuView: View {
             }.frame(maxWidth: .infinity).panel(18)
             Button {
                 openWindow(id: "main")
-                if let window = NSApp.windows.first(where: { $0.title == "DonyClean · 도니클린" && $0.sheetParent == nil }) {
+                if let window = NSApp.windows.first(where: { $0.title == "donyhome · 도니홈" && $0.sheetParent == nil }) {
                     if window.isMiniaturized { window.deminiaturize(nil) }
                     window.makeKeyAndOrderFront(nil)
                 }
@@ -197,7 +214,10 @@ struct DonyMenuView: View {
 
 struct PreferencesView: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var clipboard: ClipboardController
     @Environment(\.dismiss) var dismiss
+    @State private var clipboardSettingsShown = false
+    @State private var informationShown = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -222,8 +242,12 @@ struct PreferencesView: View {
                     AutomaticCleanupView()
                     SettingsActionRow(title: "초기 설정", actionTitle: "다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)
                     SettingsActionRow(title: "개발", actionTitle: "설정 열기") { model.section = .development; dismiss() }.panel(24)
+                    SettingsActionRow(title: "클립보드", actionTitle: "설정 열기") { clipboardSettingsShown = true }.panel(24)
+                    SettingsActionRow(title: "앱 정보", actionTitle: "열기") { informationShown = true }.panel(24)
                 }.padding(.horizontal, 24).padding(.bottom, 24)
             }
         }.frame(width: 560, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+            .sheet(isPresented: $clipboardSettingsShown) { ClipboardSettingsView(controller: clipboard).padding(24).frame(width: 560, height: 620).background(Theme.canvas).preferredColorScheme(.light) }
+            .sheet(isPresented: $informationShown) { AboutView() }
     }
 }

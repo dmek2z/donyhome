@@ -9,7 +9,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 30, height: 30)
-                Text("도니클린 시작하기").font(Theme.font(21, weight: .bold))
+                Text("도니홈 시작하기").font(Theme.font(21, weight: .bold))
                 Spacer(); Button("나중에") { model.completeOnboarding() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)
             }.padding(24)
             HStack(spacing: 8) {

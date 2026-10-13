@@ -5,10 +5,10 @@ import ServiceManagement
 import DonyCore
 
 enum Section: String, CaseIterable, Identifiable {
-    case overview, cleanup, files, space, performance, development, applications, tools, history
+    case overview, cleanup, files, space, performance, battery, development, clipboard, applications, tools, history
     var id: String { rawValue }
     var title: String {
-        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .space: return "폴더 용량"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록" }
+        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .space: return "폴더 용량"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록"; case .battery: return "배터리 관리"; case .clipboard: return "클립보드" }
     }
     var iconColor: Color {
         switch self {
@@ -16,11 +16,13 @@ enum Section: String, CaseIterable, Identifiable {
         case .cleanup: return Color(hex: 0x25b79a)
         case .files, .space: return Color(hex: 0xf5a623)
         case .performance: return Color(hex: 0x4593fc)
+        case .battery: return Theme.success
+        case .clipboard: return Theme.primary
         case .development, .applications, .tools: return Color(hex: 0x8662ed)
         }
     }
     var icon: String {
-        switch self { case .overview: return "house"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath" }
+        switch self { case .overview: return "house"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath"; case .battery: return "battery"; case .clipboard: return "clipboard" }
     }
 }
 
@@ -164,7 +166,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         guard cpuAlert || memoryAlert else { return }
         lastNotice = now
         let content = UNMutableNotificationContent()
-        content.title = "도니클린 · " + (memoryAlert ? "메모리가 바빠요" : "CPU가 바빠요")
+        content.title = "도니홈 · " + (memoryAlert ? "메모리가 바빠요" : "CPU가 바빠요")
         content.body = "과부하가 30초 이상 이어지고 있습니다. CPU · 메모리 화면에서 사용량 높은 앱을 확인해 주세요."
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
@@ -175,7 +177,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             do {
                 let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
                 notifyEnabled = granted; UserDefaults.standard.set(granted, forKey: "overloadNotifications")
-                if !granted { banner = "알림 권한이 꺼져 있습니다. 시스템 설정의 알림에서 도니클린을 허용해 주세요." }
+                if !granted { banner = "알림 권한이 꺼져 있습니다. 시스템 설정의 알림에서 도니홈을 허용해 주세요." }
             } catch { banner = "알림 설정을 적용하지 못했습니다: " + error.localizedDescription }
         }
     }
@@ -185,7 +187,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             objectWillChange.send()
-            if SMAppService.mainApp.status == .requiresApproval { openLoginSettings(); banner = "로그인 항목 설정에서 도니클린 실행을 허용해 주세요." }
+            if SMAppService.mainApp.status == .requiresApproval { openLoginSettings(); banner = "로그인 항목 설정에서 도니홈 실행을 허용해 주세요." }
         } catch { banner = "로그인 실행 설정을 적용하지 못했습니다: " + error.localizedDescription }
     }
 
@@ -480,6 +482,6 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     }
     func showPermissionGuidance() {
         guard !blockedPaths.isEmpty else { return }
-        if ConfirmationDialog.show(title: "파일 접근 권한을 확인해 주세요", message: "macOS가 \(blockedPaths.count)개 경로의 접근을 거부했습니다. 시스템 설정의 전체 디스크 접근에서 도니클린을 추가하거나 파일 및 폴더 권한을 확인한 뒤 다시 검사하세요.", action: "권한 설정 열기", destructive: false, paths: blockedPaths) { openPrivacySettings() }
+        if ConfirmationDialog.show(title: "파일 접근 권한을 확인해 주세요", message: "macOS가 \(blockedPaths.count)개 경로의 접근을 거부했습니다. 시스템 설정의 전체 디스크 접근에서 도니홈을 추가하거나 파일 및 폴더 권한을 확인한 뒤 다시 검사하세요.", action: "권한 설정 열기", destructive: false, paths: blockedPaths) { openPrivacySettings() }
     }
 }

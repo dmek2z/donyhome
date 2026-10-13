@@ -51,7 +51,7 @@ public enum Maintenance {
     }
     public static func listSnapshots() throws -> [String] {
         let result = try CommandRunner.run(CommandSpec(executable: "/usr/bin/tmutil", arguments: ["listlocalsnapshots", "/"], requiresAdmin: false))
-        guard result.success else { throw NSError(domain: "DonyClean", code: Int(result.status), userInfo: [NSLocalizedDescriptionKey: result.output]) }
+        guard result.success else { throw NSError(domain: "DonyHome", code: Int(result.status), userInfo: [NSLocalizedDescriptionKey: result.output]) }
         return snapshots(from: result.output)
     }
 }
@@ -66,7 +66,7 @@ public enum CommandRunner {
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
             process.arguments = ["-e", "do shell script \"" + escaped + "\" with administrator privileges"]
         } else { process.executableURL = URL(fileURLWithPath: spec.executable); process.arguments = spec.arguments }
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("DonyClean-command-" + UUID().uuidString)
+        let log = FileManager.default.temporaryDirectory.appendingPathComponent("DonyHome-command-" + UUID().uuidString)
         guard FileManager.default.createFile(atPath: log.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw DonyError.unsupported }
         defer { try? FileManager.default.removeItem(at: log) }
         let handle = try FileHandle(forWritingTo: log); defer { try? handle.close() }

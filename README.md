@@ -1,4 +1,4 @@
-# DonyClean · 도니클린
+# donyhome · 도니홈
 
 Dony의 Mac에서만 사용하는 저장 공간 정리·성능 관리 앱. macOS 14 이상, SwiftUI/AppKit. 서버·계정·외부 API·추가 런타임 없이 실행합니다.
 
@@ -6,12 +6,22 @@ Dony의 Mac에서만 사용하는 저장 공간 정리·성능 관리 앱. macOS
 
 ```sh
 ./scripts/build-app.sh
-open build/DonyClean.app
+open build/DonyHome.app
 ```
 
-Finder에서 `build/DonyClean.app`을 `~/Applications`로 옮겨 사용할 수 있습니다. 로그인 시 실행을 사용할 경우 이동한 앱을 실행한 뒤 앱 설정에서 켜세요. 현재 빌드는 개인 로컬 사용을 위한 ad-hoc 서명입니다.
+Finder에서 `build/DonyHome.app`을 `~/Applications`로 옮겨 사용할 수 있습니다. 로그인 시 실행을 사용할 경우 이동한 앱을 실행한 뒤 앱 설정에서 켜세요. 현재 빌드는 개인 로컬 사용을 위한 ad-hoc 서명입니다.
 
 ## 기능
+
+### 2.0: donyhome · 배터리 관리 · 클립보드
+
+- 앱과 저장소 이름을 donyhome으로 변경했습니다. 기존 정리 기록과 설정을 유지하기 위해 내부 bundle identifier와 기존 기록 경로는 그대로 사용합니다. 실행 파일/앱은 DonyHome이며 새 기능의 기록은 별도 로컬 경로에 저장합니다.
+- 배터리 관리: [battery](https://github.com/actuallymentor/battery)의 실제 CLI 엔진을 원본 기능에 맞춰 통합했습니다. 충전 상한/범위/전압 유지, 강제 방전, 충전·어댑터 제어, 목표 충전/방전, 보정, 중단·복원, 로그, 재시동 후 유지, 오프라인 설치/제거를 제공합니다. Apple Silicon MacBook용이며 내장 배터리가 없는 Mac mini에서는 제어가 비활성화됩니다. 명령 완료와 실제 하드웨어 상태를 구분합니다.
+- 설치는 사용자 행동과 macOS 관리자 인증을 거칩니다. 원본 스크립트는 네트워크 업데이트 없이 앱별 경로로 분리했고, 관리자 권한은 17개의 정확한 SMC 쓰기 명령으로 제한합니다. 기존 battery 설치를 자동 덮어쓰지 않습니다. 제거는 충전 복원 확인 후 앱의 도구만 제거합니다. [배터리 통합/검증 범위](docs/battery-integration.md).
+- 클립보드: [Maccy](https://github.com/p0deje/Maccy)의 실제 캡처·개인정보 제외·정렬·검색·키보드 처리 코드를 기존 디자인으로 통합했습니다. 텍스트/서식/이미지/여러 파일, 로컬 OCR 검색, Fuse 검색, 고정·순서·단축키, 편집, 기록 제한·정렬, 제외 앱/타입/텍스트, 일시 정지·다음 복사 제외, 순서대로 붙여넣기를 제공합니다.
+- 기본 `⇧⌘C`로 빠른 클립보드 창을 엽니다. 단축키를 변경할 수 있고, Enter 복사/Option-Enter 붙여넣기/Option-Shift-Enter 일반 텍스트 붙여넣기를 지원합니다. 붙여넣기는 사용자의 손쉬운 사용 권한과 이전 앱의 포커스·클립보드 상태 검증을 거칩니다. 설치 당시 클립보드 내용을 자동 가져오지 않습니다. [클립보드 통합/원본 대비 범위](docs/clipboard-integration.md).
+- MIT 라이선스의 battery/Maccy/Fuse와 GPLv2의 별도 SMC 실행 파일·정확한 소스를 함께 포함합니다. 설정 → 앱 정보에서 출처와 라이선스를 볼 수 있습니다. 원본 앱의 독립 실행 UI/자동 업데이트/앱별 Intents는 donyhome의 앱 구조에 맞춰 대체하거나 포함하지 않습니다.
+
 
 ### 1.3: 화면 정리 · 캐릭터 미리보기
 
@@ -27,7 +37,7 @@ Finder에서 `build/DonyClean.app`을 `~/Applications`로 옮겨 사용할 수 �
 - 개발 도구를 동시에 식별하고 부모/자식 프로세스를 도구별로 묶습니다. Herdr, Orca, cmux, tmux, 터미널과 Claude/Codex/Hermes/Cursor, OpenCode/Gemini/Aider/Copilot/VS Code/Windsurf를 지원합니다. 식별되지 않은 인터프리터는 기타 개발 프로세스로 표시합니다. 명령행은 실행 파일/스크립트 이름만 판별하고 프롬프트·환경 변수는 저장하지 않습니다.
 - Herdr `api snapshot`, Orca `worktree ps --json`, cmux `list-workspaces --json`, tmux `list-panes`의 읽기 전용 결과와 실행 중인 로컬 프로세스의 작업 경로에서 프로젝트를 찾습니다. CLI 설치·실행이 필요한 도구는 연결 상태로 안내합니다. 원격 호스트 경로는 제외합니다. 발견한 폴더는 사용자가 선택하기 전까지 정리하지 않습니다. 도구가 설치되지 않은 환경에서는 실제 연결 대신 응답 형식 테스트로 검증했습니다.
 - 메뉴 팝업은 CPU·메모리·압박·저장 공간·배터리·네트워크 송수신률과 하나의 앱 열기 버튼으로 구성합니다. 네트워크 수치는 현재 전송률이며 회선 최대 속도 측정은 아닙니다.
-- CPU 목록은 56pt 행과 현재 표시 목록 전체 선택/선택 해제를 제공합니다. 시스템 앱과 도니클린 자체는 종료 선택에서 제외됩니다. 앱을 다시 열면 닫거나 최소화한 메인 창을 복원합니다.
+- CPU 목록은 56pt 행과 현재 표시 목록 전체 선택/선택 해제를 제공합니다. 시스템 앱과 도니홈 자체는 종료 선택에서 제외됩니다. 앱을 다시 열면 닫거나 최소화한 메인 창을 복원합니다.
 - 용량 막대는 hover 시 항목·용량 표시, 클릭 시 폴더 탐색을 제공합니다. 사용량 그래프는 hover 지점의 값을 표시합니다.
 
 연동 자료: [Herdr Socket API](https://herdr.dev/docs/socket-api/), [Orca CLI](https://www.onorca.dev/docs/cli/overview), [cmux API](https://cmux.com/docs/api).
@@ -67,7 +77,7 @@ Finder에서 `build/DonyClean.app`을 `~/Applications`로 옮겨 사용할 수 �
 
 직접 선택한 항목 또는 검토한 추천 목록을 native 확인 창에 전체 경로를 표시하고 이동합니다. 검사 후 파일·디렉터리 내용·부모 경로가 변경되면 작업을 거부합니다. 중복 사본은 원본이 그대로 남아 있을 때만 이동합니다. 휴지통 이동은 즉시 디스크 공간 확보로 계산하지 않습니다. 유지보수에서 현재 사용자 휴지통의 검사한 항목을 영구 삭제할 수 있습니다. 전체 경로 확인과 기본 취소를 거치며 새로 들어온 항목은 제외합니다. 영구 삭제 후에는 복원할 수 없습니다. 휴지통 이동 상태의 복원은 Finder에서 합니다. 접근이 거부되면 시스템 설정에서 필요한 파일 접근 권한을 직접 관리하세요.
 
-앱 종료는 현재 사용자 소유의 일반 GUI 앱만 가능합니다. PID, 시작 시각, UID를 다시 확인하고 시스템 프로세스와 도니클린 자체를 보호합니다. CPU·메모리 정리는 선택한 앱 종료를 통해 자원을 회수합니다. `purge`, 스왑 파일 삭제, 메모리 강제 할당 같은 동작을 수행하지 않습니다.
+앱 종료는 현재 사용자 소유의 일반 GUI 앱만 가능합니다. PID, 시작 시각, UID를 다시 확인하고 시스템 프로세스와 도니홈 자체를 보호합니다. CPU·메모리 정리는 선택한 앱 종료를 통해 자원을 회수합니다. `purge`, 스왑 파일 삭제, 메모리 강제 할당 같은 동작을 수행하지 않습니다.
 
 검사 중단·읽기 권한 부족·변경된 파일은 결과에 표시됩니다. macOS가 접근을 제한하는 폴더는 앱에서 권한을 우회하지 않습니다. 원하면 시스템 설정에서 접근 권한을 직접 관리할 수 있습니다.
 
@@ -82,10 +92,10 @@ Dony Dony 스타일 토큰·사이드바·버튼·탭·체크박스를 SwiftUI�
 ```sh
 ./scripts/test.sh
 ./scripts/build-app.sh
-build/DonyClean.app/Contents/MacOS/DonyClean --diagnostics
-build/DonyClean.app/Contents/MacOS/DonyClean --smart-plan
-build/DonyClean.app/Contents/MacOS/DonyClean --snapshots
-build/DonyClean.app/Contents/MacOS/DonyClean --scan "$HOME/Downloads"
+build/DonyHome.app/Contents/MacOS/DonyHome --diagnostics
+build/DonyHome.app/Contents/MacOS/DonyHome --smart-plan
+build/DonyHome.app/Contents/MacOS/DonyHome --snapshots
+build/DonyHome.app/Contents/MacOS/DonyHome --scan "$HOME/Downloads"
 ```
 
 `--diagnostics`, `--smart-plan`, `--snapshots`, `--scan`은 읽기 전용입니다. `--smart-plan --folder /경로`로 파일 범위를 지정할 수 있습니다. 파일 작업 테스트는 매 실행마다 만든 임시 파일만 사용하고, 테스트 파일의 휴지통 이동 후 복원·정리합니다.

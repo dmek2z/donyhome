@@ -5,3 +5,6 @@
 - UI tokens and controls are original to this project (`Theme.swift`, `DonyControls.swift`): gray canvas, white cards, blue primary action, Pretendard.
 
 - UI icons: official `@phosphor-icons/core` 2.1.1, MIT license (`Icons/LICENSE`), https://github.com/phosphor-icons/core . Selected fill, regular auxiliary actions and bold check/caret vectors are bundled as PDF with original SVG sources. Converted using build-only svglib/reportlab; there is no Python dependency at runtime.
+
+- DonyHome battery/clipboard/pin icons use the same official Phosphor fill family, from `assets/fill/battery-high-fill.svg`, `clipboard-text-fill.svg`, and `push-pin-fill.svg`, retrieved 2026-10-13. Original SVG + PDF conversions are retained under the existing MIT notice.
+- Battery/Maccy/SMC/Fuse provenance and licenses are in `Resources/Battery`, `Resources/Clipboard`, `docs/battery-integration.md` and `docs/clipboard-integration.md`. The bundled SMC is built from the included corresponding GPL source; it is a separate executable.

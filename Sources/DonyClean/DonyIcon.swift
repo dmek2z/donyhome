@@ -20,7 +20,8 @@ struct DonyIcon: View {
         "magnifyingglass": "magnifying-glass", "arrow.up.forward.square": "arrow-square-out",
         "arrow.left.arrow.right": "arrows-left-right", "arrow.clockwise": "arrow-clockwise",
         "ellipsis": "dots-three", "chevron.right": "caret-right-bold", "xmark": "x-bold",
-        "checkmark": "check-bold", "trash": "broom-fill", "app.badge.checkmark": "squares-four-fill"
+        "checkmark": "check-bold", "trash": "broom-fill", "app.badge.checkmark": "squares-four-fill",
+        "battery": "battery-high-fill", "battery.75percent": "battery-high-fill", "clipboard": "clipboard-text-fill", "doc.on.clipboard": "clipboard-text-fill", "pin.fill": "push-pin-fill"
     ]
     private static let images: [String: NSImage] = {
         var result: [String: NSImage] = [:]
