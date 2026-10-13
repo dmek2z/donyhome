@@ -23,10 +23,10 @@ public enum ProjectDiscovery {
         }
         return Array(paths)
     }
-    public static func discover(home: URL = FileManager.default.homeDirectoryForCurrentUser, token: ScanToken) -> ProjectDiscoveryResult {
+    public static func discover(home: URL = FileManager.default.homeDirectoryForCurrentUser, token: ScanToken, tools: Set<AITool> = Set(AITool.allCases)) -> ProjectDiscoveryResult {
         var result = ProjectDiscoveryResult()
         func add(tool: AITool, path: String, date: Date?) {
-            guard let root = try? ProjectCleanup.projectRoot(path) else { return }
+            guard tools.contains(tool), let root = try? ProjectCleanup.projectRoot(path) else { return }
             if let index = result.projects.firstIndex(where: { $0.tool == tool && $0.path == root.path }) {
                 result.projects[index].lastActivity = max(result.projects[index].lastActivity ?? .distantPast, date ?? .distantPast)
             } else { result.projects.append(LinkedProject(tool: tool, path: root.path, lastActivity: date, enabled: false, discovered: true)) }
@@ -34,7 +34,7 @@ public enum ProjectDiscovery {
         // Read only cwd and activity columns from Codex's local thread index.
         let codex = home.appendingPathComponent(".codex")
         do {
-            if FileManager.default.fileExists(atPath: codex.path) {
+            if tools.contains(.codex), FileManager.default.fileExists(atPath: codex.path) {
                 let databases = try FileManager.default.contentsOfDirectory(at: codex, includingPropertiesForKeys: nil).filter { $0.lastPathComponent.hasPrefix("state_") && $0.pathExtension == "sqlite" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
                 if let database = databases.first {
                     try token.check()
@@ -51,7 +51,7 @@ public enum ProjectDiscovery {
         // Claude JSONL session headers and Cursor workspace metadata are bounded reads.
         for (relative, tool) in [(".claude/projects", AITool.claude), ("Library/Application Support/Cursor/User/workspaceStorage", .cursor)] {
             let root = home.appendingPathComponent(relative)
-            guard FileManager.default.fileExists(atPath: root.path), !token.isCancelled else { continue }
+            guard tools.contains(tool), FileManager.default.fileExists(atPath: root.path), !token.isCancelled else { continue }
             do {
                 var failure: Error?
                 guard let iterator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, errorHandler: { _, error in failure = error; return false }) else { throw DonyError.unsupported }

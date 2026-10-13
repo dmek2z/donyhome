@@ -40,6 +40,8 @@ import Testing
         #expect(DevelopmentRuntime.metadataPaths("{\"result\":{\"worktrees\":[]}}", tool: .orca) == [])
         #expect(DevelopmentRuntime.metadataPaths("connection error", tool: .tmux) == nil)
         #expect(DevelopmentRuntime.metadataPaths("", tool: .tmux) == [])
+        #expect(DevelopmentRuntime.metadataPaths(#"{"error":"not connected"}"#, tool: .herdr) == nil)
+        #expect(DevelopmentRuntime.metadataPaths(#"{"unrelated":42}"#, tool: .orca) == nil)
     }
     @Test func runtimeMetadataCollectsOnlyLocalWorkspacePaths() throws {
         let data = Data(#"{"result":{"workspaces":[{"cwd":"/Users/test/project"},{"cwd":"/remote/project","machine":"remote"}],"panes":[{"foreground_cwd":"/Users/test/second"}],"prompt":"/tmp/never-use"}}"#.utf8)

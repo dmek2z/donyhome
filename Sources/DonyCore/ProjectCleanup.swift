@@ -9,8 +9,8 @@ public struct ProjectSourceState: Sendable {
 }
 
 public enum ProjectCleanupScope: String, Codable, CaseIterable, Sendable {
-    case generated, wholeProject
-    public var title: String { self == .generated ? "빌드 · 캐시만" : "프로젝트 전체 · 소스 포함" }
+    case generated, context, wholeProject
+    public var title: String { switch self { case .generated: return "빌드 · 캐시만"; case .context: return "프로젝트 AI 컨텍스트"; case .wholeProject: return "프로젝트 전체 · 소스 포함" } }
 }
 public struct LinkedProject: Identifiable, Codable, Sendable {
     public var id: String { (discovered ? "history:" : "manual:") + tool.id + ":" + path }
@@ -60,11 +60,13 @@ public enum ProjectCleanup {
         let root = try projectRoot(project.path)
         guard !activePaths.contains(where: {
             let active = URL(fileURLWithPath: $0).resolvingSymlinksInPath()
-            return active.path == root.path || FileSafety.isWithin(active, root: root)
+            let comparableRoot = root.resolvingSymlinksInPath()
+            return active.path == comparableRoot.path || FileSafety.isWithin(active, root: comparableRoot)
         }) else { throw DonyError.protectedProcess }
         // GUI editors do not always expose their open workspace through cwd.
         // Both cleanup scopes exclude projects owned by a running tool.
         if runningTools.contains(project.tool) { throw DonyError.protectedProcess }
+        if scope == .wholeProject, (try? FileSafety.fingerprint(root.appendingPathComponent(".git")))?.isRegular == true { throw DonyError.unsupported }
         let cutoff = now.addingTimeInterval(-Double(days) * 86400)
         guard (project.lastActivity ?? .distantPast) <= cutoff, try latestChange(root, token: token, ignoringDirectoryDates: ignoringDirectoryDates) <= cutoff else { throw DonyError.changed }
         return root
@@ -76,7 +78,7 @@ public enum ProjectCleanup {
             result.visited += 1; progress?(result.visited, URL(fileURLWithPath: project.path).lastPathComponent)
             do {
                 let root = try eligible(project, days: days, scope: scope, activePaths: activePaths, runningTools: runningTools, now: now, token: token)
-                let paths = scope == .wholeProject ? [root] : generatedPaths.map { root.appendingPathComponent($0) }
+                let paths = scope == .wholeProject ? [root] : (scope == .context ? ProjectInventory.contextPaths : generatedPaths).map { root.appendingPathComponent($0) }
                 for url in paths {
                     try token.check()
                     guard try FileSafety.metadataIfPresent(url) != nil else { continue }
@@ -95,18 +97,26 @@ public enum ProjectCleanup {
     }
     public static func validate(_ item: FileCandidate, project: LinkedProject, days: Int, scope: ProjectCleanupScope, activePaths: [String], runningTools: Set<AITool>, now: Date = Date(), token: ScanToken, sourceState: ProjectSourceState? = nil) throws {
         if let state = sourceState {
-            guard scope == .generated, try projectRoot(project.path).path == state.root.path,
+            guard scope != .wholeProject, try projectRoot(project.path).path == state.root.path,
                   try sourceStamp(root: state.root, excluded: state.excluded, ignoringDirectoryDates: state.ignoredDirectoryDates, token: token) == state.stamp else { throw DonyError.changed }
         }
         let root = try eligible(project, days: days, scope: scope, activePaths: activePaths, runningTools: runningTools, now: now, token: token, ignoringDirectoryDates: sourceState?.ignoredDirectoryDates ?? [])
-        let allowed = scope == .wholeProject ? item.url.path == root.path : generatedPaths.contains { root.appendingPathComponent($0).path == item.url.path }
-        guard item.kind == .project, allowed, item.fingerprint.isDirectory else { throw DonyError.unsafePath }
+        let allowed = scope == .wholeProject ? item.url.path == root.path : (scope == .context ? ProjectInventory.contextPaths : generatedPaths).contains { root.appendingPathComponent($0).path == item.url.path }
+        guard item.kind == .project, allowed, (item.fingerprint.isDirectory || scope == .context && item.fingerprint.isRegular) else { throw DonyError.unsafePath }
+        if scope == .context, item.fingerprint.isDirectory {
+            guard let iterator = FileManager.default.enumerator(at: item.url, includingPropertiesForKeys: nil) else { throw DonyError.unsupported }
+            var count = 0
+            for case let child as URL in iterator {
+                try token.check(); count += 1
+                guard count <= 10_000, !markers.contains(child.lastPathComponent) else { throw DonyError.unsafePath }
+            }
+        }
         try FileSafety.validate(item, token: token)
     }
-    public static func captureSourceState(project: LinkedProject, removing items: [FileCandidate], token: ScanToken) throws -> ProjectSourceState {
+    public static func captureSourceState(project: LinkedProject, removing items: [FileCandidate], scope: ProjectCleanupScope = .generated, token: ScanToken) throws -> ProjectSourceState {
         let root = try projectRoot(project.path)
         let paths = Set(items.map { $0.url.path })
-        guard items.allSatisfy({ item in item.kind == .project && generatedPaths.contains { root.appendingPathComponent($0).path == item.url.path } }) else { throw DonyError.unsafePath }
+        guard items.allSatisfy({ item in item.kind == .project && (scope == .context ? ProjectInventory.contextPaths : generatedPaths).contains { root.appendingPathComponent($0).path == item.url.path } }) else { throw DonyError.unsafePath }
         let parents = Set(items.map { $0.url.deletingLastPathComponent().path })
         return ProjectSourceState(root: root, excluded: paths, ignoredDirectoryDates: parents, stamp: try sourceStamp(root: root, excluded: paths, ignoringDirectoryDates: parents, token: token))
     }

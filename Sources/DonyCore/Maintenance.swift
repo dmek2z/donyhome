@@ -14,8 +14,9 @@ public struct CommandSpec: Sendable {
 public struct CommandResult: Sendable {
     public let status: Int32
     public let output: String
+    public let truncated: Bool
     public var success: Bool { status == 0 }
-    public init(status: Int32, output: String) { self.status = status; self.output = output }
+    public init(status: Int32, output: String, truncated: Bool = false) { self.status = status; self.output = output; self.truncated = truncated }
 }
 public enum Maintenance {
     private static func validDate(_ value: String) -> Bool {
@@ -58,8 +59,9 @@ public enum Maintenance {
 public enum CommandRunner {
     private static func quote(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
     /// Only callers in Maintenance construct these fixed commands; no user shell input.
-    public static func run(_ spec: CommandSpec, timeout: TimeInterval = 60) throws -> CommandResult {
+    public static func run(_ spec: CommandSpec, timeout: TimeInterval = 60, environment: [String: String]? = nil) throws -> CommandResult {
         let process = Process()
+        if let environment { process.environment = environment; process.standardInput = FileHandle.nullDevice }
         if spec.requiresAdmin {
             let shell = ([spec.executable] + spec.arguments).map(quote).joined(separator: " ")
             let escaped = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
@@ -78,6 +80,6 @@ public enum CommandRunner {
         let reader = try FileHandle(forReadingFrom: log); defer { try? reader.close() }
         let data = try reader.read(upToCount: 65_536) ?? Data()
         let text = String(decoding: data.prefix(65_536), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        return CommandResult(status: process.terminationStatus, output: text)
+        return CommandResult(status: process.terminationStatus, output: text, truncated: (try FileSafety.fingerprint(log)).size > 65_536)
     }
 }

@@ -12,7 +12,7 @@ extension AppModel {
     func saveConnectedTools() { UserDefaults.standard.set(connectedTools.map(\.rawValue).sorted(), forKey: "connectedTools") }
     func refreshToolConnections() {
         let running = Set(aiUsage.map(\.tool))
-        for tool in AITool.allCases {
+        for tool in AITool.allCases where connectionCheckedAt == nil {
             toolStatuses[tool] = running.contains(tool) ? "사용 중" : DevelopmentRuntime.installed(tool) ? "설치됨" : "직접 연결"
         }
         if UserDefaults.standard.stringArray(forKey: "connectedTools") == nil {

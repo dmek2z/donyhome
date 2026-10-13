@@ -21,6 +21,36 @@ import Foundation
         }
         return LinkedProject(tool: .cursor, path: url.path)
     }
+    @Test func contextScopeIsExplicitAndProtectsSourceAndLiveProjects() throws {
+        let old = try project("context", days: 20)
+        let folder = URL(fileURLWithPath: old.path)
+        let context = folder.appendingPathComponent("CLAUDE.md")
+        try Data("project instructions".utf8).write(to: context)
+        for url in [context, folder] { try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-20 * 86400)], ofItemAtPath: url.path) }
+        let generated = ProjectCleanup.scan(projects: [old], days: 14, scope: .generated, activePaths: [], runningTools: [], now: now, token: ScanToken())
+        #expect(!generated.items.contains { $0.url == context })
+        let result = ProjectCleanup.scan(projects: [old], days: 14, scope: .context, activePaths: [], runningTools: [], now: now, token: ScanToken())
+        #expect(result.items.map(\.name) == ["CLAUDE.md"])
+        let candidate = try #require(result.items.first)
+        try ProjectCleanup.validate(candidate, project: old, days: 14, scope: .context, activePaths: [], runningTools: [], now: now, token: ScanToken())
+        #expect(try String(contentsOf: folder.appendingPathComponent("app.ts")) == "source")
+        #expect(ProjectCleanup.scan(projects: [old], days: 14, scope: .context, activePaths: [old.path], runningTools: [], now: now, token: ScanToken()).items.isEmpty)
+        #expect(ProjectCleanup.scan(projects: [old], days: 14, scope: .context, activePaths: [], runningTools: [.cursor], now: now, token: ScanToken()).items.isEmpty)
+    }
+    @Test func contextScopeNeverIncludesNestedWorktrees() throws {
+        let old = try project("nested", days: 20)
+        let folder = URL(fileURLWithPath: old.path)
+        let checkout = folder.appendingPathComponent(".claude/worktrees/task")
+        try FileManager.default.createDirectory(at: checkout, withIntermediateDirectories: true)
+        try Data("source".utf8).write(to: checkout.appendingPathComponent("app.ts"))
+        try Data("{}".utf8).write(to: checkout.appendingPathComponent("package.json"))
+        for path in [".claude/worktrees/task/app.ts", ".claude/worktrees/task/package.json", ".claude/worktrees/task", ".claude/worktrees", ".claude", ""] {
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-20 * 86400)], ofItemAtPath: folder.appendingPathComponent(path).path)
+        }
+        let result = ProjectCleanup.scan(projects: [old], days: 14, scope: .context, activePaths: [], runningTools: [], now: now, token: ScanToken())
+        #expect(result.items.isEmpty)
+        #expect(try String(contentsOf: checkout.appendingPathComponent("app.ts")) == "source")
+    }
     @Test func retentionUsesNewestDescendantAndCustomDays() throws {
         let old = try project("old", days: 8)
         #expect(ProjectCleanup.scan(projects: [old], days: 14, scope: .generated, activePaths: [], runningTools: [], now: now, token: ScanToken()).items.isEmpty)

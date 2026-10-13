@@ -102,3 +102,5 @@ build/DonyHome.app/Contents/MacOS/DonyHome --scan "$HOME/Downloads"
 `--diagnostics`, `--smart-plan`, `--snapshots`, `--scan`은 읽기 전용입니다. `--smart-plan --folder /경로`로 파일 범위를 지정할 수 있습니다. 파일 작업 테스트는 매 실행마다 만든 임시 파일만 사용하고, 테스트 파일의 휴지통 이동 후 복원·정리합니다.
 
 이 Mac의 Command Line Tools에는 XCTest가 없어 Swift Testing을 사용합니다. 테스트 스크립트는 해당 프레임워크와 매크로 플러그인을 명시적으로 연결합니다. 설치된 macOS 27 SDK의 SwiftUI 플러그인 누락을 피하기 위해 macOS 26.5 SDK가 있으면 이를 사용합니다. `DONY_SDK_PATH`로 빌드 SDK를 지정할 수 있습니다.
+
+개발 메뉴는 프로젝트 파일·AI 컨텍스트·생성물을 검사하고, 원격 보관 확인 여부도 선택 옵션으로 제공합니다. 도구별 실제 연동 범위는 [개발 환경 관리](docs/development-integration.md)를 참고하세요.

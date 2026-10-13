@@ -90,6 +90,10 @@ public enum DevelopmentRuntime {
         }
         let data = Data(output.utf8)
         guard let json = try? JSONSerialization.jsonObject(with: data), json is [String: Any] || json is [Any] else { return nil }
+        if let object = json as? [String: Any] {
+            guard object["error"] == nil, object["success"] as? Bool != false,
+                  !Set(object.keys).isDisjoint(with: ["result", "data", "worktrees", "workspaces", "panes", "tabs", "agents", "repositories", "cwd"]) else { return nil }
+        }
         return paths(in: data)
     }
     public static func discover(tools: Set<AITool>, token: ScanToken) -> RuntimeDiscovery {

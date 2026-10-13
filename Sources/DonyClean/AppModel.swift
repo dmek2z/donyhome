@@ -31,7 +31,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
 
 @MainActor final class AppModel: ObservableObject {
     @Published var cleanupMode = "캐시 · 로그"
-    @Published var developmentMode = "도구"
+    @Published var developmentMode = "프로젝트"
     @Published var filesMode = "큰 파일"
     @Published var applicationsMode = "설치 앱"
     @Published var blockedPaths: [String] = []
@@ -98,9 +98,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var characterMode = CharacterMode(rawValue: UserDefaults.standard.string(forKey: "characterMode") ?? "") ?? .color
     let menuAnimator = CodingCharacterAnimator(mode: CharacterMode(rawValue: UserDefaults.standard.string(forKey: "characterMode") ?? "") ?? .color)
     @Published var projectCleanupEnabled = UserDefaults.standard.bool(forKey: "projectCleanupEnabled")
+    @Published var projectInventory: [ProjectInventoryEntry] = []
+    @Published var connectionCheckedAt: Date?
+    @Published var connectionIssues: [ScanIssue] = []
     @Published var projectRetentionDays = max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14))
     @Published var projectCleanupScope = ProjectCleanupScope(rawValue: UserDefaults.standard.string(forKey: "projectCleanupScope") ?? "") ?? .generated
-    @Published var projectSource = UserDefaults.standard.string(forKey: "projectSource") ?? "직접 등록"
+    @Published var projectRequireRemoteBackup = UserDefaults.standard.object(forKey: "projectRequireRemoteBackup") as? Bool ?? true
+    var projectScanRequiresRemoteBackup = true
+    @Published var projectSource = UserDefaults.standard.string(forKey: "projectSource") ?? "모두"
     @Published var linkedProjects = (UserDefaults.standard.data(forKey: "linkedProjects").flatMap { try? JSONDecoder().decode([LinkedProject].self, from: $0) }) ?? []
     @Published var projectScan = ScanResult()
     @Published var projectScanDate: Date?
