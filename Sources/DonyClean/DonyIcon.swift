@@ -7,7 +7,7 @@ struct DonyIcon: View {
     let size: CGFloat
     init(_ symbol: String, size: CGFloat = 20) { self.symbol = symbol; self.size = size }
     private static let names: [String: String] = [
-        "house": "house-fill", "square.grid.2x2": "squares-four-fill",
+        "linkedin": "linkedin-logo-fill", "house": "house-fill", "square.grid.2x2": "squares-four-fill",
         "sparkles": "broom-fill", "folder": "folder-simple-fill", "folder.fill": "folder-simple-fill",
         "waveform.path.ecg": "gauge-fill", "square.stack.3d.up": "squares-four-fill",
         "clock.arrow.circlepath": "clock-counter-clockwise-fill", "cpu": "cpu-fill",

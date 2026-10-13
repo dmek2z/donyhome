@@ -121,6 +121,7 @@ struct RootView: View {
                     case .development: AIProjectsView()
                     case .applications: ApplicationsView()
                     case .history: HistoryView()
+                    case .dony: DonyProfileView()
                     }
                 }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
             }.background(Theme.canvas)
@@ -148,6 +149,18 @@ struct RootView: View {
                 else { PreferencesView().environmentObject(model) }
             }
     }
+    private func navigationButton(_ section: Section) -> some View {
+        Button { model.section = section } label: {
+                    HStack(spacing: 12) {
+                        if section == .development { Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 20, height: 20).accessibilityLabel("픽셀 개발자") } else { DonyIcon(section.icon).foregroundStyle(section.iconColor) }
+                        Text(section.title).font(Theme.font(14, weight: model.section == section ? .semibold : .medium))
+                        Spacer()
+                    }.foregroundStyle(Theme.body)
+                        .padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 36)
+                        .background(model.section == section ? Color(hex: 0xe8ebef) : .clear).clipShape(RoundedRectangle(cornerRadius: 10))
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).padding(.bottom, 4)
+    }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 11) {
@@ -160,20 +173,12 @@ struct RootView: View {
             }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(Color(hex: 0xe8ebef).opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: 10)).padding(.bottom, 24)
             ScrollView {
               VStack(spacing: 0) {
-               ForEach(Section.allCases) { section in
-                Button { model.section = section } label: {
-                    HStack(spacing: 12) {
-                        if section == .development { Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 20, height: 20).accessibilityLabel("픽셀 개발자") } else { DonyIcon(section.icon).foregroundStyle(section.iconColor) }
-                        Text(section.title).font(Theme.font(14, weight: model.section == section ? .semibold : .medium))
-                        Spacer()
-                    }.foregroundStyle(Theme.body)
-                        .padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 36)
-                        .background(model.section == section ? Color(hex: 0xe8ebef) : .clear).clipShape(RoundedRectangle(cornerRadius: 10))
-                        .contentShape(Rectangle())
-                }.buttonStyle(.plain).padding(.bottom, 4)
+               ForEach(Section.allCases.filter { $0 != .dony }) { section in
+                   navigationButton(section)
                }
               }
             }.scrollIndicators(.hidden)
+            navigationButton(.dony).padding(.top, 8)
             VStack(alignment: .leading, spacing: 12) {
                 Rectangle().fill(Theme.line).frame(height: 1)
                 HStack {

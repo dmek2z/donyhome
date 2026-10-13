@@ -30,9 +30,13 @@ struct SpaceView: View {
                 GeometryReader { geometry in
                     HStack(spacing: 2) {
                         ForEach(Array(model.spaceMap.entries.prefix(10).enumerated()), id: \.element.id) { index, entry in
-                            Rectangle().fill(colors[index % colors.count]).opacity(hoveredEntry == nil || hoveredEntry == entry.id ? 1 : 0.65).frame(width: max(0, (geometry.size.width - 20) * Double(entry.bytes) / Double(max(1, model.spaceMap.totalBytes))))
+                            Button {
+                                if entry.candidate.fingerprint.isDirectory { model.scanSpace(entry.candidate.url) } else { model.showFinder(entry.candidate.url) }
+                            } label: {
+                                Rectangle().fill(colors[index % colors.count]).opacity(hoveredEntry == nil || hoveredEntry == entry.id ? 1 : 0.65).frame(width: max(0, (geometry.size.width - 20) * Double(entry.bytes) / Double(max(1, model.spaceMap.totalBytes))))
+                            }.buttonStyle(.plain).disabled(model.busy)
                                 .onHover { hoveredEntry = $0 ? entry.id : nil }
-                                .onTapGesture { if !model.busy { if entry.candidate.fingerprint.isDirectory { model.scanSpace(entry.candidate.url) } else { model.showFinder(entry.candidate.url) } } }
+                                .accessibilityLabel(entry.candidate.name).accessibilityValue(DisplayFormat.bytes(entry.bytes))
                                 .help(entry.candidate.name + " · " + DisplayFormat.bytes(entry.bytes))
                         }
                     }.clipShape(RoundedRectangle(cornerRadius: 10))
@@ -44,10 +48,14 @@ struct SpaceView: View {
                             Toggle("선택 " + entry.candidate.name, isOn: Binding(get: { selection.contains(entry.id) }, set: { if $0 { selection.insert(entry.id) } else { selection.remove(entry.id) } })).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel("선택 " + entry.candidate.name).disabled(model.busy || !entry.selectable).help(entry.selectable ? "선택" : "미다운로드 클라우드 항목이 있어 삭제 선택 불가")
                             Circle().fill(colors[index % colors.count]).frame(width: 8, height: 8)
                             Button { if entry.candidate.fingerprint.isDirectory { model.scanSpace(entry.candidate.url) } else { model.showFinder(entry.candidate.url) } } label: {
-                                HStack { DonyIcon(entry.candidate.fingerprint.isDirectory ? "folder" : "doc.fill"); Text(entry.candidate.name + (entry.selectable ? "" : " · 클라우드 포함")).lineLimit(1); Spacer() }.font(Theme.font(13)).foregroundStyle(Theme.body)
+                                HStack {
+                                    DonyIcon(entry.candidate.fingerprint.isDirectory ? "folder" : "doc.fill")
+                                    Text(entry.candidate.name + (entry.selectable ? "" : " · 클라우드 포함")).lineLimit(1)
+                                    Spacer()
+                                    Text(DisplayFormat.bytes(entry.bytes)).font(Theme.font(13, weight: .medium)).monospacedDigit()
+                                    DonyIcon("chevron.right", size: 12).foregroundStyle(Theme.secondary)
+                                }.font(Theme.font(13)).foregroundStyle(Theme.body).frame(maxWidth: .infinity).contentShape(Rectangle())
                             }.buttonStyle(.plain).disabled(model.busy)
-                            Text(DisplayFormat.bytes(entry.bytes)).font(Theme.font(13, weight: .medium)).monospacedDigit()
-                            DonyIcon("chevron.right", size: 12).foregroundStyle(Theme.secondary)
                         }.padding(16)
                         Divider().padding(.leading, 60)
                     }

@@ -8,7 +8,8 @@ struct AboutView: View {
         ("SMC", "smcFanControl · GPLv2", "https://github.com/hholtmann/smcFanControl", "Battery/LICENSE.smc"),
         ("Fuse", "krisk · MIT", "https://github.com/krisk/fuse-swift", "Clipboard/Fuse-LICENSE.txt"),
         ("Phosphor Icons", "MIT", "https://github.com/phosphor-icons/core", "Icons/LICENSE"),
-        ("Pretendard", "SIL Open Font License", "https://github.com/orioncactus/pretendard", "Fonts/OFL.txt")
+        ("Pretendard", "SIL Open Font License", "https://github.com/orioncactus/pretendard", "Fonts/OFL.txt"),
+        ("Fredoka", "SIL Open Font License", "https://github.com/google/fonts/tree/main/ofl/fredoka", "Fonts/Fredoka-OFL.txt")
     ]
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {

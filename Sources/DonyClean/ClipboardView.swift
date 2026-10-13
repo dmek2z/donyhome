@@ -307,10 +307,9 @@ struct ClipboardShortcutRecorder: View {
     @State private var recording = false
     @State private var monitor: Any?
     var body: some View {
-        HStack {
-            Text(kind == "열기" ? "빠른 창 단축키" : kind + " 단축키").font(Theme.font(14, weight: .medium))
-            Spacer()
-            Button(recording ? "조합키 입력 · Esc 취소" : shortcutName) { beginRecording() }.buttonStyle(QuietButton())
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsActionRow(title: kind == "열기" ? "빠른 창 단축키" : kind + " 단축키", actionTitle: recording ? "입력 중" : shortcutName) { beginRecording() }
+            if recording { Text("조합키를 누르세요 · Esc 취소").font(Theme.font(12)).foregroundStyle(Theme.secondary) }
         }.onDisappear { endRecording() }
     }
     private var shortcutName: String {
