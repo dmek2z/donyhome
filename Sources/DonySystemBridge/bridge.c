@@ -7,6 +7,7 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 int dc_process_cwd(int32_t pid, char *output, int capacity) {
     struct proc_vnodepathinfo info;
@@ -52,7 +53,7 @@ int dc_read_processes(DCProcess *output, int capacity) {
         struct proc_bsdinfo bsd;
         if (pids[i] <= 0 || proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd)) continue;
         DCProcess *row = &output[filled++]; memset(row, 0, sizeof(*row));
-        row->pid = pids[i]; row->uid = bsd.pbi_uid; row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;
+        row->pid = pids[i]; row->parent_pid = bsd.pbi_ppid; row->uid = bsd.pbi_uid; row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;
         proc_pidpath(pids[i], row->path, sizeof(row->path)); proc_name(pids[i], row->name, sizeof(row->name));
         if (!row->name[0]) strlcpy(row->name, bsd.pbi_comm, sizeof(row->name));
         struct rusage_info_v2 usage;
@@ -101,4 +102,27 @@ int dc_read_network(DCNetwork *output) {
         cursor += header->rtm_msglen;
     }
     free(buffer); output->generation = hash; return output->available;
+}
+
+int dc_process_arguments(int32_t pid, char *output, int capacity) {
+    struct proc_bsdinfo info;
+    if (capacity < 1 || proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, sizeof(info)) != sizeof(info) || info.pbi_uid != getuid()) return 0;
+    int mib[3] = {CTL_KERN, KERN_PROCARGS2, pid};
+    const size_t allocation = 65536; size_t size = allocation;
+    char *buffer = calloc(allocation, 1); if (!buffer) return 0;
+    int written = 0;
+    if (sysctl(mib, 3, buffer, &size, NULL, 0) == 0 && size <= allocation && size > sizeof(int)) {
+        int argc = 0; memcpy(&argc, buffer, sizeof(int));
+        size_t offset = sizeof(int);
+        while (offset < size && buffer[offset]) offset++;
+        while (offset < size && !buffer[offset]) offset++;
+        for (int i = 0; i < argc && i < 2 && offset < size; i++) {
+            size_t length = strnlen(buffer + offset, size - offset);
+            if (length >= size - offset || written + (int)length + 1 > capacity) break;
+            memcpy(output + written, buffer + offset, length + 1);
+            written += (int)length + 1; offset += length + 1;
+        }
+    }
+    memset(buffer, 0, allocation); free(buffer);
+    return written;
 }

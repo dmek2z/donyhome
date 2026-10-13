@@ -8,6 +8,7 @@ typedef struct {
 } DCSystem;
 typedef struct {
     int32_t pid;
+    int32_t parent_pid;
     uint32_t uid;
     uint64_t start_seconds, start_microseconds, cpu_ticks, memory_bytes;
     int counters_available;
@@ -20,4 +21,5 @@ int dc_read_system(DCSystem *output);
 int dc_read_processes(DCProcess *output, int capacity);
 int dc_process_matches(int32_t pid, uint32_t uid, uint64_t start_seconds, uint64_t start_microseconds);
 int dc_process_cwd(int32_t pid, char *output, int capacity);
+int dc_process_arguments(int32_t pid, char *output, int capacity);
 #endif

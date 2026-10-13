@@ -75,7 +75,8 @@ public enum CommandRunner {
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
         if process.isRunning { process.terminate(); return CommandResult(status: -1, output: "작업 대기 시간이 초과됐습니다. 시스템 인증 창과 작업 상태를 확인해 주세요.") }
-        let data = try Data(contentsOf: log)
+        let reader = try FileHandle(forReadingFrom: log); defer { try? reader.close() }
+        let data = try reader.read(upToCount: 65_536) ?? Data()
         let text = String(decoding: data.prefix(65_536), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         return CommandResult(status: process.terminationStatus, output: text)
     }

@@ -127,16 +127,29 @@ struct IssuesView: View {
 struct Sparkline: View {
     let values: [Double]
     var color: Color = Theme.primary
+    var title: String = "사용량"
+    @State private var hoveredIndex: Int?
     var body: some View {
         GeometryReader { proxy in
             let points = values.enumerated().map { index, value in
                 CGPoint(x: proxy.size.width * Double(index) / Double(max(1, values.count - 1)), y: proxy.size.height * (1 - min(100, max(0, value)) / 100))
             }
-            Path { path in
+            ZStack(alignment: .topLeading) {
+              Path { path in
                 guard let first = points.first else { return }; path.move(to: first)
                 for point in points.dropFirst() { path.addLine(to: point) }
             }.stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-        }.frame(height: 36).accessibilityLabel("최근 사용량 그래프")
+              if let index = hoveredIndex, points.indices.contains(index) {
+                Circle().fill(color).frame(width: 6, height: 6).position(points[index])
+                Text(title + " · " + String(format: "%.1f%%", values[index])).font(Theme.font(10, weight: .medium)).padding(5).background(.white).clipShape(RoundedRectangle(cornerRadius: 5)).offset(y: -24)
+              }
+            }.contentShape(Rectangle()).onContinuousHover { phase in
+                switch phase {
+                case .active(let location): hoveredIndex = values.isEmpty ? nil : min(values.count - 1, max(0, Int((location.x / max(1, proxy.size.width) * Double(max(0, values.count - 1))).rounded())))
+                case .ended: hoveredIndex = nil
+                }
+            }
+        }.frame(height: 36).accessibilityLabel(title + " 최근 사용량 그래프")
     }
 }
 struct MetricCard: View {
@@ -151,14 +164,14 @@ struct MetricCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack { Text(title).font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.secondary); Spacer(); DonyIcon(symbol).foregroundStyle(color) }
             Text(value).font(Theme.font(29, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-            if !values.isEmpty { Sparkline(values: values, color: color) }
+            if !values.isEmpty { Sparkline(values: values, color: color, title: title) }
             else if let progress {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Theme.canvas)
                         Capsule().fill(color).frame(width: geometry.size.width * min(1, max(0, progress)))
                     }.frame(height: 5).frame(maxHeight: .infinity)
-                }.frame(height: 36)
+                }.frame(height: 36).help(title + " · " + value + " · " + detail)
             } else { Color.clear.frame(height: 36) }
             Text(detail).font(Theme.font(12)).foregroundStyle(Theme.secondary).lineLimit(2).frame(minHeight: 28, alignment: .topLeading)
         }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
@@ -176,7 +189,7 @@ struct CandidateRow: View {
                 .toggleStyle(DonyCheckbox()).labelsHidden().disabled(model.busy).accessibilityLabel("선택 " + candidate.name)
             DonyIcon(candidate.fingerprint.isDirectory ? "folder.fill" : "doc.fill").font(Theme.font(19)).foregroundStyle(Theme.primary).frame(width: 30)
             VStack(alignment: .leading, spacing: 4) {
-                Text(candidate.name).font(Theme.font(12, weight: .medium)).lineLimit(1)
+                Text(candidate.name).font(Theme.font(12, weight: .medium)).lineLimit(1).help(candidate.url.path)
                 Text(subtitle ?? candidate.url.path).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(candidate.url.path)
             }
             Spacer(minLength: 10)

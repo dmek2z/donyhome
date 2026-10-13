@@ -18,6 +18,8 @@ struct PerformanceView: View {
     @State private var memorySort = false
     @State private var search = ""
     @State private var selection = Set<String>()
+    private var displayedRows: [UsageRow] { Array(rows.prefix(100)) }
+    private var selectableRows: [UsageRow] { displayedRows.filter { model.canQuit($0.process) } }
     private var selectedRows: [UsageRow] { rows.filter { selection.contains($0.id) && model.canQuit($0.process) } }
     private var rows: [UsageRow] {
         let processes = model.snapshot.processes
@@ -64,6 +66,8 @@ struct PerformanceView: View {
                         scope = "내 앱"; search = ""
                         selection = Set(rows.filter { model.canQuit($0.process) && (($0.cpu ?? 0) >= 50 || $0.memory >= 1_000_000_000) }.map(\.id))
                     }.buttonStyle(QuietButton()).disabled(model.busy)
+                    Button("전체 선택") { selection = Set(selectableRows.map(\.id)) }.buttonStyle(QuietButton()).disabled(model.busy || selectableRows.isEmpty)
+                    Button("선택 해제") { selection.removeAll() }.buttonStyle(QuietButton()).disabled(selection.isEmpty)
                     Text("\(selectedRows.count)개 선택").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     Spacer()
                     Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)); selection.removeAll() }.buttonStyle(PrimaryButton()).disabled(selectedRows.isEmpty || model.busy)
@@ -95,7 +99,7 @@ struct PerformanceView: View {
                     HStack {
                         Text("앱 / 프로세스"); Spacer(); Text("CPU").frame(width: 70, alignment: .trailing); Text(scope == "내 앱" ? "메모리 합산" : "메모리").frame(width: 90, alignment: .trailing); Text("관리").frame(width: 100, alignment: .trailing)
                     }.font(Theme.font(10, weight: .medium)).foregroundStyle(Theme.secondary).padding(.horizontal, 18).padding(.vertical, 12).background(Theme.canvas)
-                    ForEach(Array(rows.prefix(100))) { row in
+                    ForEach(displayedRows) { row in
                         HStack(spacing: 10) {
                             Toggle("선택 " + row.name, isOn: Binding(get: { selection.contains(row.id) }, set: { if $0 { selection.insert(row.id) } else { selection.remove(row.id) } })).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel("선택 " + row.name).disabled(!model.canQuit(row.process) || model.busy)
                             Group {
@@ -112,10 +116,10 @@ struct PerformanceView: View {
                             HStack(spacing: 5) {
                                 if model.canQuit(row.process) {
                                     Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.operationBusy)
-                                    Menu { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } } label: { DonyIcon("ellipsis") }.menuStyle(.borderlessButton).frame(width: 16).disabled(model.operationBusy)
+                                    Menu { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } } label: { Text("⋯").font(.system(size: 16)) }.menuStyle(.borderlessButton).frame(width: 22, height: 24).disabled(model.operationBusy)
                                 } else { DonyIcon("lock").foregroundStyle(Theme.secondary).help("직접 종료할 수 없는 시스템 또는 백그라운드 프로세스") }
                             }.frame(width: 100, alignment: .trailing)
-                        }.font(Theme.font(11)).monospacedDigit().padding(.horizontal, 18).padding(.vertical, 12)
+                        }.font(Theme.font(11)).monospacedDigit().frame(height: 56).padding(.horizontal, 18)
                         Divider().padding(.leading, 56)
                     }
                 }.panel(0)

@@ -75,10 +75,16 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var lastRelief: ReliefObservation?
     @Published var notifyEnabled = UserDefaults.standard.bool(forKey: "overloadNotifications")
     @Published var preferencesShown = false
+    @Published var onboardingShown = !UserDefaults.standard.bool(forKey: "onboardingCompleted")
+    @Published var connectedTools = Set((UserDefaults.standard.stringArray(forKey: "connectedTools") ?? AITool.allCases.map(\.rawValue)).compactMap(AITool.init(rawValue:)))
+    @Published var toolStatuses: [AITool: String] = [:]
+    @Published var notificationStatus = "확인 중"
+    @Published var setupStep = 0
     @Published var automaticCleanupEnabled = UserDefaults.standard.bool(forKey: "automaticCleanupEnabled")
     @Published var lastAutomaticCleanup = UserDefaults.standard.object(forKey: "lastAutomaticCleanup") as? Date
     @Published var automaticCleanupSummary: String?
-    @Published var menuCharacter = CodingCharacter.images[0]
+    @Published var characterMode = CharacterMode(rawValue: UserDefaults.standard.string(forKey: "characterMode") ?? "") ?? .color
+    let menuAnimator = CodingCharacterAnimator(mode: CharacterMode(rawValue: UserDefaults.standard.string(forKey: "characterMode") ?? "") ?? .color)
     @Published var projectCleanupEnabled = UserDefaults.standard.bool(forKey: "projectCleanupEnabled")
     @Published var projectRetentionDays = max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14))
     @Published var projectCleanupScope = ProjectCleanupScope(rawValue: UserDefaults.standard.string(forKey: "projectCleanupScope") ?? "") ?? .generated
@@ -97,8 +103,6 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     private var historyWritable = true
     private var token: ScanToken?
     private var timer: Timer?
-    private var characterTimer: Timer?
-    private var characterFrame = -1
     private var sampling = false
     private var cpuHighSince: Date?
     private var memoryHighSince: Date?
@@ -118,14 +122,6 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         do { history = try store.load() }
         catch { historyWritable = false; banner = "이전 기록을 읽지 못했습니다. 기존 파일은 보존합니다: " + error.localizedDescription }
         sample()
-        characterTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                let interval = self.snapshot.pressure == .critical || (self.snapshot.cpuPercent ?? 0) >= 85 ? 0.10 : self.snapshot.pressure == .warning || (self.snapshot.cpuPercent ?? 0) >= 50 ? 0.22 : 0.65
-                let frame = Int(Date().timeIntervalSince1970 / interval) % 2 + (interval <= 0.22 ? 2 : 0)
-                if frame != self.characterFrame { self.characterFrame = frame; self.menuCharacter = CodingCharacter.images[frame] }
-            }
-        }
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -139,6 +135,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         let sampler = sampler
         Task {
             let value = await Task.detached(priority: .utility) { sampler.sample() }.value
+            menuAnimator.update(cpu: value.cpuPercent, pressure: value.pressure)
             snapshot = value; sampling = false; lastSample = Date()
             if let cpu = value.cpuPercent { cpuHistory = Array((cpuHistory + [cpu]).suffix(60)) }
             if let memory = value.memoryPercent { memoryHistory = Array((memoryHistory + [memory]).suffix(60)) }

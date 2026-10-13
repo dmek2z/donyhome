@@ -4,14 +4,14 @@ import DonyCore
 
 struct AIProjectsView: View {
     @EnvironmentObject var model: AppModel
-    @State private var tab = "AI 도구"
-    @State private var tool = AITool.codex
+    @State private var tab = "도구"
+    @State private var projectTools: Set<AITool> = [.codex]
     private var projects: [LinkedProject] { model.linkedProjects.filter { model.projectSource == "모두" || $0.discovered == (model.projectSource == "작업 이력") } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "개발")
-            DonyTabs(options: ["AI 도구", "프로젝트"], selection: $tab)
-            if tab == "AI 도구" {
+            DonyTabs(options: ["도구", "프로젝트"], selection: $tab)
+            if tab == "도구" {
                 usagePanel
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
@@ -39,6 +39,8 @@ struct AIProjectsView: View {
                 IssuesView(issues: model.projectScan.issues)
             }
         }
+        .onAppear { model.refreshToolConnections(); projectTools = model.connectedTools }
+        .onChange(of: projectTools) { _, value in model.connectedTools = value; model.saveConnectedTools() }
         .onChange(of: model.projectRetentionDays) { _, _ in model.saveProjectSettings() }
         .onChange(of: model.projectSource) { _, _ in model.saveProjectSettings() }
         .onChange(of: model.projectCleanupScope) { _, _ in model.setProjectAutomation(false); model.saveProjectSettings() }
@@ -46,10 +48,10 @@ struct AIProjectsView: View {
     private var usagePanel: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("AI 도구 사용량").font(Theme.font(18, weight: .semibold))
+                Text("개발 도구 사용량").font(Theme.font(18, weight: .semibold))
                 Spacer(); Chip(text: "메모리 " + model.snapshot.pressure.label, color: model.pressureColor)
             }
-            if model.aiUsage.isEmpty { Text("실행 중인 AI 도구가 없어요").font(Theme.font(14)).foregroundStyle(Theme.secondary).padding(.vertical, 24) }
+            if model.aiUsage.isEmpty { Text("실행 중인 개발 도구가 없어요").font(Theme.font(14)).foregroundStyle(Theme.secondary).padding(.vertical, 24) }
             ForEach(model.aiUsage) { usage in
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -71,14 +73,19 @@ struct AIProjectsView: View {
                 DonyChoices(options: ["직접 등록", "작업 이력", "모두"], selection: $model.projectSource).disabled(model.busy)
             }
             VStack(alignment: .leading, spacing: 10) {
-                settingLabel("AI 도구")
-                DonyChoices(options: AITool.allCases.map(\.title), selection: Binding(get: { tool.title }, set: { title in if let value = AITool.allCases.first(where: { $0.title == title }) { tool = value } })).disabled(model.busy)
                 HStack {
-                    Button("폴더 연결") { model.addProject(tool: tool) }.buttonStyle(QuietButton()).disabled(model.busy)
+                    settingLabel("연결할 도구")
+                    Spacer()
+                    Button("전체 선택") { projectTools = Set(AITool.allCases) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.primary)
+                    Button("선택 해제") { projectTools.removeAll() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                }
+                ToolSelectionView(selection: $projectTools).disabled(model.busy)
+                HStack {
+                    Button("폴더 연결") { model.addProjects(tools: projectTools) }.buttonStyle(QuietButton()).disabled(model.busy || projectTools.isEmpty)
                     if model.projectSource != "직접 등록" { Button("작업 이력에서 찾기") { model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy) }
                     Spacer()
                 }
-                if model.projectSource != "직접 등록" { Text("자동 수집: Codex · Claude Code · Cursor").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
+                if model.projectSource != "직접 등록" { Text("작업 이력 · 실행 중인 터미널 프로젝트").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
             }
             Divider()
             VStack(alignment: .leading, spacing: 12) {
@@ -107,23 +114,29 @@ struct AIProjectsView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("프로젝트").font(Theme.font(18, weight: .semibold))
-                Text("\(projects.count)").font(Theme.font(15, weight: .medium)).foregroundStyle(Theme.secondary)
+                Text("\(Set(projects.map(\.path)).count)").font(Theme.font(15, weight: .medium)).foregroundStyle(Theme.secondary)
                 Spacer()
                 Button("후보 검사") { model.scanAIProjects() }.buttonStyle(QuietButton()).disabled(model.busy || model.selectedProjects.isEmpty)
             }
             if projects.isEmpty { Text("연결된 프로젝트가 없어요").font(Theme.font(14)).foregroundStyle(Theme.secondary).padding(.vertical, 20) }
-            ForEach(projects) { project in
+            ForEach(Array(Set(projects.map(\.path))).sorted(), id: \.self) { path in
+                let links = projects.filter { $0.path == path }
                 HStack(spacing: 12) {
-                    Toggle("정리 대상 " + URL(fileURLWithPath: project.path).lastPathComponent, isOn: Binding(get: { model.linkedProjects.first(where: { $0.id == project.id })?.enabled ?? false }, set: { enabled in if let index = model.linkedProjects.firstIndex(where: { $0.id == project.id }) { model.linkedProjects[index].enabled = enabled; model.saveProjectSettings() } })).labelsHidden().toggleStyle(DonyCheckbox()).disabled(model.busy)
+                    Toggle("정리 대상 " + URL(fileURLWithPath: path).lastPathComponent, isOn: Binding(get: { links.contains { $0.enabled } }, set: { enabled in
+                        let ids = Set(links.map(\.id))
+                        for index in model.linkedProjects.indices where ids.contains(model.linkedProjects[index].id) { model.linkedProjects[index].enabled = enabled }
+                        model.saveProjectSettings()
+                    })).labelsHidden().toggleStyle(DonyCheckbox()).disabled(model.busy)
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(URL(fileURLWithPath: project.path).lastPathComponent).font(Theme.font(14, weight: .medium))
-                        Text(project.path).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(project.path)
+                        Text(URL(fileURLWithPath: path).lastPathComponent).font(Theme.font(14, weight: .medium))
+                        Text(path).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(path)
                     }
                     Spacer(minLength: 12)
-                    Chip(text: project.tool.title, color: Theme.secondary)
-                    Button { model.linkedProjects.removeAll { $0.id == project.id }; model.saveProjectSettings() } label: { DonyIcon("xmark", size: 14).foregroundStyle(Theme.secondary).frame(width: 28, height: 28) }.buttonStyle(.plain).help("연결 해제").accessibilityLabel("연결 해제 " + project.path).disabled(model.busy)
-                }.padding(.vertical, 8)
-                if project.id != projects.last?.id { Divider() }
+                    let names = Array(Set(links.map { $0.tool.title })).sorted()
+                    Chip(text: names.prefix(2).joined(separator: " · ") + (names.count > 2 ? " +\(names.count - 2)" : ""), color: Theme.secondary)
+                    Button { let ids = Set(links.map(\.id)); model.linkedProjects.removeAll { ids.contains($0.id) }; model.saveProjectSettings() } label: { DonyIcon("xmark", size: 14).foregroundStyle(Theme.secondary).frame(width: 28, height: 28) }.buttonStyle(.plain).help("연결 해제").accessibilityLabel("연결 해제 " + path).disabled(model.busy)
+                }.frame(height: 56)
+                Divider()
             }
         }.frame(maxWidth: .infinity, alignment: .leading).panel()
     }

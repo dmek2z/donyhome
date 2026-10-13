@@ -4,6 +4,7 @@ import DonyCore
 struct SpaceView: View {
     @EnvironmentObject var model: AppModel
     @State private var selection = Set<String>()
+    @State private var hoveredEntry: String?
     private var selected: [FileCandidate] { model.spaceMap.entries.filter(\.selectable).map(\.candidate).filter { selection.contains($0.id) } }
     private let colors: [Color] = [Theme.primary, Color(hex: 0x25b79a), Color(hex: 0x8662ed), Color(hex: 0xf5a623), Color(hex: 0xf45b78)]
     var body: some View {
@@ -28,12 +29,14 @@ struct SpaceView: View {
                 GeometryReader { geometry in
                     HStack(spacing: 2) {
                         ForEach(Array(model.spaceMap.entries.prefix(10).enumerated()), id: \.element.id) { index, entry in
-                            Rectangle().fill(colors[index % colors.count]).frame(width: max(0, (geometry.size.width - 20) * Double(entry.bytes) / Double(max(1, model.spaceMap.totalBytes))))
+                            Rectangle().fill(colors[index % colors.count]).opacity(hoveredEntry == nil || hoveredEntry == entry.id ? 1 : 0.65).frame(width: max(0, (geometry.size.width - 20) * Double(entry.bytes) / Double(max(1, model.spaceMap.totalBytes))))
+                                .onHover { hoveredEntry = $0 ? entry.id : nil }
+                                .onTapGesture { if !model.busy { if entry.candidate.fingerprint.isDirectory { model.scanSpace(entry.candidate.url) } else { model.showFinder(entry.candidate.url) } } }
                                 .help(entry.candidate.name + " · " + DisplayFormat.bytes(entry.bytes))
                         }
                     }.clipShape(RoundedRectangle(cornerRadius: 10))
                 }.frame(height: 36)
-                Text("로컬 파일의 논리 크기 · 하드 링크는 한 번만 합산").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                Text(model.spaceMap.entries.first(where: { $0.id == hoveredEntry }).map { $0.candidate.name + " · " + DisplayFormat.bytes($0.bytes) } ?? " ").font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.secondary).lineLimit(1).frame(height: 16)
                 LazyVStack(spacing: 0) {
                     ForEach(Array(model.spaceMap.entries.prefix(200).enumerated()), id: \.element.id) { index, entry in
                         HStack(spacing: 10) {

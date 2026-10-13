@@ -32,15 +32,16 @@ extension AppModel {
         projectCleanupEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: "projectCleanupEnabled")
     }
-    func addProject(tool: AITool) {
-        guard !busy else { return }
+    func addProject(tool: AITool) { addProjects(tools: [tool]) }
+    func addProjects(tools: Set<AITool>) {
+        guard !busy, !tools.isEmpty else { return }
         let picker = NSOpenPanel(); picker.canChooseDirectories = true; picker.canChooseFiles = false; picker.allowsMultipleSelection = true
-        picker.prompt = "프로젝트 연결"; picker.message = "\(tool.title)로 작업한 프로젝트 폴더를 선택하세요. 상위 보관 폴더 대신 프로젝트 자체를 선택해 주세요."
+        picker.prompt = "프로젝트 연결"; picker.message = "프로젝트 폴더 선택"
         guard picker.runModal() == .OK else { return }
         for url in picker.urls {
             do {
                 let root = try ProjectCleanup.projectRoot(url.path)
-                if !linkedProjects.contains(where: { $0.tool == tool && $0.path == root.path && !$0.discovered }) { linkedProjects.append(LinkedProject(tool: tool, path: root.path)) }
+                linkedProjects = DevelopmentRuntime.link(projectPaths: [root.path], tools: tools, existing: linkedProjects)
             } catch { banner = "프로젝트 표시 파일이 없거나 보호된 경로입니다: " + url.path }
         }
         saveProjectSettings()
@@ -48,11 +49,19 @@ extension AppModel {
     func discoverProjects() {
         guard let (token, _) = begin("AI 작업 이력에서 프로젝트 찾기") else { return }
         Task {
-            let result = await Task.detached(priority: .utility) { ProjectDiscovery.discover(token: token) }.value
-            mergeDiscoveredProjects(result.projects)
+            let selectedTools = connectedTools
+            let processes = snapshot.processes; let applicationTools = aiApplicationTools
+            let result = await Task.detached(priority: .utility) {
+                let history = ProjectDiscovery.discover(token: token)
+                var runtime = DevelopmentRuntime.discover(tools: selectedTools, token: token)
+                runtime.projects += DevelopmentRuntime.runningProjects(processes: processes, currentUID: getuid(), applicationTools: applicationTools, tools: selectedTools)
+                return (history, runtime)
+            }.value
+            mergeDiscoveredProjects(result.0.projects + result.1.projects)
+            toolStatuses.merge(result.1.statuses) { _, new in new }
             if projectSource == "직접 등록" { projectSource = "작업 이력" }
-            projectSummary = "\(result.projects.count)개 프로젝트 발견 · 자동 정리할 폴더를 선택해 주세요."
-            finish(token.isCancelled, issues: result.issues)
+            projectSummary = "\(Set((result.0.projects + result.1.projects).map(\.path)).count)개 프로젝트 발견 · 자동 정리할 폴더를 선택해 주세요."
+            finish(token.isCancelled, issues: result.0.issues)
         }
     }
     func mergeDiscoveredProjects(_ projects: [LinkedProject]) {
