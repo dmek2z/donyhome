@@ -4,6 +4,13 @@ import DonyCore
 
 @main enum DonyEntry {
     static func main() {
+        if let index = CommandLine.arguments.firstIndex(of: "--project-inventory"), CommandLine.arguments.count > index + 1 {
+            let project = LinkedProject(tool: .other, path: CommandLine.arguments[index + 1], enabled: false)
+            if let result = ProjectInventory.inspect(projects: [project], token: ScanToken()).first, let data = try? JSONEncoder().encode(result) {
+                FileHandle.standardOutput.write(data)
+            }
+            return
+        }
         if CommandLine.arguments.contains("--diagnostics") {
             let sampler = SystemSampler(); _ = sampler.sample(); Thread.sleep(forTimeInterval: 1)
             let snapshot = sampler.sample(); let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601

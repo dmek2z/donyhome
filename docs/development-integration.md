@@ -15,4 +15,6 @@ Cleanup choices are generated caches (default), project AI context, or whole pro
 
 This is local project/file integration, not an AI context-window compactor. Removing files reclaims disk space; it does not by itself free RAM used by running tools. Credentials and chat contents are not sent anywhere.
 
+Project inventories run as one read-only helper process per folder. The parent enforces a 20-second deadline and interrupts the helper on cancellation, including when a filesystem provider or permission check blocks a system call. Incomplete folders remain visible with their issue; they are not treated as a successful inventory or remote-backup verification.
+
 Primary references: https://code.claude.com/docs/en/sessions, https://github.com/openai/codex, https://herdr.dev/, https://www.onorca.dev/.

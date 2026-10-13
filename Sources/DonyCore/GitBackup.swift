@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GitBackupReport: Sendable {
+public struct GitBackupReport: Codable, Sendable {
     public let verified: Bool
     public let reason: String
     public init(_ verified: Bool, _ reason: String) { self.verified = verified; self.reason = reason }

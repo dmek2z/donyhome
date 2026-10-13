@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ProjectInventoryEntry: Sendable, Identifiable {
+public struct ProjectInventoryEntry: Codable, Sendable, Identifiable {
     public var id: String { path }
     public let path: String
     public var tools: Set<AITool>
@@ -17,6 +17,45 @@ public struct ProjectInventoryEntry: Sendable, Identifiable {
 }
 
 public enum ProjectInventory {
+    /// Filesystem providers may block inside open(2), beyond cooperative deadlines.
+    /// Run each read-only inventory in a disposable process so cancellation stays responsive.
+    public static func inspectIsolated(projects: [LinkedProject], executable: URL, token: ScanToken, progress: Scanner.Progress? = nil, timeout: TimeInterval = 20) -> [ProjectInventoryEntry] {
+        var entries: [ProjectInventoryEntry] = []
+        for path in Set(projects.map(\.path)).sorted() {
+            if token.isCancelled { break }
+            let links = projects.filter { $0.path == path }
+            var entry = ProjectInventoryEntry(path: path, tools: Set(links.map(\.tool)))
+            entry.lastActivity = links.compactMap(\.lastActivity).max()
+            progress?(entries.count, URL(fileURLWithPath: path).lastPathComponent + " · 파일 확인")
+            let log = FileManager.default.temporaryDirectory.appendingPathComponent("DonyHome-inventory-" + UUID().uuidString)
+            let process = Process()
+            do {
+                guard FileManager.default.createFile(atPath: log.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw DonyError.unsupported }
+                defer { try? FileManager.default.removeItem(at: log) }
+                let handle = try FileHandle(forWritingTo: log)
+                defer { try? handle.close() }
+                process.executableURL = executable; process.arguments = ["--project-inventory", path]
+                process.standardOutput = handle; process.standardError = FileHandle.nullDevice; process.standardInput = FileHandle.nullDevice
+                try process.run()
+                let deadline = Date().addingTimeInterval(timeout)
+                while process.isRunning && !token.isCancelled && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+                if process.isRunning {
+                    // SIGKILL also handles a helper blocked in a permission/provider syscall.
+                    kill(process.processIdentifier, SIGKILL)
+                    entry.issues.append(ScanIssue(path: path, message: token.isCancelled ? "검사 중단" : "폴더 응답 대기 초과 · 권한 또는 파일 동기화 상태를 확인해 주세요."))
+                } else {
+                    guard process.terminationStatus == 0, (try FileSafety.fingerprint(log)).size <= 65_536 else { throw DonyError.unsupported }
+                    var result = try JSONDecoder().decode(ProjectInventoryEntry.self, from: Data(contentsOf: log))
+                    guard result.path == path else { throw DonyError.unsafePath }
+                    result.tools = entry.tools
+                    result.lastActivity = max(result.lastActivity ?? .distantPast, entry.lastActivity ?? .distantPast)
+                    entry = result
+                }
+            } catch { entry.issues.append(ScanIssue(path: path, error: error)) }
+            entries.append(entry)
+        }
+        return entries
+    }
     // Instructions, memories and agent definitions are user work, not disposable caches.
     public static let contextPaths = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "MEMORY.md", ".claude/agents", ".claude/skills", ".claude/commands", ".claude/rules", ".claude/settings.json", ".claude/settings.local.json", ".codex/config.toml", ".codex/skills", ".cursor/rules", ".github/copilot-instructions.md"]
     public static func inspect(projects: [LinkedProject], token: ScanToken, progress: Scanner.Progress? = nil) -> [ProjectInventoryEntry] {

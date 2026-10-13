@@ -41,7 +41,7 @@ struct AIProjectsView: View {
                         HStack { Spacer(); Button("휴지통으로 이동") { model.runProjectCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy || model.projectScan.cancelled) }
                     }.frame(maxWidth: .infinity, alignment: .leading).panel()
                 }
-                IssuesView(issues: model.projectScan.issues)
+                IssuesView(issues: model.connectionIssues.filter { issue in !model.projectScan.issues.contains { $0.id == issue.id } } + model.projectScan.issues)
             }
         }
         .onAppear { model.refreshToolConnections(); projectTools = model.connectedTools; if model.connectionCheckedAt == nil && !model.busy { model.discoverProjects(includeInventory: false) } }

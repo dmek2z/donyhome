@@ -4,6 +4,25 @@ import Testing
 @testable import DonyCore
 
 @Suite struct ProjectInventoryTests {
+    @Test func isolatedInventoryTimesOutAndCanBeCancelledWithoutWaitingForWorker() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let worker = root.appendingPathComponent("slow-worker")
+        try Data("#!/bin/sh\nexec /bin/sleep 5\n".utf8).write(to: worker)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: worker.path)
+        let projects = [LinkedProject(tool: .codex, path: root.path)]
+        var start = Date()
+        let expired = ProjectInventory.inspectIsolated(projects: projects, executable: worker, token: ScanToken(), timeout: 0.1)
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(expired.first?.issues.first?.message.contains("대기 초과") == true)
+        let token = ScanToken()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { token.cancel() }
+        start = Date()
+        let cancelled = ProjectInventory.inspectIsolated(projects: projects, executable: worker, token: token, timeout: 10)
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(cancelled.first?.issues.first?.message == "검사 중단")
+    }
     @Test func countsContextsSeparatelyFromDisposableGeneratedFiles() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

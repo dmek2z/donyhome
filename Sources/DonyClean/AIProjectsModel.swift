@@ -63,7 +63,7 @@ extension AppModel {
                 var runtime = DevelopmentRuntime.discover(tools: selectedTools, token: token)
                 runtime.projects += DevelopmentRuntime.runningProjects(processes: processes, currentUID: getuid(), applicationTools: applicationTools, tools: selectedTools)
                 let worktrees = ProjectInventory.discoverManagedWorktrees(token: token).filter { selectedTools.contains($0.tool) }
-                let inventory = includeInventory ? ProjectInventory.inspect(projects: history.projects + runtime.projects + worktrees + linkedProjectsSnapshot, token: token, progress: report) : []
+                let inventory = includeInventory ? ProjectInventory.inspectIsolated(projects: history.projects + runtime.projects + worktrees + linkedProjectsSnapshot, executable: Bundle.main.executableURL!, token: token, progress: report) : []
                 return (history, runtime, worktrees, inventory)
             }.value
             mergeDiscoveredProjects(result.0.projects + result.1.projects + result.2)
