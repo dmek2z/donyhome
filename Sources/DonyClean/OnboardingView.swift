@@ -4,13 +4,14 @@ import DonyCore
 
 struct OnboardingView: View {
     @EnvironmentObject var model: AppModel
-    private let titles = ["개발 도구 연결", "프로젝트 연결", "권한 확인", "캐릭터 설정"]
+    @EnvironmentObject var clipboard: ClipboardController
+    private let titles = ["권한 설정", "개발 도구 연결", "프로젝트 연결", "캐릭터 설정"]
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 30, height: 30)
                 Text("도니홈 시작하기").font(Theme.font(21, weight: .bold))
-                Spacer(); Button("나중에") { model.completeOnboarding() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                Spacer(); Button("나중에") { model.completeOnboarding() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary).disabled(model.requestingPermissions)
             }.padding(24)
             HStack(spacing: 8) {
                 ForEach(0..<4) { index in Capsule().fill(index <= model.setupStep ? Theme.primary : Theme.line).frame(height: 4) }
@@ -19,7 +20,7 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(titles[model.setupStep]).font(Theme.font(24, weight: .bold))
                     switch model.setupStep {
-                    case 0:
+                    case 1:
                         HStack {
                             Text("여러 도구를 함께 선택하세요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                             Spacer(); Button("전체 선택") { model.connectedTools = Set(AITool.allCases) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.primary)
@@ -27,7 +28,7 @@ struct OnboardingView: View {
                         }
                         ToolSelectionView(selection: $model.connectedTools, statuses: model.toolStatuses)
                         Button("다시 감지") { model.refreshToolConnections() }.buttonStyle(QuietButton())
-                    case 1:
+                    case 2:
                         HStack {
                             Button("폴더 선택") { model.addProjects(tools: model.connectedTools) }.buttonStyle(PrimaryButton()).disabled(model.connectedTools.isEmpty || model.busy)
                             Button("자동으로 찾기") { model.saveConnectedTools(); model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy)
@@ -37,8 +38,10 @@ struct OnboardingView: View {
                         HStack { Text("보관 기간").font(Theme.font(14)); Spacer(); Text("\(model.projectRetentionDays)일").font(Theme.font(16, weight: .semibold)) }
                         DonyChoices(options: ["1일", "2일", "3일", "7일", "14일", "30일"], selection: Binding(get: { "\(model.projectRetentionDays)일" }, set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14; model.saveProjectSettings() }))
                         Text("자동 정리는 개발 메뉴에서 켤 수 있어요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                    case 2:
+                    case 0:
                         PermissionChecklist()
+                        HStack { Spacer(); Button("권한 설정 시작") { model.requestSelectedPermissions(notifications: true, paste: true, clipboard: clipboard) }.buttonStyle(QuietButton()).disabled(model.requestingPermissions) }
+                        if let error = model.permissionError { Text(error).font(Theme.font(12)).foregroundStyle(Theme.amber) }
                         Text("권한 변경 후 재실행은 마지막에 한 번만 진행해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                         Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch()).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                         Text("관리자 인증은 유지보수 실행 시 요청됩니다").font(Theme.font(12)).foregroundStyle(Theme.secondary)
@@ -54,23 +57,22 @@ struct OnboardingView: View {
                 Button(model.setupStep == 3 ? "시작하기" : "다음") {
                     model.saveConnectedTools()
                     if model.setupStep < 3 {
-                        if model.setupStep == 2 {
+                        if model.setupStep == 0 {
                             model.permissionSetupReviewed = true
                             UserDefaults.standard.set(true, forKey: "permissionSetupReviewed")
                         }
                         model.setupStep += 1
                     } else { model.completeOnboarding() }
-                }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                }.buttonStyle(PrimaryButton()).disabled(model.busy || model.requestingPermissions)
             }.padding(24)
         }.frame(width: 700, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
-            .onAppear { model.refreshToolConnections() }
-            .onChange(of: model.setupStep) { _, value in if value == 2 { model.refreshToolConnections(); model.refreshAccess() } }
+            .onAppear {
+                model.refreshToolConnections()
+                if FirstLaunchSetup.claimPermissionRequests() { model.requestSelectedPermissions(notifications: true, paste: true, clipboard: clipboard) }
+                else { model.refreshAccess() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refreshAccess(); model.refreshToolConnections() }
+            .onChange(of: model.setupStep) { _, value in if value == 0 { model.refreshToolConnections(); model.refreshAccess() } }
             .onChange(of: model.notifyEnabled) { _, _ in model.refreshToolConnections() }
-    }
-    private func permission(_ title: String, status: String, action: String, run: @escaping () -> Void) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 5) { Text(title).font(Theme.font(14, weight: .medium)); Text(status).font(Theme.font(11)).foregroundStyle(Theme.secondary) }
-            Spacer(); Button(action, action: run).buttonStyle(QuietButton())
-        }.padding(20).frame(maxWidth: .infinity).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }

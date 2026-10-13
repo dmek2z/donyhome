@@ -12,26 +12,24 @@ extension AppModel {
         refreshToolConnections()
     }
 
-    func refreshAccess() {
-        guard !checkingAccess else { return }; checkingAccess = true
+    @discardableResult
+    func refreshAccess() -> Task<Void, Never> {
+        if let task = permissionAccessTask { return task }; checkingAccess = true
         let home = FileManager.default.homeDirectoryForCurrentUser
         let folder = folder
-        let known = blockedPaths.map { URL(fileURLWithPath: $0) }
-        Task {
-            let report = await Task.detached(priority: .utility) {
-                let roots = [home.appendingPathComponent("Library/Caches"), home.appendingPathComponent("Library/Logs")]
-                var paths = roots + [folder] + known
-                for root in roots {
-                    if let children = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
-                        paths += children.filter {
-                            $0.lastPathComponent != "com.apple.Music" && (try? FileSafety.fingerprint($0))?.isDirectory == true
-                        }
-                    }
+        let task = Task {
+            let result = await Task.detached(priority: .utility) {
+                let disk = PermissionAccess.protectedFile(home.appendingPathComponent("Library/Application Support/com.apple.TCC/TCC.db"))
+                var folders: [String: PermissionAccess] = [:]
+                for path in Set([folder] + ["Downloads", "Desktop", "Documents"].map { home.appendingPathComponent($0) }) {
+                    folders[path.path] = PermissionAccess.directory(path)
                 }
-                return FileAccessReport.inspect(paths: paths)
+                return (disk, folders)
             }.value
-            accessReport = report; checkingAccess = false
+            diskAccess = result.0; folderAccess = result.1; checkingAccess = false; permissionAccessTask = nil
         }
+        permissionAccessTask = task
+        return task
     }
 
     func preparePermissionSettings(filesOnly: Bool = false) {
@@ -41,7 +39,11 @@ extension AppModel {
     }
 
     func requestSelectedPermissions(notifications: Bool, paste: Bool, clipboard: ClipboardController) {
+        guard !requestingPermissions else { return }
+        requestingPermissions = true
+        permissionError = nil
         Task {
+            defer { requestingPermissions = false }
             // Request optional prompts before Settings, where macOS may quit the app.
             if notifications {
                 do {
@@ -49,9 +51,12 @@ extension AppModel {
                     notifyEnabled = granted; UserDefaults.standard.set(granted, forKey: "overloadNotifications")
                 } catch { permissionError = error.localizedDescription }
             }
-            if paste { clipboard.requestAccessibility() }
+            if paste && !clipboard.accessibilityAllowed { clipboard.requestAccessibility() }
+            // Opening each configured directory lets macOS request all file scopes
+            // in this pass, before the single final restart.
+            await refreshAccess().value
             refreshToolConnections()
-            preparePermissionSettings()
+            if diskAccess != .allowed { preparePermissionSettings() }
         }
     }
 
@@ -87,6 +92,7 @@ extension AppModel {
 
     func resumePendingScan() {
         guard !resumedScanChecked, !busy else { return }; resumedScanChecked = true
+        guard !FirstLaunchSetup.shouldShow() else { return }
         guard let scope = ScanContinuation.take() else { return }
         folder = scope; UserDefaults.standard.set(scope.path, forKey: "scanFolder")
         permissionSetupReviewed = true; UserDefaults.standard.set(true, forKey: "permissionSetupReviewed")

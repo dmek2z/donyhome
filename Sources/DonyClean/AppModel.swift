@@ -37,7 +37,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var blockedPaths: [String] = []
     @Published var permissionsShown = false
     @Published var accessReport = FileAccessReport()
+    var permissionAccessTask: Task<Void, Never>?
     @Published var checkingAccess = false
+    @Published var diskAccess = PermissionAccess.unavailable
+    @Published var folderAccess: [String: PermissionAccess] = [:]
+    @Published var requestingPermissions = false
     @Published var scanAfterPermissions = false
     @Published var restartNeeded = false
     @Published var permissionError: String?
@@ -87,7 +91,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var lastRelief: ReliefObservation?
     @Published var notifyEnabled = UserDefaults.standard.bool(forKey: "overloadNotifications")
     @Published var preferencesShown = false
-    @Published var onboardingShown = !UserDefaults.standard.bool(forKey: "onboardingCompleted")
+    @Published var onboardingShown = FirstLaunchSetup.shouldShow()
     @Published var connectedTools = Set((UserDefaults.standard.stringArray(forKey: "connectedTools") ?? AITool.allCases.map(\.rawValue)).compactMap(AITool.init(rawValue:)))
     @Published var toolStatuses: [AITool: String] = [:]
     @Published var notificationStatus = "확인 중"

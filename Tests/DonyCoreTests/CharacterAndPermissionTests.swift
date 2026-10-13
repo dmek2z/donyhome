@@ -41,3 +41,36 @@ import Testing
         #expect(try String(contentsOf: music.appendingPathComponent("test")) == "preserve")
     }
 }
+
+@Suite struct PermissionAccessTests {
+    @Test func accessStatesDoNotTreatMissingFilesAsGranted() {
+        #expect(PermissionAccess.classify(error: 13) == .denied)
+        #expect(PermissionAccess.classify(error: 1) == .denied)
+        #expect(PermissionAccess.classify(error: 2) == .unavailable)
+        #expect(PermissionAccess.classify(error: 5) == .unavailable)
+        #expect(PermissionAccess.protectedFile(URL(fileURLWithPath: "/nonexistent/" + UUID().uuidString)) == .unavailable)
+    }
+    @Test func checksAccessWithoutReadingOrChangingFileContents() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("fixture")
+        let data = Data("unchanged".utf8)
+        try data.write(to: file)
+        #expect(PermissionAccess.directory(root) == .allowed)
+        #expect(PermissionAccess.protectedFile(file) == .allowed)
+        #expect(try Data(contentsOf: file) == data)
+    }
+    @Test func firstInstallShowsSetupAndPermissionRequestsDoNotLoopAfterRestart() throws {
+        let name = "donyhome-permission-tests-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        #expect(FirstLaunchSetup.shouldShow(defaults: defaults))
+        #expect(FirstLaunchSetup.claimPermissionRequests(defaults: defaults))
+        #expect(!FirstLaunchSetup.claimPermissionRequests(defaults: defaults))
+        #expect(FirstLaunchSetup.shouldShow(defaults: defaults))
+        defaults.set(true, forKey: "onboardingCompleted")
+        #expect(!FirstLaunchSetup.shouldShow(defaults: defaults))
+        #expect(!FirstLaunchSetup.claimPermissionRequests(defaults: defaults))
+    }
+}
