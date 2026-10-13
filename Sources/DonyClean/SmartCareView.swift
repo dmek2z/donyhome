@@ -11,20 +11,22 @@ struct SmartCareView: View {
     private var selectedBytes: Int64 { plan.bytes }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                DonyIcon("sparkles", size: 24).foregroundStyle(Theme.success)
-                Text("스마트 정리").font(Theme.font(18, weight: .semibold))
-                Spacer()
-                if let date = model.smartDate { Text(date, style: .time).font(Theme.font(12)).foregroundStyle(Theme.secondary) }
-            }
-            HStack(spacing: 8) {
-                Text("파일 검사 범위").foregroundStyle(Theme.secondary)
-                Text(model.folder.path).lineLimit(1).truncationMode(.middle).help(model.folder.path)
-                Spacer(); Button("폴더 선택") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)
-            }.font(Theme.font(12))
             if let smart = model.smart {
-                if smart.cancelled { Chip(text: "중단됨 · 다시 점검해 주세요", color: Theme.amber) }
-                DisclosureGroup("검사 결과") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(smart.cancelled ? "검사 중단 · 일부 결과" : "검사 완료").font(Theme.font(18, weight: .semibold))
+                        if let date = model.smartDate { Text(date, format: .dateTime.month().day().hour().minute()).font(Theme.font(12)).foregroundStyle(Theme.secondary) }
+                    }
+                    Spacer()
+                    Chip(text: "정리 추천 \(model.recommendedPlan(includeCleanup: true, includeDuplicates: true).items.count)개", color: smart.cancelled ? Theme.amber : Theme.success)
+                }
+                if !model.blockedPaths.isEmpty {
+                    HStack {
+                        Text("접근 권한이 필요한 경로 \(Set(model.blockedPaths).count)개").font(Theme.font(13)).foregroundStyle(Theme.amber)
+                        Spacer(); Button("권한 설정") { model.showPermissionGuidance() }.buttonStyle(QuietButton())
+                    }
+                }
+                Text("정리할 항목 선택").font(Theme.font(15, weight: .semibold))
                 VStack(spacing: 0) {
                     recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $cleanCaches, section: .cleanup, mode: "캐시 · 로그")
                     Divider()
@@ -32,6 +34,9 @@ struct SmartCareView: View {
                     Divider()
                     recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloper.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloper.reduce(0) { $0 + $1.bytes }), selected: $cleanDeveloper, section: .development, mode: "캐시")
                     Divider()
+                }.font(Theme.font(13))
+                DisclosureGroup("직접 확인할 항목") {
+                VStack(spacing: 0) {
                     reviewRow("큰 파일", icon: "folder", detail: "\(model.largeFiles.items.count)개 · " + DisplayFormat.bytes(model.largeFiles.totalBytes), section: .files, mode: "큰 파일")
                     Divider()
                     reviewRow("오래된 파일 · 설치 파일", icon: "doc.fill", detail: "\(model.clutter.oldFiles.items.count)개 · \(model.clutter.installers.items.count)개", section: .files, mode: "오래된 파일")
@@ -49,16 +54,16 @@ struct SmartCareView: View {
                 }.font(Theme.font(13)).tint(Theme.secondary)
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("\(selectedCount)개 추천 · " + DisplayFormat.bytes(selectedBytes)).font(Theme.font(21, weight: .semibold))
-                        Text("원본은 보관하고 사본은 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        Text("\(selectedCount)개 선택 · " + DisplayFormat.bytes(selectedBytes)).font(Theme.font(21, weight: .semibold))
+                        Text("선택 항목은 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }
                     Spacer()
-                    Button("추천 정리 실행") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
+                    Button("선택 항목 정리") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
                 }.padding(.top, 8)
                 DisclosureGroup("추천 기준") {
                     Text("개발 캐시: 7일 이상 변경 없고 관련 도구가 종료된 생성물. 캐시: 확인된 앱 8종 중 14일 이상 변경이 없는 항목. 로그: 30일 이상 지난 .log 및 회전 로그. 실행 중인 앱·최근 변경·링크가 포함된 항목은 제외합니다. 중복은 내용이 같은 파일만 추리며 원본 한 개를 남깁니다.").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
                 }.font(Theme.font(12)).tint(Theme.secondary)
-                if !smart.issues.isEmpty { Text("확인하지 못한 항목 \(smart.issues.count)개 · 각 결과에서 확인").font(Theme.font(12)).foregroundStyle(Theme.amber) }
+                IssuesView(issues: smart.issues)
             }
         }.panel()
     }
@@ -70,7 +75,7 @@ struct SmartCareView: View {
     }
     private func recommendedRow(_ title: String, icon: String, detail: String, selected: Binding<Bool>, section: Section, mode: String? = nil) -> some View {
         HStack(spacing: 12) {
-            Toggle(title, isOn: selected).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel(title).disabled(model.busy)
+            Toggle(title, isOn: selected).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel(title).disabled(model.busy || detail.hasPrefix("0개"))
             DonyIcon(icon).foregroundStyle(section.iconColor)
             Text(title).font(Theme.font(14, weight: .medium)); Spacer()
             Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)

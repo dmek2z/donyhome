@@ -31,6 +31,7 @@ extension AppModel {
     func completeOnboarding() {
         saveConnectedTools(); UserDefaults.standard.set(true, forKey: "onboardingCompleted")
         onboardingShown = false; section = .development
+        if restartNeeded { restartForPermissions() }
     }
     func openPrivacySettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!) }
     func openFilePermissions() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders")!) }

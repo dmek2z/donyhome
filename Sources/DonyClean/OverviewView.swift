@@ -11,7 +11,18 @@ struct OverviewView: View {
         VStack(alignment: .leading, spacing: 24) {
             HStack {
                 PageHeader(title: "한눈에 보기")
-                Button { model.scanSmart() } label: { Text(model.smartDate == nil ? "전체 검사" : "다시 점검") }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                Button { model.scanSmart() } label: { Text("전체 검사") }.buttonStyle(PrimaryButton()).disabled(model.busy)
+            }
+            if model.smart != nil {
+                HStack {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("최근 검사 결과").font(Theme.font(16, weight: .semibold))
+                        let plan = model.recommendedPlan(includeCleanup: true, includeDuplicates: true)
+                        Text("정리 추천 \(plan.items.count)개 · \(DisplayFormat.bytes(plan.bytes))").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    }
+                    Spacer()
+                    Button("결과 보기") { model.section = .inspection }.buttonStyle(QuietButton())
+                }.panel(20)
             }
             HStack(spacing: 16) {
                 MetricCard(title: "CPU 사용량", symbol: "cpu", value: DisplayFormat.percent(model.snapshot.cpuPercent), detail: "전체 코어", values: model.cpuHistory)
@@ -54,7 +65,7 @@ struct OverviewView: View {
                     }; Spacer()
                 }.frame(maxWidth: .infinity).panel(20)
             }
-            SmartCareView()
+
 
         }
     }

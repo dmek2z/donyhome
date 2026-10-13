@@ -38,10 +38,8 @@ struct OnboardingView: View {
                         DonyChoices(options: ["1일", "2일", "3일", "7일", "14일", "30일"], selection: Binding(get: { "\(model.projectRetentionDays)일" }, set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14; model.saveProjectSettings() }))
                         Text("자동 정리는 개발 메뉴에서 켤 수 있어요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     case 2:
-                        permission("알림", status: model.notificationStatus, action: "허용 요청") { model.setNotifications(true) }
-                        permission("프로젝트 폴더 접근", status: "폴더 선택 시 승인", action: "폴더 선택") { model.addProjects(tools: model.connectedTools) }
-                        permission("전체 디스크 접근", status: "보호된 캐시 검사 시 필요", action: "시스템 설정") { model.openPrivacySettings() }
-                        permission("파일 및 폴더", status: "macOS 승인 확인", action: "시스템 설정") { model.openFilePermissions() }
+                        PermissionChecklist()
+                        Text("권한 변경 후 재실행은 마지막에 한 번만 진행해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                         Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch()).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                         Text("관리자 인증은 유지보수 실행 시 요청됩니다").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     default:
@@ -55,12 +53,18 @@ struct OnboardingView: View {
                 Spacer(); Text("\(model.setupStep + 1) / 4").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 Button(model.setupStep == 3 ? "시작하기" : "다음") {
                     model.saveConnectedTools()
-                    if model.setupStep < 3 { model.setupStep += 1 } else { model.completeOnboarding() }
+                    if model.setupStep < 3 {
+                        if model.setupStep == 2 {
+                            model.permissionSetupReviewed = true
+                            UserDefaults.standard.set(true, forKey: "permissionSetupReviewed")
+                        }
+                        model.setupStep += 1
+                    } else { model.completeOnboarding() }
                 }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }.padding(24)
         }.frame(width: 700, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
             .onAppear { model.refreshToolConnections() }
-            .onChange(of: model.setupStep) { _, value in if value == 2 { model.refreshToolConnections() } }
+            .onChange(of: model.setupStep) { _, value in if value == 2 { model.refreshToolConnections(); model.refreshAccess() } }
             .onChange(of: model.notifyEnabled) { _, _ in model.refreshToolConnections() }
     }
     private func permission(_ title: String, status: String, action: String, run: @escaping () -> Void) -> some View {

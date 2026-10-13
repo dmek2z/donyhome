@@ -46,7 +46,9 @@ import AppKit
     @Test func testDuplicateCountsLimitAndPinPreservation() {
         func item(_ text: String) -> ClipboardItem { ClipboardItem(representations: [[ClipboardRepresentation(type: "public.utf8-plain-text", data: Data(text.utf8))]]) }
         var pinned = item("pinned"); pinned.pinned = true
-        let older = item("old"), newer = item("new")
+        var older = item("old"), newer = item("new")
+        older.lastCopiedAt = Date(timeIntervalSince1970: 1)
+        newer.lastCopiedAt = Date(timeIntervalSince1970: 2)
         var result = ClipboardHistory.adding(older, to: [pinned], limit: 1)
         result = ClipboardHistory.adding(newer, to: result, limit: 1)
         #expect(Set(result.map(\.id)) == Set([pinned.id, newer.id]))

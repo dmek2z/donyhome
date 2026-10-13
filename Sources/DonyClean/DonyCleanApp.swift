@@ -58,7 +58,7 @@ struct DonyHomeApp: App {
             .commands {
                 CommandGroup(replacing: .appSettings) { Button("도니홈 설정…") { model.preferencesShown = true }.keyboardShortcut(",") }
                 CommandGroup(after: .newItem) {
-                    Button("전체 검사") { model.section = .overview; model.scanSmart() }.keyboardShortcut("r")
+                    Button("전체 검사") { model.scanSmart() }.keyboardShortcut("r")
                     Button("클립보드 빠르게 열기") { clipboard.showPopup() }
                 }
             }
@@ -102,6 +102,7 @@ struct RootView: View {
                     ScanProgressView()
                     switch model.section {
                     case .overview: OverviewView()
+                    case .inspection: ScanResultsView()
                     case .cleanup: CleanupView()
                     case .files: FilesView()
                     case .space: SpaceView()
@@ -119,6 +120,7 @@ struct RootView: View {
             .onAppear {
                 lifecycle.clipboard = clipboard
                 clipboard.start()
+                model.resumePendingScan()
                 lifecycle.openMainWindow = {
                     openWindow(id: "main")
                     if let window = NSApp.windows.first(where: { $0.title == "donyhome · 도니홈" && $0.sheetParent == nil }) {
@@ -127,6 +129,10 @@ struct RootView: View {
                     }
                     NSApp.activate(ignoringOtherApps: true)
                 }
+            }
+            .onChange(of: model.busy) { _, busy in if !busy { model.resumePendingScan() } }
+            .sheet(isPresented: Binding(get: { model.permissionsShown && !model.preferencesShown && !model.onboardingShown }, set: { model.permissionsShown = $0 })) {
+                PermissionsView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled()
             }
             .sheet(isPresented: Binding(get: { model.onboardingShown || model.preferencesShown }, set: { shown in if !shown { model.onboardingShown = false; model.preferencesShown = false } })) {
                 if model.onboardingShown { OnboardingView().environmentObject(model).interactiveDismissDisabled() }
@@ -152,8 +158,9 @@ struct RootView: View {
                         Text(section.title).font(Theme.font(14, weight: model.section == section ? .semibold : .medium))
                         Spacer()
                     }.foregroundStyle(Theme.body)
-                        .padding(.horizontal, 12).frame(height: 36)
+                        .padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 36)
                         .background(model.section == section ? Color(hex: 0xe8ebef) : .clear).clipShape(RoundedRectangle(cornerRadius: 10))
+                        .contentShape(Rectangle())
                 }.buttonStyle(.plain).padding(.bottom, 4)
                }
               }
@@ -239,6 +246,7 @@ struct PreferencesView: View {
                         DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
                         CharacterPreviewView(mode: model.characterMode)
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
+                    SettingsActionRow(title: "앱 권한", actionTitle: "설정 열기") { model.showPermissions(continueScan: false) }.panel(24)
                     AutomaticCleanupView()
                     SettingsActionRow(title: "초기 설정", actionTitle: "다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)
                     SettingsActionRow(title: "개발", actionTitle: "설정 열기") { model.section = .development; dismiss() }.panel(24)
@@ -249,5 +257,6 @@ struct PreferencesView: View {
         }.frame(width: 560, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
             .sheet(isPresented: $clipboardSettingsShown) { ClipboardSettingsView(controller: clipboard).padding(24).frame(width: 560, height: 620).background(Theme.canvas).preferredColorScheme(.light) }
             .sheet(isPresented: $informationShown) { AboutView() }
+            .sheet(isPresented: $model.permissionsShown) { PermissionsView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled() }
     }
 }

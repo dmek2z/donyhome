@@ -5,15 +5,15 @@ import ServiceManagement
 import DonyCore
 
 enum Section: String, CaseIterable, Identifiable {
-    case overview, cleanup, files, space, performance, battery, development, clipboard, applications, tools, history
+    case overview, inspection, cleanup, files, space, performance, battery, development, clipboard, applications, tools, history
     var id: String { rawValue }
     var title: String {
-        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .space: return "폴더 용량"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록"; case .battery: return "배터리 관리"; case .clipboard: return "클립보드" }
+        switch self { case .overview: return "한눈에 보기"; case .inspection: return "전체 검사"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .space: return "폴더 용량"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록"; case .battery: return "배터리 관리"; case .clipboard: return "클립보드" }
     }
     var iconColor: Color {
         switch self {
         case .overview, .history: return Color(hex: 0x8f959e)
-        case .cleanup: return Color(hex: 0x25b79a)
+        case .inspection, .cleanup: return Color(hex: 0x25b79a)
         case .files, .space: return Color(hex: 0xf5a623)
         case .performance: return Color(hex: 0x4593fc)
         case .battery: return Theme.success
@@ -22,7 +22,7 @@ enum Section: String, CaseIterable, Identifiable {
         }
     }
     var icon: String {
-        switch self { case .overview: return "house"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath"; case .battery: return "battery"; case .clipboard: return "clipboard" }
+        switch self { case .overview: return "house"; case .inspection: return "checkmark.circle"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath"; case .battery: return "battery"; case .clipboard: return "clipboard" }
     }
 }
 
@@ -35,7 +35,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var filesMode = "큰 파일"
     @Published var applicationsMode = "설치 앱"
     @Published var blockedPaths: [String] = []
-    private var permissionNotices = Set<String>()
+    @Published var permissionsShown = false
+    @Published var accessReport = FileAccessReport()
+    @Published var checkingAccess = false
+    @Published var scanAfterPermissions = false
+    @Published var restartNeeded = false
+    @Published var permissionError: String?
+    var permissionSetupReviewed = UserDefaults.standard.bool(forKey: "permissionSetupReviewed")
+    var resumedScanChecked = false
     @Published var section: Section = .overview
     @Published var snapshot = SystemSnapshot()
     @Published var cpuHistory: [Double] = []
@@ -145,14 +152,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             if let cpu = value.cpuPercent { cpuHistory = Array((cpuHistory + [cpu]).suffix(60)) }
             if let memory = value.memoryPercent { memoryHistory = Array((memoryHistory + [memory]).suffix(60)) }
             checkOverload(value)
-            if projectCleanupEnabled, value.pressure == .warning || value.pressure == .critical,
+            if resumedScanChecked, projectCleanupEnabled, value.pressure == .warning || value.pressure == .critical,
                memoryHighSince.map({ Date().timeIntervalSince($0) >= 30 }) == true,
-               lastProjectPressureAttempt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true, !busy {
+               lastProjectPressureAttempt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true, !busy, !permissionsShown {
                 lastProjectPressureAttempt = Date()
                 UserDefaults.standard.set(lastProjectPressureAttempt, forKey: "lastProjectPressureAttempt")
                 scanAIProjects(runAutomatically: true)
             }
-            if AutomaticCleanup.isDue(enabled: automaticCleanupEnabled, lastAttempt: lastAutomaticCleanup) && !busy { runAutomaticCleanup() }
+            if resumedScanChecked, AutomaticCleanup.isDue(enabled: automaticCleanupEnabled, lastAttempt: lastAutomaticCleanup) && !busy && !permissionsShown { runAutomaticCleanup() }
         }
     }
 
@@ -224,10 +231,6 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         if cancelled { banner = "검사 중단 · 일부 결과" }
         else if !issues.isEmpty {
             banner = blockedPaths.isEmpty ? "건너뛴 항목 \(issues.count)개 · 결과에서 확인" : "접근 권한 필요 \(blockedPaths.count)개 · 기타 건너뛴 항목 \(issues.count - blockedPaths.count)개"
-            let key = blockedPaths.sorted().joined(separator: "\n")
-            if !blockedPaths.isEmpty, permissionNotices.insert(key).inserted {
-                Task { @MainActor in self.showPermissionGuidance() }
-            }
         } else { banner = nil }
         sample()
     }
@@ -277,7 +280,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         }
     }
     func scanSmart() {
-        guard let (token, epoch) = begin("스마트 점검") else { return }
+        guard !busy else { return }
+        section = .inspection
+        if !permissionSetupReviewed { showPermissions(continueScan: true); return }
+        performSmartScan()
+    }
+    func performSmartScan() {
+        guard let (token, epoch) = begin("전체 검사") else { return }
+        section = .inspection
         smart = nil; smartDate = nil
         let folder = folder; let running = runningBundleIDs; let report = progress(epoch)
         Task {
@@ -293,6 +303,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             similar = result.similar; similarDate = smartDate
             trashItems = result.trash; trashDate = smartDate
             finish(result.cancelled, issues: result.issues)
+            section = .inspection
         }
     }
     func recommendedPlan(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true) -> RecommendedPlan {
@@ -480,8 +491,5 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func confirm(_ title: String, message: String, action: String, destructive: Bool, paths: [String] = []) -> Bool {
         ConfirmationDialog.show(title: title, message: message, action: action, destructive: destructive, paths: paths)
     }
-    func showPermissionGuidance() {
-        guard !blockedPaths.isEmpty else { return }
-        if ConfirmationDialog.show(title: "파일 접근 권한을 확인해 주세요", message: "macOS가 \(blockedPaths.count)개 경로의 접근을 거부했습니다. 시스템 설정의 전체 디스크 접근에서 도니홈을 추가하거나 파일 및 폴더 권한을 확인한 뒤 다시 검사하세요.", action: "권한 설정 열기", destructive: false, paths: blockedPaths) { openPrivacySettings() }
-    }
+    func showPermissionGuidance() { showPermissions(continueScan: true) }
 }
