@@ -45,6 +45,14 @@ import Foundation
             #expect(!(try policy.reason(for: file, now: now, runningBundleIDs: [])).isRecommended)
         }
     }
+    @Test func recognizesNestedCacheByItsOwnerRatherThanItsFileName() throws {
+        let owner = home.appendingPathComponent("Library/Caches/com.google.Chrome")
+        try FileManager.default.createDirectory(at: owner, withIntermediateDirectories: true)
+        let file = try candidate("com.google.Chrome/old-data", kind: .cache, age: 20)
+        let policy = CleanupPolicy(home: home)
+        #expect(try policy.reason(for: file, now: now, runningBundleIDs: []).isRecommended)
+        #expect(!(try policy.reason(for: file, now: now, runningBundleIDs: ["com.google.Chrome"])).isRecommended)
+    }
     @Test func rejectsChangedCandidateAndCancelledEvaluation() throws {
         let file = try candidate("old.log", kind: .log, age: 40)
         let policy = CleanupPolicy(home: home)

@@ -60,7 +60,7 @@ struct DonyCleanApp: App {
         MenuBarExtra {
             DonyMenuView().environmentObject(model)
         } label: {
-            DonyLabel("DC " + DisplayFormat.percent(model.snapshot.cpuPercent), icon: "sparkles")
+            Image(nsImage: model.menuCharacter).renderingMode(.original).accessibilityLabel("코딩하는 dony")
         }.menuBarExtraStyle(.window)
     }
 }
@@ -87,6 +87,7 @@ struct RootView: View {
                     case .space: SpaceView()
                     case .tools: ToolsView()
                     case .performance: PerformanceView()
+                    case .development: AIProjectsView()
                     case .applications: ApplicationsView()
                     case .history: HistoryView()
                     }
@@ -120,7 +121,7 @@ struct RootView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Rectangle().fill(Theme.line).frame(height: 1)
                 HStack {
-                    Text("DonyClean 1.0").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer()
+                    Text("DonyClean " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")).font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer()
                     Button { model.preferencesShown = true } label: { DonyIcon("gearshape").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("도니클린 설정")
                 }
             }.padding(.horizontal, 10).padding(.bottom, 25)
@@ -140,6 +141,7 @@ struct DonyMenuView: View {
             if let battery = model.snapshot.battery { HStack { Text("배터리"); Spacer(); Text(String(format: "%.0f%%", battery.percent) + (battery.charging ? " · 충전" : "")).monospacedDigit() } }
             HStack { Text("네트워크 ↓"); Spacer(); Text(model.snapshot.networkReceivedPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—").monospacedDigit() }
             Divider()
+            Button("안전 자동 정리") { model.runAutomaticCleanup(); openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }.buttonStyle(QuietButton()).disabled(model.busy)
             Text("사용량 높은 앱을 확인하고 선택해서 종료하세요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
             Button { model.section = .performance; openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) } label: { Text("CPU · 메모리 관리 열기").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())
             HStack {
@@ -154,17 +156,27 @@ struct PreferencesView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) var dismiss
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack { Text("도니클린 설정").font(Theme.font(22, weight: .bold)); Spacer(); Button("완료") { dismiss() }.buttonStyle(QuietButton()) }
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("지속적인 CPU · 메모리 과부하 알림", isOn: Binding(get: { model.notifyEnabled }, set: { model.setNotifications($0) }))
-                Text("CPU 85% 이상 또는 메모리 압박이 30초간 이어지면 알려줘요. 같은 알림은 10분에 한 번만 표시합니다.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-            }.panel()
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("로그인할 때 도니클린 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) }))
-                Button("로그인 항목 · 백그라운드 앱 설정 열기") { model.openLoginSettings() }.buttonStyle(QuietButton())
-            }.panel()
-            Text("모든 검사와 기록은 이 Mac에만 저장됩니다. 창을 닫아도 메뉴 막대에서 상태를 확인할 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-        }.padding(28).frame(width: 540).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+        VStack(spacing: 0) {
+            HStack {
+                Text("설정").font(Theme.font(22, weight: .bold))
+                Spacer(); Button("완료") { dismiss() }.buttonStyle(QuietButton())
+            }.padding(24)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("과부하 알림", isOn: Binding(get: { model.notifyEnabled }, set: { model.setNotifications($0) })).toggleStyle(DonySwitch())
+                        Text("CPU 85% · 메모리 압박 30초").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch())
+                        Button("로그인 항목 설정") { model.openLoginSettings() }.buttonStyle(QuietButton())
+                    }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
+                    AutomaticCleanupView()
+                    Button { model.section = .development; dismiss() } label: {
+                        HStack { Text("개발 설정"); Spacer(); DonyIcon("chevron.right", size: 14) }.font(Theme.font(14, weight: .medium)).foregroundStyle(Theme.body).padding(22).frame(maxWidth: .infinity).background(.white).clipShape(RoundedRectangle(cornerRadius: 20))
+                    }.buttonStyle(.plain)
+                }.padding(.horizontal, 24).padding(.bottom, 24)
+            }
+        }.frame(width: 560, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
     }
 }

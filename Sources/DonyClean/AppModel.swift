@@ -5,10 +5,10 @@ import ServiceManagement
 import DonyCore
 
 enum Section: String, CaseIterable, Identifiable {
-    case overview, cleanup, files, space, performance, applications, tools, history
+    case overview, cleanup, files, space, performance, development, applications, tools, history
     var id: String { rawValue }
     var title: String {
-        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "저장 공간 정리"; case .files: return "파일 정리"; case .space: return "용량 지도"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .applications: return "앱 관리"; case .history: return "정리 기록" }
+        switch self { case .overview: return "한눈에 보기"; case .cleanup: return "저장 공간 정리"; case .files: return "파일 정리"; case .space: return "용량 지도"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록" }
     }
     var iconColor: Color {
         switch self {
@@ -16,11 +16,11 @@ enum Section: String, CaseIterable, Identifiable {
         case .cleanup: return Color(hex: 0x25b79a)
         case .files, .space: return Color(hex: 0xf5a623)
         case .performance: return Color(hex: 0x4593fc)
-        case .applications, .tools: return Color(hex: 0x8662ed)
+        case .development, .applications, .tools: return Color(hex: 0x8662ed)
         }
     }
     var icon: String {
-        switch self { case .overview: return "house"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath" }
+        switch self { case .overview: return "house"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath" }
     }
 }
 
@@ -75,12 +75,30 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var lastRelief: ReliefObservation?
     @Published var notifyEnabled = UserDefaults.standard.bool(forKey: "overloadNotifications")
     @Published var preferencesShown = false
+    @Published var automaticCleanupEnabled = UserDefaults.standard.bool(forKey: "automaticCleanupEnabled")
+    @Published var lastAutomaticCleanup = UserDefaults.standard.object(forKey: "lastAutomaticCleanup") as? Date
+    @Published var automaticCleanupSummary: String?
+    @Published var menuCharacter = CodingCharacter.images[0]
+    @Published var projectCleanupEnabled = UserDefaults.standard.bool(forKey: "projectCleanupEnabled")
+    @Published var projectRetentionDays = max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14))
+    @Published var projectCleanupScope = ProjectCleanupScope(rawValue: UserDefaults.standard.string(forKey: "projectCleanupScope") ?? "") ?? .generated
+    @Published var projectSource = UserDefaults.standard.string(forKey: "projectSource") ?? "직접 등록"
+    @Published var linkedProjects = (UserDefaults.standard.data(forKey: "linkedProjects").flatMap { try? JSONDecoder().decode([LinkedProject].self, from: $0) }) ?? []
+    @Published var projectScan = ScanResult()
+    @Published var projectScanDate: Date?
+    @Published var projectSummary: String?
+    @Published var lastProjectPressureAttempt = UserDefaults.standard.object(forKey: "lastProjectPressureAttempt") as? Date
+    var projectScanLinks: [LinkedProject] = []
+    var projectScanDays = 14
+    var projectScanScope: ProjectCleanupScope = .generated
 
     private let sampler = SystemSampler()
     private let store = HistoryStore()
     private var historyWritable = true
     private var token: ScanToken?
     private var timer: Timer?
+    private var characterTimer: Timer?
+    private var characterFrame = -1
     private var sampling = false
     private var cpuHighSince: Date?
     private var memoryHighSince: Date?
@@ -100,6 +118,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         do { history = try store.load() }
         catch { historyWritable = false; banner = "이전 기록을 읽지 못했습니다. 기존 파일은 보존합니다: " + error.localizedDescription }
         sample()
+        characterTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let interval = self.snapshot.pressure == .critical || (self.snapshot.cpuPercent ?? 0) >= 85 ? 0.10 : self.snapshot.pressure == .warning || (self.snapshot.cpuPercent ?? 0) >= 50 ? 0.22 : 0.65
+                let frame = Int(Date().timeIntervalSince1970 / interval) % 2 + (interval <= 0.22 ? 2 : 0)
+                if frame != self.characterFrame { self.characterFrame = frame; self.menuCharacter = CodingCharacter.images[frame] }
+            }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -117,6 +143,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             if let cpu = value.cpuPercent { cpuHistory = Array((cpuHistory + [cpu]).suffix(60)) }
             if let memory = value.memoryPercent { memoryHistory = Array((memoryHistory + [memory]).suffix(60)) }
             checkOverload(value)
+            if projectCleanupEnabled, value.pressure == .warning || value.pressure == .critical,
+               memoryHighSince.map({ Date().timeIntervalSince($0) >= 30 }) == true,
+               lastProjectPressureAttempt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true, !busy {
+                lastProjectPressureAttempt = Date()
+                UserDefaults.standard.set(lastProjectPressureAttempt, forKey: "lastProjectPressureAttempt")
+                scanAIProjects(runAutomatically: true)
+            }
+            if AutomaticCleanup.isDue(enabled: automaticCleanupEnabled, lastAttempt: lastAutomaticCleanup) && !busy { runAutomaticCleanup() }
         }
     }
 
@@ -205,6 +239,34 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         Dictionary(uniqueKeysWithValues: duplicates.groups.flatMap { group in group.copies.map { ($0.id, group.original) } })
     }
     var runningBundleIDs: Set<String> { Set(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier)) }
+    var runningCleanupOwners: Set<String> { runningBundleIDs.union(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }.compactMap(\.localizedName)) }
+    func setAutomaticCleanup(_ enabled: Bool) {
+        automaticCleanupEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "automaticCleanupEnabled")
+        // Enabling a daily schedule does not immediately move files.
+        if enabled && lastAutomaticCleanup == nil {
+            lastAutomaticCleanup = Date()
+            UserDefaults.standard.set(lastAutomaticCleanup, forKey: "lastAutomaticCleanup")
+        }
+    }
+    func runAutomaticCleanup() {
+        guard let (token, epoch) = begin("안전 자동 정리 검사") else { return }
+        lastAutomaticCleanup = Date()
+        UserDefaults.standard.set(lastAutomaticCleanup, forKey: "lastAutomaticCleanup")
+        automaticCleanupSummary = "오래된 캐시 · 로그를 확인하는 중…"
+        let running = runningCleanupOwners; let report = progress(epoch)
+        Task {
+            let result = await Task.detached(priority: .utility) { AutomaticCleanup.scan(runningOwners: running, token: token, progress: report) }.value
+            finish(result.cancelled, issues: result.issues)
+            if result.cancelled { automaticCleanupSummary = "중단됨 · 파일을 이동하지 않았습니다."; return }
+            let plan = RecommendedActions.plan(cleanup: result.items, duplicates: duplicates.groups, includeCopies: false, preserving: similarOriginals)
+            guard !plan.items.isEmpty else {
+                automaticCleanupSummary = "자동 정리 기준을 통과한 파일이 없습니다." + (result.issues.isEmpty ? "" : " 확인하지 못한 항목 \(result.issues.count)개.")
+                return
+            }
+            moveToTrash(plan.items, recommendedOnly: true, automatic: true, scanIssueCount: result.issues.count)
+        }
+    }
     func scanSmart() {
         guard let (token, epoch) = begin("스마트 점검") else { return }
         smart = nil; smartDate = nil
@@ -333,10 +395,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         }
     }
 
-    func moveToTrash(_ candidates: [FileCandidate], originals: [String: FileCandidate] = [:], ownerBundleID: String? = nil, recommendedOnly: Bool = false) {
+    func moveToTrash(_ candidates: [FileCandidate], originals: [String: FileCandidate] = [:], ownerBundleID: String? = nil, recommendedOnly: Bool = false, automatic: Bool = false, scanIssueCount: Int = 0) {
         guard !busy, !candidates.isEmpty else { return }
+        guard !automatic || (recommendedOnly && candidates.allSatisfy { ($0.kind == .cache || $0.kind == .log) && $0.fingerprint.isRegular }) else { return }
         let body = "선택한 \(candidates.count)개 항목 · \(DisplayFormat.bytes(candidates.reduce(0) { $0 + $1.bytes }))\n휴지통을 비우기 전에는 저장 공간이 즉시 늘어나지 않습니다." + (candidates.contains { $0.kind == .support } ? "\n관련 파일에는 설정과 사용자 데이터가 포함될 수 있습니다." : "")
-        guard confirm("선택한 항목을 휴지통으로 이동", message: body, action: "휴지통으로 이동", destructive: true, paths: candidates.map { $0.url.path }) else { return }
+        if !automatic && !confirm("선택한 항목을 휴지통으로 이동", message: body, action: "휴지통으로 이동", destructive: true, paths: candidates.map { $0.url.path }) { return }
         operationLabel = "선택한 항목을 다시 확인하고 이동하는 중…"
         operationBusy = true
         let operationToken = ScanToken()
@@ -346,11 +409,12 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                 let running = NSWorkspace.shared.runningApplications
                 let ownerRunning = ownerBundleID.map { id in running.contains { $0.bundleIdentifier == id && !$0.isTerminated } } ?? false
                 let bundleIDs = Set(running.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier))
+                let cleanupOwners = bundleIDs.union(running.filter { !$0.isTerminated }.compactMap(\.localizedName))
                 let policy = CleanupPolicy()
                 let original = originals[candidate.id]
                 let tools = RunningTools.read().union(bundleIDs)
                 let developerRunning = DeveloperCleanup.activeOwner(of: candidate.url, runningTools: tools) || original.map { DeveloperCleanup.activeOwner(of: $0.url, runningTools: tools) } == true
-                let cacheRunning = policy.runningOwner(of: candidate.url, runningBundleIDs: bundleIDs) != nil || original.map { policy.runningOwner(of: $0.url, runningBundleIDs: bundleIDs) != nil } == true
+                let cacheRunning = policy.runningOwner(of: candidate.url, runningBundleIDs: cleanupOwners) != nil || original.map { policy.runningOwner(of: $0.url, runningBundleIDs: cleanupOwners) != nil } == true
                 if ownerRunning || cacheRunning || developerRunning {
                     results.append(ActionRecord(kind: "휴지통 이동", sourcePath: candidate.url.path, trashPath: nil, bytes: 0, success: false, message: "관련 앱을 종료한 뒤 다시 시도해 주세요.")); continue
                 }
@@ -366,7 +430,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                     } catch { return ActionRecord(kind: "휴지통 이동", sourcePath: candidate.id, trashPath: nil, bytes: 0, success: false, message: error.localizedDescription) }
                     if recommendedOnly && (candidate.kind == .cache || candidate.kind == .log) {
                         do {
-                            guard try CleanupPolicy().reason(for: candidate, runningBundleIDs: bundleIDs, token: operationToken).isRecommended else { throw DonyError.changed }
+                            guard try CleanupPolicy().reason(for: candidate, runningBundleIDs: cleanupOwners, token: operationToken).isRecommended else { throw DonyError.changed }
                         } catch { return ActionRecord(kind: "휴지통 이동", sourcePath: candidate.id, trashPath: nil, bytes: 0, success: false, message: "추천 기준을 다시 통과하지 못했습니다: " + error.localizedDescription) }
                     }
                     return TrashService.move(candidate, keeping: original, token: operationToken)
@@ -391,6 +455,12 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             let historyError = append(results); operationBusy = false; scanEpoch = UUID(); sample()
             let failures = results.filter { !$0.success }.count
             banner = OperationFeedback.compose(summary: "\(moved.count)개 항목을 휴지통으로 이동했습니다." + (failures > 0 ? " \(failures)개는 이동하지 못했습니다. 정리 기록에서 이유를 확인하세요." : ""), historyError: historyError)
+            if automatic {
+                let bytes = results.filter(\.success).reduce(Int64(0)) { $0 + $1.bytes }
+                automaticCleanupSummary = "\(moved.count)개 · \(DisplayFormat.bytes(bytes)) 휴지통 이동" + (failures + scanIssueCount > 0 ? " · 이동 실패 \(failures)개 / 검사 건너뜀 \(scanIssueCount)개" : "")
+                // Whole-folder measurements are stale after moving individual cache files.
+                cleanup = ScanResult(); cleanupDate = nil; cleanupDecisions = [:]; smart = nil; smartDate = nil
+            }
         }
     }
     func append(_ records: [ActionRecord]) -> String? {

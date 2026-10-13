@@ -9,6 +9,7 @@ struct CacheCleanupView: View {
     private var selected: [FileCandidate] { model.cleanup.items.filter { selection.contains($0.id) } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            AutomaticCleanupView()
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(model.cleanupDate == nil ? "정리 후보를 찾아볼까요?" : DisplayFormat.bytes(model.cleanup.totalBytes)).font(Theme.font(26, weight: .semibold))

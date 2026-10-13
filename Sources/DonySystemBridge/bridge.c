@@ -8,6 +8,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+int dc_process_cwd(int32_t pid, char *output, int capacity) {
+    struct proc_vnodepathinfo info;
+    memset(&info, 0, sizeof(info));
+    if (capacity <= 0 || proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, sizeof(info)) != sizeof(info)) return 0;
+    strlcpy(output, info.pvi_cdir.vip_path, (size_t)capacity);
+    return output[0] != '\0';
+}
+
 int dc_read_system(DCSystem *out) {
     memset(out, 0, sizeof(*out));
     host_t host = mach_host_self();

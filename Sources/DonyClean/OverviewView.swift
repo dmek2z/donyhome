@@ -56,6 +56,7 @@ struct OverviewView: View {
                 }.frame(maxWidth: .infinity).panel(20)
             }
             SmartCareView()
+            AutomaticCleanupView()
             HStack(spacing: 16) {
                 shortcut("큰 파일 · 중복", icon: "folder", target: .files)
                 shortcut("앱 관리", icon: "square.stack.3d.up", target: .applications)

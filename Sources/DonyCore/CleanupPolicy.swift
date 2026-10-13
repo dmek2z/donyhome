@@ -33,7 +33,8 @@ public struct CleanupPolicy: Sendable {
         if runningOwner(of: candidate.url, runningBundleIDs: runningBundleIDs) != nil {
             return CleanupDecision(false, "관련 앱 실행 중")
         }
-        if candidate.kind == .cache && !Self.cacheOwners.contains(candidate.name) { return CleanupDecision(false, "확인되지 않은 캐시 · 직접 선택") }
+        let owner = String(candidate.url.path.dropFirst(root.path.count + 1)).split(separator: "/").first.map(String.init) ?? ""
+        if candidate.kind == .cache && !Self.cacheOwners.contains(owner) { return CleanupDecision(false, "확인되지 않은 캐시 · 직접 선택") }
         try FileSafety.validate(candidate, token: token)
         let days: Double = candidate.kind == .cache ? 14 : 30
         let cutoff = now.addingTimeInterval(-days * 86400).timeIntervalSince1970

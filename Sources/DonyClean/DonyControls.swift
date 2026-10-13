@@ -1,5 +1,39 @@
 import SwiftUI
 
+struct DonySwitch: ToggleStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        Button { configuration.isOn.toggle() } label: {
+            HStack(spacing: 16) {
+                configuration.label.font(Theme.font(14, weight: .medium)).foregroundStyle(Theme.body).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Capsule().fill(configuration.isOn ? Theme.primary : Color(hex: 0xd1d6db))
+                    .overlay(alignment: configuration.isOn ? .trailing : .leading) { Circle().fill(.white).padding(3).frame(width: 24, height: 24) }
+                    .frame(width: 42, height: 24)
+            }.contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityValue(configuration.isOn ? "켜짐" : "꺼짐").opacity(enabled ? 1 : 0.5)
+    }
+}
+
+struct DonyChoices: View {
+    let options: [String]
+    @Binding var selection: String
+    var body: some View {
+        GeometryReader { geometry in
+            let width = max(0, (geometry.size.width - 8 - CGFloat(max(0, options.count - 1)) * 4) / CGFloat(max(1, options.count)))
+            HStack(spacing: 4) {
+                ForEach(options, id: \.self) { value in
+                    Button { selection = value } label: {
+                        Text(value).font(Theme.font(13, weight: selection == value ? .semibold : .medium)).foregroundStyle(selection == value ? Theme.primary : Theme.secondary)
+                            .lineLimit(1).minimumScaleFactor(0.8).frame(width: width, height: 38)
+                            .background(selection == value ? Color.white : Color.clear).clipShape(RoundedRectangle(cornerRadius: 9))
+                    }.buttonStyle(.plain).accessibilityAddTraits(selection == value ? .isSelected : [])
+                }
+            }.padding(4)
+        }.frame(height: 46).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 struct DonyCheckbox: ToggleStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
