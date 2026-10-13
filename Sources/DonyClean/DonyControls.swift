@@ -1,5 +1,35 @@
 import SwiftUI
 
+/// Native menu behavior with a deterministic label and full control hit area.
+struct DonyMenuButton<Content: View>: View {
+    let title: String
+    var width: CGFloat = Theme.actionWidth
+    @ViewBuilder let content: () -> Content
+    @Environment(\.isEnabled) private var enabled
+    var body: some View {
+        Menu(content: content) {
+            Text(title).font(Theme.font(14, weight: .medium)).lineLimit(1)
+                .padding(.horizontal, 28).frame(width: width, height: Theme.controlHeight)
+                .overlay(alignment: .trailing) { DonyIcon("chevron.right", size: 10).rotationEffect(.degrees(90)).padding(.trailing, 12) }
+                .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55))
+                .background(Theme.controlFill).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius)).contentShape(Rectangle())
+        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel(title)
+    }
+}
+
+struct DonyIconMenu<Content: View>: View {
+    let title: String
+    var size: CGFloat = 32
+    @ViewBuilder let content: () -> Content
+    @Environment(\.isEnabled) private var enabled
+    var body: some View {
+        Menu(content: content) {
+            DonyIcon("ellipsis", size: 16).frame(width: size, height: size)
+                .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55)).contentShape(Rectangle())
+        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel(title).help(title)
+    }
+}
+
 struct DonySearchField: View {
     let placeholder: String
     @Binding var text: String
@@ -21,7 +51,7 @@ struct SettingsActionRow: View {
         HStack(spacing: 16) {
             Text(title).font(Theme.font(16, weight: .semibold))
             Spacer(minLength: 12)
-            Button(action: action) { Text(actionTitle).frame(width: 104) }.buttonStyle(QuietButton()).disabled(!enabled)
+            Button(action: action) { Text(actionTitle).frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(!enabled)
         }
     }
 }
@@ -31,12 +61,11 @@ struct SelectionControl: View {
     let ids: [String]
     var recommended: [String]? = nil
     var body: some View {
-        Menu {
+        DonyMenuButton(title: selection.isEmpty ? "선택" : "\(selection.count)개 선택", width: Theme.filterWidth) {
             Button("전체 선택") { selection = Set(ids) }
             if let recommended { Button("추천 항목 선택") { selection = Set(recommended) } }
             Button("선택 해제") { selection.removeAll() }
-        } label: { Text(selection.isEmpty ? "선택" : "\(selection.count)개 선택").font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.body) }
-            .menuStyle(.borderlessButton).padding(.horizontal, 12).frame(width: 112, height: 42).background(Color(hex: 0xe8ebef)).clipShape(RoundedRectangle(cornerRadius: 10))
+        }
     }
 }
 

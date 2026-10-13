@@ -4,6 +4,11 @@ import CoreText
 import DonyCore
 
 enum Theme {
+    static let controlHeight: CGFloat = 42
+    static let controlRadius: CGFloat = 10
+    static let actionWidth: CGFloat = 128
+    static let filterWidth: CGFloat = 160
+    static let controlFill = Color(hex: 0xe8ebef)
     static let ink = Color(hex: 0x191f28)
     static let body = Color(hex: 0x333d4b)
     static let sidebar = Color(hex: 0xf6f7f9)
@@ -47,17 +52,17 @@ extension View { func panel(_ padding: CGFloat = 24) -> some View { modifier(Pan
 struct PrimaryButton: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(Theme.font(14, weight: .semibold)).padding(.horizontal, 16).frame(height: 42)
+        configuration.label.font(Theme.font(14, weight: .semibold)).padding(.horizontal, 16).frame(height: Theme.controlHeight)
             .foregroundStyle(.white).background(enabled ? (configuration.isPressed ? Color(hex: 0x1b64da) : Theme.primary) : Color(hex: 0xb5d7ff))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
     }
 }
 struct QuietButton: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(Theme.font(14, weight: .medium)).padding(.horizontal, 12).frame(height: 42)
-            .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55)).background(configuration.isPressed ? Color(hex: 0xdfe4ea) : Color(hex: 0xe8ebef))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+        configuration.label.font(Theme.font(14, weight: .medium)).padding(.horizontal, 12).frame(height: Theme.controlHeight)
+            .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55)).background(configuration.isPressed ? Color(hex: 0xdfe4ea) : Theme.controlFill)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
     }
 }
 struct Chip: View {

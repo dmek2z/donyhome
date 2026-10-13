@@ -1,0 +1,15 @@
+# 도니홈 작업 규칙
+
+사용자 요청과 승인 범위를 우선한다. 명확한 가역적 작업은 조사·구현·검증까지 진행하며 이미 받은 승인을 반복해 묻지 않는다.
+
+## UI 변경
+
+UI를 새로 만들거나 수정할 때 [.agents/skills/donyhome-design/SKILL.md](.agents/skills/donyhome-design/SKILL.md)와 [docs/design-system.md](docs/design-system.md)를 먼저 읽고 적용한다.
+
+- `Theme.swift` / `DonyControls.swift`의 공통 토큰과 컴포넌트를 사용한다.
+- 공통 컴포넌트 변경은 모든 사용처를 점검한다. 화면 단위 임시 스타일로 규격을 우회하지 않는다.
+- `python3 scripts/check-design-rules.py` 및 `zsh scripts/build-app.sh`를 실행한다. 화면 변경은 네이티브 앱에서 실제 정렬·클릭 범위·메뉴 상태를 확인한다.
+- 디자인 문서와 코드가 달라지면 같은 변경에서 함께 수정한다. 새 예외는 이유와 적용 범위를 적는다.
+- 외관 확인을 위해 사용자 파일 삭제, 실행 중인 앱 종료, 배터리 제어, 권한 허용을 수행하지 않는다.
+
+동작 변경은 의미 있는 테스트로 검증하고, 외관·문서 변경은 빌드·렌더링·구문 검사로 검증한다. 관련 검사가 통과하면 구체적인 새 우려 없이 검사를 반복하지 않는다.

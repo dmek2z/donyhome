@@ -71,12 +71,11 @@ struct PerformanceView: View {
                 }.panel(16)
             }
             HStack(spacing: 12) {
-                Menu {
+                DonyMenuButton(title: scope == "내 앱" ? "실행 중인 앱" : scope, width: Theme.filterWidth) {
                     Button("실행 중인 앱") { scope = "내 앱"; selection.removeAll() }
                     Button("내 프로세스") { scope = "내 프로세스"; selection.removeAll() }
                     Button("전체 프로세스") { scope = "전체 프로세스"; selection.removeAll() }
-                } label: { Text(scope == "내 앱" ? "실행 중인 앱" : scope).font(Theme.font(14, weight: .semibold)).foregroundStyle(Theme.body) }
-                    .menuStyle(.borderlessButton).frame(width: 130, height: 42)
+                }
                 Text("\(rows.count)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 Spacer()
                 DonySearchField(placeholder: "이름 검색", text: $search).frame(width: 160)
@@ -110,7 +109,7 @@ struct PerformanceView: View {
                             HStack(spacing: 5) {
                                 if model.canQuit(row.process) {
                                     Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.operationBusy)
-                                    Menu { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } } label: { Text("⋯").font(.system(size: 16)) }.menuStyle(.borderlessButton).frame(width: 22, height: 24).disabled(model.operationBusy)
+                                    DonyIconMenu(title: "프로세스 작업") { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.operationBusy)
                                 } else { DonyIcon("lock").foregroundStyle(Theme.secondary).help("직접 종료할 수 없는 시스템 또는 백그라운드 프로세스") }
                             }.frame(width: 100, alignment: .trailing)
                         }.font(Theme.font(11)).monospacedDigit().frame(height: 56).padding(.horizontal, 18)

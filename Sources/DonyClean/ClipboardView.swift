@@ -15,14 +15,14 @@ struct ClipboardView: View {
                 PageHeader(title: "클립보드")
                 Spacer()
                 Button("빠르게 열기") { controller.showPopup() }.buttonStyle(QuietButton())
-                Menu {
+                DonyIconMenu(title: "클립보드 작업", size: Theme.controlHeight) {
                     Button(controller.preferences.paused ? "기록 다시 시작" : "기록 일시 정지") { controller.preferences.paused.toggle() }
                     Button("다음 복사 한 번 무시") { controller.ignoreNextCopy = true }
                     Button("클립보드 설정") { showSettings = true }
                     Divider()
                     Button("고정하지 않은 기록 지우기") { controller.clear() }
                     Button("모든 기록 지우기…", role: .destructive) { if ConfirmationDialog.show(title: "모든 기록을 지울까요?", message: "고정한 항목을 포함해 클립보드 기록을 지워요.", action: "모두 지우기", destructive: true, paths: []) { controller.clear(includePinned: true) } }
-                } label: { Text("⋯").font(Theme.font(18)).frame(width: 42, height: 42) }.menuStyle(.borderlessButton).frame(width: 42, height: 42).accessibilityLabel("클립보드 작업")
+                }
             }.frame(height: 42)
             HStack(spacing: 12) {
                 DonySearchField(placeholder: "텍스트 · 파일 이름 검색", text: $controller.query)
@@ -33,14 +33,14 @@ struct ClipboardView: View {
             }
             if controller.ignoreNextCopy { Text("다음 복사는 기록하지 않아요.").font(Theme.font(12)).foregroundStyle(Theme.amber) }
             if !controller.pasteStack.isEmpty {
-                HStack { Text("순서대로 붙여넣기 · \(controller.pasteStack.count)개").font(Theme.font(13, weight: .semibold)); Spacer(); Menu("순서 작업") {
+                HStack { Text("순서대로 붙여넣기 · \(controller.pasteStack.count)개").font(Theme.font(13, weight: .semibold)); Spacer(); DonyMenuButton(title: "순서 작업") {
                     Button("순서대로 복사 준비") { controller.startStack() }
                     Button("일반 텍스트로 준비") { controller.startStack(plainText: true) }
                     Button("다음 붙여넣기") { controller.pasteNext() }
                     Button("순서 뒤집기") { controller.reverseStack() }
                     Button("텍스트 합쳐 복사") { controller.copyStackAsText() }
                     Button("순서 비우기") { controller.clearStack() }
-                }.menuStyle(.borderlessButton).frame(width: 130) }.panel(16)
+                } }.panel(16)
             }
             if controller.visibleItems.isEmpty {
                 EmptyState(icon: "doc.on.clipboard", title: controller.query.isEmpty ? "복사한 내용이 여기에 저장돼요" : "검색 결과가 없어요", subtitle: "")
@@ -78,7 +78,7 @@ struct ClipboardItemRow: View {
                 Text("\(item.application ?? "앱 정보 없음") · \(item.lastCopiedAt.formatted(date: .abbreviated, time: .shortened)) · \(item.numberOfCopies)회").font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1)
             }.frame(maxWidth: .infinity, alignment: .leading)
             Button("복사") { controller.copy(item) }.buttonStyle(QuietButton())
-            Menu {
+            DonyIconMenu(title: "복사 항목 작업") {
                 Button("붙여넣기") { controller.paste(item) }
                 Button("일반 텍스트로 복사") { controller.copy(item, plainText: true) }
                 Button("일반 텍스트로 붙여넣기") { controller.paste(item, plainText: true) }
@@ -94,7 +94,7 @@ struct ClipboardItemRow: View {
                 if item.text != nil { Button("텍스트 편집…", action: edit) }
                 Button(controller.pasteStack.contains(item.id) ? "붙여넣기 순서에서 제거" : "붙여넣기 순서에 추가") { controller.toggleStack(item) }
                 Button("삭제", role: .destructive) { controller.delete(item) }
-            } label: { DonyIcon("ellipsis", size: 16).frame(width: 24, height: 32) }.menuStyle(.borderlessButton).frame(width: 24)
+            }
         }.panel(16)
     }
 }

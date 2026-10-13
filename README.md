@@ -4,6 +4,8 @@ Dony의 Mac에서만 사용하는 저장 공간 정리·성능 관리 앱. macOS
 
 ## 실행
 
+UI 작업 규격: [도니홈 디자인 규칙](docs/design-system.md), [디자인 스킬](.agents/skills/donyhome-design/SKILL.md), [저장소 작업 규칙](AGENTS.md). `python3 scripts/check-design-rules.py`는 GitHub Actions에서도 실행됩니다.
+
 ```sh
 ./scripts/build-app.sh
 open build/DonyHome.app
