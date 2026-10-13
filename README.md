@@ -13,13 +13,19 @@ Finder에서 `build/DonyClean.app`을 `~/Applications`로 옮겨 사용할 수 �
 
 ## 기능
 
-- 한눈에 보기: 실제 CPU·메모리·압박·스왑·디스크 상태. 스마트 점검 한 번으로 캐시·로그, 선택 폴더 큰 파일·중복, 설치 앱을 모아서 확인합니다.
+- 한눈에 보기: 실제 CPU·메모리·압박·스왑·디스크 상태. 스마트 점검 한 번으로 캐시·로그·개발 캐시, 큰 파일·중복·오래된 파일·설치 파일·유사 사진·용량 지도, 설치 앱·잔여물을 모아서 확인합니다.
 - 스마트 정리: 오래된 캐시·로그와 동일한 파일 사본을 자동으로 추리고, 추천 정리 실행으로 일괄 휴지통 이동. 추천 종류 제외·상세 검토, 실행 직전 재검증, 원본 보관, 항목별 실패 기록을 제공합니다. 자세한 범위와 미지원 기능은 [CleanMyMac 비교 리뷰](docs/cleanmymac-review.md)를 참고하세요.
 - 저장 공간 정리: `~/Library/Caches`, `~/Library/Logs`의 개별 항목 확인과 선택한 항목의 휴지통 이동. 실행 앱 ID와 정확히 일치하는 폴더는 건너뜁니다.
+- 개발 캐시: Xcode Build/Index/noindex 생성물, npm/pip/Homebrew/Yarn 다운로드 캐시. 실행 도구와 최근 변경을 확인하고 7일 이상 지난 항목을 추천. Archives와 패키지 저장소는 유지합니다.
+- 용량 지도: 크기순 폴더 지도·하위 탐색·직접 선택 정리. 논리 크기 기준이며 링크·하드 링크·미다운로드 iCloud 파일을 구분합니다.
+- 유사 사진: macOS Vision의 로컬 CPU 비교, 미리보기, 보관 사진 교체와 수동 정리. 최대 200장, 거리 기준 0.35. 보관 사진은 자동 추천에서도 보호합니다.
+- 오래된 파일·설치 파일: 180일 이상 미변경 파일, dmg/pkg/iso를 분류해서 직접 검토.
 - 큰 파일: 선택한 폴더의 100 MB 이상 파일. 중복 파일: 크기 → 스트리밍 SHA-256 → 실제 바이트 비교. 그룹마다 원본 한 개를 보관합니다.
 - CPU·메모리: 프로세스별 실시간 CPU 변화량, 앱과 도우미 프로세스 합산 사용량. CPU 50% 이상 또는 앱 합산 메모리 1 GB 이상인 앱을 추려 선택할 수 있습니다. 선택한 GUI 앱에 일반 종료를 일괄 요청하고 필요할 때 별도로 강제 종료합니다. 종료 요청 전후 시스템 수치를 관측합니다.
 - 앱 관리: `/Applications`, `~/Applications`의 사용자 설치 앱. 앱 ID가 정확히 일치하는 캐시·로그·환경 설정·Application Support·컨테이너를 확인합니다. 앱 이름을 쓰거나 여러 앱이 공유하는 지원 폴더는 자동 추정하지 않습니다.
-- 메뉴 막대: 실시간 CPU·메모리. 설정에서 지속적인 과부하 알림과 로그인 실행을 켤 수 있습니다.
+- 앱 잔여물 후보: 설치/등록/실행 앱 ID 확인 후 Preferences·지원 파일·Containers·캐시 등의 미등록 후보를 표시. 실제 제거 여부는 직접 판단하며 이동 직전 상태를 다시 확인합니다.
+- 유지보수: DNS 초기화·Spotlight 재색인 요청·Time Machine 로컬 스냅샷 목록 및 선택 제거. 확인 후 OS 관리자 인증으로 고정 명령을 실행합니다. 스냅샷 제거는 영구 삭제이며 실제 개인 백업을 테스트로 제거하지 않았습니다.
+- 메뉴 막대: 실시간 CPU·메모리·배터리·네트워크 수신률. 개요에서 송수신률도 표시합니다. 설정에서 지속적인 과부하 알림과 로그인 실행을 켤 수 있습니다.
 - 정리 기록: 최근 500건의 실제 결과와 실패 이유를 `~/Library/Application Support/DonyClean/history.json`에 저장합니다.
 
 ## 파일과 앱 보호
@@ -43,9 +49,10 @@ Dony Dony 스타일 토큰·사이드바·버튼·탭·체크박스를 SwiftUI�
 ./scripts/build-app.sh
 build/DonyClean.app/Contents/MacOS/DonyClean --diagnostics
 build/DonyClean.app/Contents/MacOS/DonyClean --smart-plan
+build/DonyClean.app/Contents/MacOS/DonyClean --snapshots
 build/DonyClean.app/Contents/MacOS/DonyClean --scan "$HOME/Downloads"
 ```
 
-`--diagnostics`, `--smart-plan`, `--scan`은 읽기 전용입니다. `--smart-plan --folder /경로`로 파일 범위를 지정할 수 있습니다. 파일 작업 테스트는 매 실행마다 만든 임시 파일만 사용하고, 테스트 파일의 휴지통 이동 후 복원·정리합니다.
+`--diagnostics`, `--smart-plan`, `--snapshots`, `--scan`은 읽기 전용입니다. `--smart-plan --folder /경로`로 파일 범위를 지정할 수 있습니다. 파일 작업 테스트는 매 실행마다 만든 임시 파일만 사용하고, 테스트 파일의 휴지통 이동 후 복원·정리합니다.
 
 이 Mac의 Command Line Tools에는 XCTest가 없어 Swift Testing을 사용합니다. 테스트 스크립트는 해당 프레임워크와 매크로 플러그인을 명시적으로 연결합니다. 설치된 macOS 27 SDK의 SwiftUI 플러그인 누락을 피하기 위해 macOS 26.5 SDK가 있으면 이를 사용합니다. `DONY_SDK_PATH`로 빌드 SDK를 지정할 수 있습니다.

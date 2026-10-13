@@ -10,15 +10,22 @@ import DonyCore
             if let data = try? encoder.encode(snapshot), let json = String(data: data, encoding: .utf8) { print(json) }
             return
         }
+        if CommandLine.arguments.contains("--snapshots") {
+            do { for date in try Maintenance.listSnapshots() { print(date) } }
+            catch { print("ERROR: " + error.localizedDescription) }
+            return
+        }
         if CommandLine.arguments.contains("--smart-plan") {
             let home = FileManager.default.homeDirectoryForCurrentUser
             var folder = home.appendingPathComponent("Downloads")
             if let index = CommandLine.arguments.firstIndex(of: "--folder"), CommandLine.arguments.count > index + 1 { folder = URL(fileURLWithPath: CommandLine.arguments[index + 1]) }
             let running = Set(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier))
             let result = SmartScanner.scan(folder: folder, runningBundleIDs: running, token: ScanToken())
-            let plan = RecommendedActions.plan(cleanup: result.recommended, duplicates: result.duplicates.groups)
+            let plan = RecommendedActions.plan(cleanup: result.recommended + result.developer.recommended, duplicates: result.duplicates.groups, preserving: result.similar.groups.map(\.original))
             let output: [String: Any] = [
                 "readOnly": true, "cancelled": result.cancelled, "folder": folder.path,
+                "developerFound": result.developer.items.count, "developerRecommended": result.developer.recommended.count,
+                "similarGroups": result.similar.groups.count, "leftoverCandidates": result.leftovers.items.count, "oldFiles": result.clutter.oldFiles.items.count, "installers": result.clutter.installers.items.count, "mappedBytes": result.space.totalBytes,
                 "cleanupFound": result.cleanup.items.count, "cleanupRecommended": result.recommended.count,
                 "duplicateGroups": result.duplicates.groups.count, "duplicateCopies": result.duplicates.groups.flatMap(\.copies).count,
                 "largeFiles": result.largeFiles.items.count, "applications": result.applications.apps.count,
@@ -77,6 +84,8 @@ struct RootView: View {
                     case .overview: OverviewView()
                     case .cleanup: CleanupView()
                     case .files: FilesView()
+                    case .space: SpaceView()
+                    case .tools: ToolsView()
                     case .performance: PerformanceView()
                     case .applications: ApplicationsView()
                     case .history: HistoryView()
@@ -128,6 +137,8 @@ struct DonyMenuView: View {
             HStack { Text("CPU"); Spacer(); Text(DisplayFormat.percent(model.snapshot.cpuPercent)).monospacedDigit() }
             HStack { Text("메모리"); Spacer(); Text(model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—").monospacedDigit() }
             HStack { Text("메모리 압박"); Spacer(); Chip(text: model.snapshot.pressure.label, color: model.pressureColor) }
+            if let battery = model.snapshot.battery { HStack { Text("배터리"); Spacer(); Text(String(format: "%.0f%%", battery.percent) + (battery.charging ? " · 충전" : "")).monospacedDigit() } }
+            HStack { Text("네트워크 ↓"); Spacer(); Text(model.snapshot.networkReceivedPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—").monospacedDigit() }
             Divider()
             Text("사용량 높은 앱을 확인하고 선택해서 종료하세요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
             Button { model.section = .performance; openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) } label: { Text("CPU · 메모리 관리 열기").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())
@@ -135,7 +146,7 @@ struct DonyMenuView: View {
                 Button("도니클린 열기") { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }.buttonStyle(.plain)
                 Spacer(); Button("완전히 종료") { NSApp.terminate(nil) }.buttonStyle(.plain)
             }.font(Theme.font(11)).foregroundStyle(Theme.secondary)
-        }.padding(22).frame(width: 300).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+        }.font(Theme.font(13)).padding(22).frame(width: 300).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
     }
 }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 import DonyCore
 
-struct CleanupView: View {
+struct CacheCleanupView: View {
     @EnvironmentObject var model: AppModel
     @State private var selection = Set<String>()
     @State private var filter = "전체"
@@ -9,7 +9,6 @@ struct CleanupView: View {
     private var selected: [FileCandidate] { model.cleanup.items.filter { selection.contains($0.id) } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "저장 공간 정리")
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(model.cleanupDate == nil ? "정리 후보를 찾아볼까요?" : DisplayFormat.bytes(model.cleanup.totalBytes)).font(Theme.font(26, weight: .semibold))
@@ -38,5 +37,16 @@ struct CleanupView: View {
             }
             IssuesView(issues: model.cleanup.issues)
         }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }.onChange(of: filter) { _, _ in selection.removeAll() }
+    }
+}
+
+struct CleanupView: View {
+    @EnvironmentObject var model: AppModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            PageHeader(title: "저장 공간 정리")
+            DonyTabs(options: ["캐시 · 로그", "개발 캐시"], selection: $model.cleanupMode)
+            if model.cleanupMode == "개발 캐시" { DeveloperView() } else { CacheCleanupView() }
+        }
     }
 }

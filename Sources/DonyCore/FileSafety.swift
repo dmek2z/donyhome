@@ -16,6 +16,11 @@ public enum FileSafety {
         return FileFingerprint(device: UInt64(value.st_dev), inode: UInt64(value.st_ino), mode: UInt32(value.st_mode), size: Int64(value.st_size), seconds: Int64(value.st_mtimespec.tv_sec), nanoseconds: Int64(value.st_mtimespec.tv_nsec))
     }
 
+    public static func metadataIfPresent(_ url: URL) throws -> FileFingerprint? {
+        do { return try fingerprint(url) }
+        catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT) { return nil }
+    }
+
     public static func isWithin(_ url: URL, root: URL) -> Bool {
         let path = url.standardizedFileURL.path
         let base = root.standardizedFileURL.path
@@ -54,6 +59,7 @@ public enum FileSafety {
 
 extension FileCandidate {
     public static func capture(url: URL, root: URL, kind: CandidateKind, token: ScanToken? = nil) throws -> Self {
+        try token?.check()
         let originalRoot = root.standardizedFileURL
         let resolvedRoot = try FileSafety.canonicalRoot(originalRoot)
         guard FileSafety.allowedRoot(resolvedRoot, kind: kind), FileSafety.isWithin(url, root: originalRoot) else { throw DonyError.unsafePath }
@@ -76,6 +82,7 @@ extension FileCandidate {
         guard fp.isRegular || fp.isDirectory else { throw DonyError.unsafePath }
         let measurement = fp.isDirectory ? try FileTree.measure(target, token: token) : nil
         guard try FileSafety.fingerprint(target) == fp else { throw DonyError.changed }
+        try token?.check()
         return Self(url: target, root: resolvedRoot, kind: kind, fingerprint: fp, anchors: anchors, bytes: measurement?.bytes ?? fp.size, treeStamp: measurement?.stamp)
     }
 }

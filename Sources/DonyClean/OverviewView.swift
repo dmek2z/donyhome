@@ -39,6 +39,22 @@ struct OverviewView: View {
                     Button("CPU · 메모리 관리") { model.section = .performance }.buttonStyle(QuietButton())
                 }
             }.panel()
+            HStack(spacing: 16) {
+                HStack(spacing: 12) {
+                    DonyIcon("power").foregroundStyle(Theme.success)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("배터리").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        Text(model.snapshot.battery.map { String(format: "%.0f%%", $0.percent) + ($0.charging ? " · 충전 중" : $0.externalPower ? " · 전원 연결" : " · 배터리 사용") } ?? "측정 불가").font(Theme.font(14, weight: .medium))
+                    }; Spacer()
+                }.frame(maxWidth: .infinity).panel(20)
+                HStack(spacing: 12) {
+                    DonyIcon("arrow.left.arrow.right").foregroundStyle(Theme.primary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("네트워크 전송률").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        Text("↓ " + (model.snapshot.networkReceivedPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—") + "   ↑ " + (model.snapshot.networkSentPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—")).font(Theme.font(14, weight: .medium)).monospacedDigit()
+                    }; Spacer()
+                }.frame(maxWidth: .infinity).panel(20)
+            }
             SmartCareView()
             HStack(spacing: 16) {
                 shortcut("큰 파일 · 중복", icon: "folder", target: .files)

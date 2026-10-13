@@ -103,7 +103,7 @@ struct ScanProgressView: View {
             }.panel(16)
         }
         if model.operationBusy {
-            HStack(spacing: 12) { ProgressView().controlSize(.small); Text("선택한 항목을 다시 확인하고 이동하는 중…").font(Theme.font(12)); Spacer() }.panel(16)
+            HStack(spacing: 12) { ProgressView().controlSize(.small); Text(model.operationLabel).font(Theme.font(12)); Spacer() }.panel(16)
         }
     }
 }

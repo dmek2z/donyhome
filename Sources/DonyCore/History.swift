@@ -47,6 +47,10 @@ public enum TrashService {
                 guard let original else { throw DonyError.missingOriginal }
                 try DuplicateFinder.validateCopy(candidate, keeping: original, token: token)
             }
+            if candidate.kind == .similar {
+                guard let original, original.id != candidate.id, original.fingerprint.identity != candidate.fingerprint.identity else { throw DonyError.missingOriginal }
+                try FileSafety.validate(original, token: token)
+            }
             try FileSafety.validate(candidate, token: token)
             if candidate.kind == .application {
                 guard candidate.url.pathExtension == "app", let id = Bundle(url: candidate.url)?.bundleIdentifier,

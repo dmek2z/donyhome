@@ -14,6 +14,8 @@ typedef struct {
     char name[256];
     char path[4096];
 } DCProcess;
+typedef struct { uint64_t received, sent, generation; int available; } DCNetwork;
+int dc_read_network(DCNetwork *output);
 int dc_read_system(DCSystem *output);
 int dc_read_processes(DCProcess *output, int capacity);
 int dc_process_matches(int32_t pid, uint32_t uid, uint64_t start_seconds, uint64_t start_microseconds);

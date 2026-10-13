@@ -1,6 +1,6 @@
 import Foundation
 
-public enum CandidateKind: String, Codable, Sendable { case cache, log, large, duplicate, application, support }
+public enum CandidateKind: String, Codable, Sendable { case cache, log, large, duplicate, application, support, developer, old, installer, space, similar }
 
 public struct FileFingerprint: Codable, Equatable, Sendable {
     public let device: UInt64

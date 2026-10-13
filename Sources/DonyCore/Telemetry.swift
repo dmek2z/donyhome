@@ -58,12 +58,16 @@ public struct SystemSnapshot: Codable, Sendable {
     public var pressure: MemoryPressure = .unknown
     public var diskTotal: Int64?
     public var diskAvailable: Int64?
+    public var battery: BatteryReading?
+    public var networkReceivedPerSecond: Double?
+    public var networkSentPerSecond: Double?
     public var processes: [ProcessReading] = []
     public var memoryPercent: Double? { guard let memoryUsed, memoryTotal > 0 else { return nil }; return Double(memoryUsed) / Double(memoryTotal) * 100 }
     public init() {}
 }
 public final class SystemSampler: @unchecked Sendable {
     private let lock = NSLock()
+    private var previousNetwork: NetworkCounters?
     private var previousCPU: CPUCounters?
     private var previousProcesses: [String: UInt64] = [:]
     private var previousTime: Double?
@@ -74,6 +78,15 @@ public final class SystemSampler: @unchecked Sendable {
         var raw = DCSystem(); _ = dc_read_system(&raw)
         let now = ProcessInfo.processInfo.systemUptime
         var snapshot = SystemSnapshot()
+        snapshot.battery = BatteryReading.read()
+        var network = DCNetwork(); _ = dc_read_network(&network)
+        if network.available != 0 {
+            let current = NetworkCounters(received: network.received, sent: network.sent, generation: network.generation)
+            if let previousNetwork, let previousTime, let rate = current.rates(since: previousNetwork, elapsed: now - previousTime) {
+                snapshot.networkReceivedPerSecond = rate.received; snapshot.networkSentPerSecond = rate.sent
+            }
+            previousNetwork = current
+        } else { previousNetwork = nil }
         let cpu = CPUCounters(user: raw.cpu_user, system: raw.cpu_system, idle: raw.cpu_idle, nice: raw.cpu_nice)
         if raw.cpu_available != 0 { if let previousCPU { snapshot.cpuPercent = cpu.usage(since: previousCPU) }; previousCPU = cpu }
         else { previousCPU = nil }

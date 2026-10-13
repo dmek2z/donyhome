@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import DonyCore
 
-struct ApplicationsView: View {
+struct InstalledAppsView: View {
     @EnvironmentObject var model: AppModel
     @State private var selection = Set<String>()
     @State private var search = ""
@@ -14,7 +14,6 @@ struct ApplicationsView: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "앱 관리")
             HStack {
                 Button { model.openLoginSettings() } label: { DonyLabel("로그인 · 백그라운드 앱 관리", icon: "power") }.buttonStyle(QuietButton())
                 Spacer(); Button { model.scanApplications() } label: { DonyLabel("앱 목록 새로고침", icon: "arrow.clockwise") }.buttonStyle(PrimaryButton()).disabled(model.busy)
@@ -68,5 +67,16 @@ struct ApplicationsView: View {
             IssuesView(issues: model.applications.issues)
         }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }
             .task { if model.inventoryDate == nil && !model.busy { model.scanApplications() } }
+    }
+}
+
+struct ApplicationsView: View {
+    @EnvironmentObject var model: AppModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            PageHeader(title: "앱 관리")
+            DonyTabs(options: ["설치 앱", "잔여물 후보"], selection: $model.applicationsMode)
+            if model.applicationsMode == "잔여물 후보" { LeftoversView() } else { InstalledAppsView() }
+        }
     }
 }

@@ -62,3 +62,35 @@ int dc_process_matches(int32_t pid, uint32_t uid, uint64_t seconds, uint64_t mic
     if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd)) return 0;
     return bsd.pbi_uid == uid && bsd.pbi_start_tvsec == seconds && bsd.pbi_start_tvusec == micros;
 }
+
+#include <sys/socket.h>
+#include <net/if.h>
+#include <net/route.h>
+int dc_read_network(DCNetwork *output) {
+    memset(output, 0, sizeof(*output));
+    int mib[] = {CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0};
+    size_t length = 0;
+    if (sysctl(mib, 6, NULL, &length, NULL, 0) != 0 || length == 0 || length > 4 * 1024 * 1024) return 0;
+    char *buffer = malloc(length); if (!buffer) return 0;
+    if (sysctl(mib, 6, buffer, &length, NULL, 0) != 0) { free(buffer); return 0; }
+    uint64_t hash = 0;
+    for (char *cursor = buffer; cursor + sizeof(struct rt_msghdr) <= buffer + length;) {
+        const struct rt_msghdr *header = (const struct rt_msghdr *)cursor;
+        if (!header->rtm_msglen || cursor + header->rtm_msglen > buffer + length) break;
+        if (header->rtm_type == RTM_IFINFO2 && header->rtm_msglen >= sizeof(struct if_msghdr2)) {
+            const struct if_msghdr2 *row = (const struct if_msghdr2 *)cursor;
+            char name[IF_NAMESIZE];
+            if (if_indextoname(row->ifm_index, name) && strncmp(name, "en", 2) == 0 &&
+                (row->ifm_flags & IFF_UP) && !(row->ifm_flags & IFF_LOOPBACK)) {
+                // NET_RT_IFLIST2 supplies 64-bit byte counters; getifaddrs' legacy
+                // if_data fields wrap at 4 GB on macOS.
+                output->received += row->ifm_data.ifi_ibytes; output->sent += row->ifm_data.ifi_obytes;
+                uint64_t entry = 1469598103934665603ULL;
+                for (const char *letter = name; *letter; letter++) { entry ^= (unsigned char)*letter; entry *= 1099511628211ULL; }
+                hash ^= entry; output->available = 1;
+            }
+        }
+        cursor += header->rtm_msglen;
+    }
+    free(buffer); output->generation = hash; return output->available;
+}
