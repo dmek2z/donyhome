@@ -596,7 +596,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         }
     }
     func append(_ records: [ActionRecord]) -> String? {
-        history = Array((Array(records.reversed()) + history).prefix(500))
+        history = HistoryStore.compact(Array(records.reversed()) + history)
         guard historyWritable else { return "기존 기록 파일에 문제가 있어 이번 기록은 앱 안에서만 유지합니다." }
         do { try store.save(history); return nil } catch { return "기록을 저장하지 못했습니다: " + error.localizedDescription }
     }
