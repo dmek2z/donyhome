@@ -9,7 +9,7 @@ struct DeveloperView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                VStack(alignment: .leading, spacing: 7) { Text("Xcode · npm · pip · Homebrew · Yarn · pnpm").font(Theme.font(14, weight: .medium)); Text((model.developer.incomplete ? "≥ " : "") + DisplayFormat.bytes(model.developer.items.reduce(0) { $0 + $1.bytes })).font(Theme.font(26, weight: .semibold)) }
+                VStack(alignment: .leading, spacing: 7) { Text("작업공간 · Xcode · npm · pip · Homebrew · Yarn · pnpm").font(Theme.font(14, weight: .medium)); Text((model.developer.incomplete ? "≥ " : "") + DisplayFormat.bytes(model.developer.items.reduce(0) { $0 + $1.bytes })).font(Theme.font(26, weight: .semibold)) }
                 Spacer(); Button("검사") { model.scanDeveloper() }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }.panel()
             if model.developer.cancelled { Chip(text: "중단됨 · 일부 결과", color: Theme.amber) }

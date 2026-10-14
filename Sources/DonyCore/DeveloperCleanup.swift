@@ -19,6 +19,7 @@ public enum DeveloperCleanup {
         ("Library/Caches/pnpm", ["pnpm", "pnpx", "node"])
     ]
     public static func label(_ item: FileCandidate) -> String {
+        if StaleWorkspaces.isWorkspace(item) { return "방치된 작업공간 · " + item.url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent + " · " + item.name }
         if item.id.contains("/Xcode/DerivedData/") { return "Xcode · " + item.url.deletingLastPathComponent().lastPathComponent + " · " + item.name }
         if item.id.contains("/.npm/_cacache") { return "npm 다운로드 캐시" }
         return item.name + " 다운로드 캐시"
@@ -80,6 +81,11 @@ public enum DeveloperCleanup {
                 result.incomplete = true; result.issues.append(ScanIssue(path: target.path, error: error))
             }
         }
+        if !result.cancelled && !token.isCancelled {
+            let workspaces = StaleWorkspaces.scan(home: home, token: token, now: now, days: days)
+            result.items += workspaces.items; result.decisions.merge(workspaces.decisions) { $1 }
+            result.issues += workspaces.issues; result.cancelled = workspaces.cancelled
+        }
         result.items.sort { $0.bytes > $1.bytes }
         result.cancelled = result.cancelled || token.isCancelled
         if result.cancelled { result.decisions.removeAll() }
@@ -87,6 +93,7 @@ public enum DeveloperCleanup {
     }
     public static func validate(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, now: Date = Date(), token: ScanToken = ScanToken(), requireOld: Bool = true, days: Int = 7) throws {
         try token.check()
+        if StaleWorkspaces.isWorkspace(item, home: home) { try StaleWorkspaces.validate(item, home: home, requireOld: requireOld, now: now, days: days, token: token); return }
         let base = try FileSafety.canonicalRoot(home)
         guard (1...3650).contains(days), !CacheScopes.isProtected(item.url) else { throw DonyError.unsafePath }
         let scopes = try targets.flatMap { path, _ -> [URL] in
