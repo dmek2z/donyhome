@@ -19,6 +19,9 @@ typedef struct { uint64_t received, sent, generation; int available; } DCNetwork
 int dc_read_network(DCNetwork *output);
 int dc_read_system(DCSystem *output);
 int dc_read_processes(DCProcess *output, int capacity);
+// All current-user processes; complete is false on truncation or unreadable rows.
+int dc_owned_process_capacity(void);
+int dc_read_owned_processes(DCProcess *output, int capacity, int *complete);
 int dc_process_matches(int32_t pid, uint32_t uid, uint64_t start_seconds, uint64_t start_microseconds);
 int dc_process_cwd(int32_t pid, char *output, int capacity);
 int dc_process_arguments(int32_t pid, char *output, int capacity);

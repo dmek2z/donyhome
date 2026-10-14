@@ -172,3 +172,20 @@ import Foundation
         #expect(FileManager.default.fileExists(atPath: group.copies[0].url.path))
     }
 }
+
+
+@Suite struct RecommendationScaleTests {
+    @Test func fiftyThousandRegularLeavesArePlannedWithoutPairwiseSearch() {
+        let root = URL(fileURLWithPath: "/fixture/cache")
+        let leaves = (0..<50_000).map { i in
+            FileCandidate(url: root.appendingPathComponent(String(i)), root: root, kind: .cache,
+                          fingerprint: FileFingerprint(device: 1, inode: UInt64(i), mode: 0o100644, size: 1, seconds: 0, nanoseconds: 0),
+                          anchors: [], bytes: 1, treeStamp: nil)
+        }
+        let start = Date()
+        let plan = RecommendedActions.plan(cleanup: leaves, duplicates: [])
+        #expect(plan.items.count == 50_000)
+        #expect(plan.bytes == 50_000)
+        #expect(Date().timeIntervalSince(start) < 5)
+    }
+}

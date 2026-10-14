@@ -14,7 +14,7 @@ public enum AutomaticCleanup {
                 let owner = CacheScopes.owner(of: item.url, home: (try? FileSafety.canonicalRoot(home)) ?? home) ?? ""
                 return item.kind == .log || !["pnpm", "pip", "Homebrew", "Yarn"].contains(owner)
             }
-            if scanned.groups.contains(where: { $0.incomplete && CacheScopes.isKnown(root: $0.root, home: (try? FileSafety.canonicalRoot(home)) ?? home) && !["pnpm", "pip", "Homebrew", "Yarn"].contains($0.root.lastPathComponent) }) {
+            if scanned.rootInventoryIncomplete || scanned.groups.contains(where: { $0.incomplete && CacheScopes.isKnown(root: $0.root, home: (try? FileSafety.canonicalRoot(home)) ?? home) && !["pnpm", "pip", "Homebrew", "Yarn"].contains($0.root.lastPathComponent) }) {
                 scanned.files.items.removeAll(); scanned.files.cancelled = true
             }
             return scanned.files

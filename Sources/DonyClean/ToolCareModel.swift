@@ -9,12 +9,14 @@ extension AppModel {
     }
     func scanToolStorage() {
         guard let (token, epoch) = begin("개발 도구 캐시·로그 검사") else { return }
-        let tools = connectedTools; let running = Set(aiUsage.map(\.tool))
-        let days = projectRetentionDays; let report = progress(epoch); let processes = aiUsage.flatMap(\.processes)
+        let tools = connectedTools; let mapping = aiApplicationTools
+        let days = projectRetentionDays; let report = progress(epoch)
         toolStorageDate = nil
         Task {
             let result = await Task.detached(priority: .utility) {
-                let open = OpenFileSnapshot.read(processes: processes, token: token)
+                let inventory = OwnedProcessInventory.read()
+                let running = Set(AITool.usage(inventory.processes, currentUID: getuid(), applicationTools: mapping).map(\.tool))
+                let open = inventory.openFiles(token: token)
                 return ToolStorage.scan(tools: tools, runningTools: running, days: days, token: token, progress: report, openFiles: open)
             }.value
             guard days == projectRetentionDays else { finish(true, issues: []); return }
@@ -46,11 +48,11 @@ extension AppModel {
                 let record = await Task.detached(priority: .utility) {
                     do {
                         guard !originals.contains(item.id) else { throw DonyError.missingOriginal }
-                        let snapshot = SystemSampler().sample()
-                        guard !snapshot.processes.isEmpty else { throw DonyError.unsupported }
-                        let usage = AITool.usage(snapshot.processes, currentUID: getuid(), applicationTools: mapping)
+                        let inventory = OwnedProcessInventory.read()
+                        guard inventory.complete else { throw DonyError.unsupported }
+                        let usage = AITool.usage(inventory.processes, currentUID: getuid(), applicationTools: mapping)
                         let owners = Set(usage.map(\.tool))
-                        let open = OpenFileSnapshot.read(processes: usage.flatMap(\.processes), token: ScanToken())
+                        let open = inventory.openFiles(token: ScanToken())
                         let token = ScanToken()
                         try ToolStorage.validate(item, runningTools: owners, days: days, token: token, openFiles: open)
                         return TrashService.move(item.candidate, token: token, beforeMutation: { measurement.captureBeforeMutation() })

@@ -20,12 +20,20 @@ import Testing
         repeat {
             let readings = SystemSampler().sample().processes.filter { $0.pid == child.processIdentifier }
             if !readings.isEmpty {
-                let snapshot = OpenFileSnapshot.read(processes: readings, token: ScanToken())
+                let snapshot = OpenFileSnapshot.read(processes: readings, token: ScanToken(), enumerationComplete: true)
                 observed = snapshot.complete && snapshot.contains(candidate)
             }
             if !observed { Thread.sleep(forTimeInterval: 0.02) }
         } while !observed && Date() < deadline
         #expect(observed)
+    }
+    @Test func aSuppliedSubsetCannotCertifySystemWideCoverage() {
+        #expect(!OpenFileSnapshot.read(processes: [], token: ScanToken()).complete)
+    }
+    @Test func truncatedOwnedInventoryCannotCertifyOpenFiles() {
+        let inventory = OwnedProcessInventory.read(capacity: 1)
+        #expect(!inventory.complete)
+        #expect(!inventory.openFiles(token: ScanToken()).complete)
     }
     @Test func unknownOrCancelledDescriptorReadsStayIncomplete() {
         let token = ScanToken(); token.cancel()

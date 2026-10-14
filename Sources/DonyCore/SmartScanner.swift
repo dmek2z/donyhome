@@ -3,6 +3,7 @@ import Foundation
 public struct SmartScanResult: Sendable {
     public var cleanup = ScanResult()
     public var decisions: [String: CleanupDecision] = [:]
+    public var cacheIncomplete = false
     public var cacheGroups: [CacheInventoryGroup] = []
     public var largeFiles = ScanResult()
     public var duplicates = DuplicateResult()
@@ -32,7 +33,7 @@ public enum SmartScanner {
         progress?(0, "캐시 · 로그")
         if let days {
             let cache = CacheCleanup.scan(home: home, runningOwners: runningBundleIDs.union(runningTools), days: days, token: token, progress: progress)
-            result.cleanup = cache.files; result.decisions = cache.decisions; result.cacheGroups = cache.groups
+            result.cleanup = cache.files; result.decisions = cache.decisions; result.cacheGroups = cache.groups; result.cacheIncomplete = cache.incomplete
         } else {
             result.cleanup = Scanner.cleanup(roots: roots, excluding: runningBundleIDs, token: token, progress: progress)
             let policy = CleanupPolicy(home: home)

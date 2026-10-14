@@ -5,6 +5,7 @@ public struct DeveloperResult: Sendable {
     public var decisions: [String: CleanupDecision] = [:]
     public var issues: [ScanIssue] = []
     public var cancelled = false
+    public var incomplete = false
     public var recommended: [FileCandidate] { items.filter { decisions[$0.id]?.isRecommended == true } }
     public init() {}
 }
@@ -30,14 +31,17 @@ public enum DeveloperCleanup {
             return (url.path == target.path || FileSafety.isWithin(url, root: target) || FileSafety.isWithin(target, root: url)) && !running.isDisjoint(with: tools)
         }
     }
-    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, token: ScanToken, now: Date = Date(), days: Int = 7) -> DeveloperResult {
+    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, token: ScanToken, now: Date = Date(), days: Int = 7, candidateLimit: Int = 20_000) -> DeveloperResult {
         var result = DeveloperResult()
         guard !token.isCancelled else { result.cancelled = true; return result }
         guard let base = try? FileSafety.canonicalRoot(home) else { return result }
+        let deadline = Date().addingTimeInterval(120)
+        var visited = 0
         for (path, _) in targets {
             if token.isCancelled { result.cancelled = true; break }
             let target = base.appendingPathComponent(path)
             do {
+                guard result.items.count < candidateLimit, visited < 1_000_000, Date() < deadline else { throw DonyError.scanLimit }
                 guard try FileSafety.metadataIfPresent(target) != nil else { continue }
                 guard try FileSafety.canonicalRoot(target).path == target.path else { throw DonyError.unsafePath }
                 var urls = [target]
@@ -56,9 +60,13 @@ public enum DeveloperCleanup {
                     try token.check()
                     guard try FileSafety.fingerprint(url).isDirectory, !CacheScopes.containsProject(url) else { continue }
                     try ProjectFileWalker.walk(root: url, token: token, limit: 1_000_000, timeout: 120, shouldDescend: {
-                        !CacheScopes.isProtected($0) && !CacheScopes.containsProject($0)
+                        if CacheScopes.isProtected($0) || CacheScopes.containsProject($0) { result.incomplete = true; return false }
+                        return true
                     }) { file, stamp in
+                        visited += 1
+                        guard visited <= 1_000_000, Date() < deadline else { throw DonyError.scanLimit }
                         guard stamp.isRegular, stamp.size > 0, !CacheScopes.isProtected(file) else { return }
+                        guard result.items.count < candidateLimit else { throw DonyError.scanLimit }
                         let item = try FileCandidate.capture(url: file, root: url, kind: .developer, token: token)
                         result.items.append(item)
                         do {
@@ -69,7 +77,7 @@ public enum DeveloperCleanup {
                 }
             } catch {
                 if token.isCancelled { result.cancelled = true; break }
-                result.issues.append(ScanIssue(path: target.path, error: error))
+                result.incomplete = true; result.issues.append(ScanIssue(path: target.path, error: error))
             }
         }
         result.items.sort { $0.bytes > $1.bytes }

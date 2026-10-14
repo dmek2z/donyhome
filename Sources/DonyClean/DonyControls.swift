@@ -164,3 +164,21 @@ private struct MenuHitAreaStyle: ButtonStyle {
         configuration.label.frame(width: width, height: height).contentShape(Rectangle())
     }
 }
+
+
+/// Bounded detail rows with access to every candidate, using shared buttons.
+struct ListPagination: View {
+    let total: Int
+    @Binding var page: Int
+    private var lastPage: Int { max(0, (total - 1) / 100) }
+    var body: some View {
+        if total > 100 {
+            HStack {
+                Text("\(page * 100 + 1)–\(min(total, (page + 1) * 100)) / \(total)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                Spacer()
+                DonyTextAction(title: "이전") { page = max(0, page - 1) }.disabled(page == 0)
+                DonyTextAction(title: "다음") { page = min(lastPage, page + 1) }.disabled(page >= lastPage)
+            }.onChange(of: total) { _, _ in page = min(page, lastPage) }
+        }
+    }
+}

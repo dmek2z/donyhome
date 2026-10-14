@@ -127,4 +127,43 @@ import Testing
         #expect(longer.developer.recommended.isEmpty)
     }
 
+    @Test func databaseSidecarsStayOutOfScanAndExecution() throws {
+        for suffix in [".sqlite-wal", ".sqlite-shm", ".sqlite3-wal", ".vscdb-shm", ".db-journal"] {
+            let url = try file("Library/Caches/Aside/state" + suffix, days: 40)
+            let item = try FileCandidate.capture(url: url, root: url.deletingLastPathComponent(), kind: .cache)
+            #expect(!(try CleanupPolicy(home: home, days: 14).reason(for: item, now: now, runningBundleIDs: []).isRecommended))
+        }
+        #expect(scan().files.items.isEmpty)
+    }
+    @Test func candidateBudgetsApplyAcrossRootsAndReportTruncation() throws {
+        for root in ["Aside", "Google", "pip", "pnpm"] {
+            for i in 0..<5 { try file("Library/Caches/" + root + "/\(i)", days: 40) }
+        }
+        let cache = CacheCleanup.scan(home: home, runningOwners: [], token: ScanToken(), now: now, candidateLimit: 3)
+        #expect(cache.files.items.count <= 3)
+        #expect(cache.incomplete)
+        let dev = DeveloperCleanup.scan(home: home, runningTools: [], token: ScanToken(), now: now, candidateLimit: 3)
+        #expect(dev.items.count <= 3)
+        #expect(!dev.issues.isEmpty)
+    }
+    @Test func rootDiscoveryFailuresInvalidateAutomaticInventory() throws {
+        try file("Library/Logs/old.log", days: 40)
+        let outside = home.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: home.appendingPathComponent("Library/Caches"), withDestinationURL: outside)
+        #expect(scan().incomplete)
+        let auto = AutomaticCleanup.scan(home: home, now: now, runningOwners: [], token: ScanToken(), days: 14)
+        #expect(auto.items.isEmpty)
+        #expect(auto.cancelled)
+    }
+
+    @Test func toolInventoryIsBoundedAndUnknownProcessCoverageProtectsInactiveTools() throws {
+        for i in 0..<5 { try file("Library/Logs/Codex/\(i).log", days: 40) }
+        let unknown = OpenFileSnapshot(paths: [], complete: false)
+        let result = ToolStorage.scan(tools: [.codex], home: home, runningTools: [], days: 14, token: ScanToken(), now: now, openFiles: unknown, candidateLimit: 3)
+        #expect(result.items.count <= 3)
+        #expect(result.eligible.isEmpty)
+        #expect(result.incompleteTools.contains(.codex))
+    }
+
 }

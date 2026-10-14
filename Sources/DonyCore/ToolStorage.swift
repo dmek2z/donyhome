@@ -82,20 +82,23 @@ public enum ToolStorage {
               try !containsProject(root) else { throw DonyError.unsafePath }
     }
     private static func eligible(_ candidate: FileCandidate, owners: Set<AITool>, running: Set<AITool>, days: Int, now: Date, openFiles: OpenFileSnapshot? = nil) -> Bool {
+        if let openFiles, !openFiles.complete { return false }
         let active = !owners.isDisjoint(with: running)
         let closedLog = candidate.kind == .log && openFiles?.complete == true && openFiles?.contains(candidate) == false
         return (!active || closedLog) && openFiles?.contains(candidate) != true && (1...3650).contains(days) &&
             Double(candidate.fingerprint.seconds) + Double(candidate.fingerprint.nanoseconds) / 1e9 <= now.addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970
     }
-    public static func scan(tools: Set<AITool>, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), progress: Scanner.Progress? = nil, openFiles: OpenFileSnapshot? = nil, limit: Int = 1_000_000, timeout: TimeInterval = 120) -> ToolStorageResult {
+    public static func scan(tools: Set<AITool>, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), progress: Scanner.Progress? = nil, openFiles: OpenFileSnapshot? = nil, limit: Int = 1_000_000, timeout: TimeInterval = 120, candidateLimit: Int = 20_000) -> ToolStorageResult {
         var result = ToolStorageResult()
         var seen = Set<String>(); var visited = 0
+        let deadline = Date().addingTimeInterval(timeout)
         do {
             try token.check()
             let base = try FileSafety.canonicalRoot(home)
             for location in locations(home: base) where !location.owners.isDisjoint(with: tools) {
                 try token.check()
                 do {
+                    guard result.items.count < candidateLimit, visited < limit, Date() < deadline else { throw DonyError.scanLimit }
                     guard try FileSafety.metadataIfPresent(location.root) != nil else { continue }
                     try checkRoot(location.root)
                     result.recognizedTools.formUnion(location.owners.intersection(tools))
@@ -103,12 +106,14 @@ public enum ToolStorage {
                         !protected($0, root: location.root) && (try? containsProject($0)) == false
                     }) { url, fingerprint in
                         visited += 1
+                        guard visited <= limit, Date() < deadline else { throw DonyError.scanLimit }
                         if visited.isMultiple(of: 250) { progress?(visited, location.owners.map(\.title).sorted().joined(separator: " · ")) }
                         guard fingerprint.isRegular, !protected(url, root: location.root), seen.insert(url.path).inserted else { return }
                         if location.kind == .log && !["log", "txt", "out"].contains(url.pathExtension.lowercased()) && !CacheScopes.isLog(url) { return }
+                        guard result.items.count < candidateLimit else { throw DonyError.scanLimit }
                         let candidate = try FileCandidate.capture(url: url, root: location.root, kind: location.kind, token: token)
                         let allowed = eligible(candidate, owners: location.owners, running: runningTools, days: days, now: now, openFiles: openFiles)
-                        let reason = allowed ? "\(days)일 이상 지난 캐시·로그" : openFiles?.contains(candidate) == true ? "열린 파일 · 보관" : candidate.kind == .log && !location.owners.isDisjoint(with: runningTools) && openFiles?.complete != true ? "열린 파일 확인 불가 · 보관" : !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 보관" : "최근 변경 · 보관"
+                        let reason = openFiles?.complete == false ? "실행 상태 확인 불가 · 보관" : allowed ? "\(days)일 이상 지난 캐시·로그" : openFiles?.contains(candidate) == true ? "열린 파일 · 보관" : candidate.kind == .log && !location.owners.isDisjoint(with: runningTools) && openFiles?.complete != true ? "열린 파일 확인 불가 · 보관" : !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 보관" : "최근 변경 · 보관"
                         result.items.append(ToolStorageItem(candidate: candidate, owners: location.owners, isEligible: allowed, reason: reason))
                     }
                 } catch {

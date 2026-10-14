@@ -6,6 +6,7 @@ struct CacheCleanupView: View {
     @State private var selection = Set<String>()
     @State private var filter = "전체"
     @State private var focus: String?
+    @State private var page = 0
     @State private var showSettings = false
     private var groups: [CacheInventoryGroup] { model.cleanupInventory.filter { filter == "전체" || ($0.kind == .cache ? "캐시" : "로그") == filter } }
     private var visible: [FileCandidate] { model.cleanup.items.filter { item in
@@ -17,7 +18,7 @@ struct CacheCleanupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                Text("캐시·로그").font(Theme.font(17, weight: .semibold))
+                PageHeader(title: "캐시·로그")
                 Spacer()
                 DonyTextAction(title: "보관 설정") { showSettings = true }.disabled(model.busy)
                 Button("검사") { model.scanCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy)
@@ -26,7 +27,7 @@ struct CacheCleanupView: View {
                 EmptyState(icon: "sparkles", title: "캐시·로그를 검사해 주세요", subtitle: "")
             } else {
                 HStack(spacing: 20) {
-                    metric("발견", value: (groups.contains { $0.incomplete } ? "≥ " : "") + DisplayFormat.bytes(measured))
+                    metric("발견", value: (model.cleanupIncomplete ? "≥ " : "") + DisplayFormat.bytes(measured))
                     metric("추천", value: DisplayFormat.bytes(recommended))
                     metric("보관", value: DisplayFormat.bytes(max(0, measured - recommended)))
                 }.panel()
@@ -65,20 +66,21 @@ struct CacheCleanupView: View {
                         SelectionControl(selection: $selection, ids: visible.map(\.id)).disabled(model.busy || model.cleanup.cancelled)
                     }
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(visible.prefix(100))) { item in
+                        ForEach(Array(visible.dropFirst(page * 100).prefix(100))) { item in
                             CandidateRow(candidate: item, selection: $selection, subtitle: model.cleanupDecisions[item.id]?.reason)
                             Divider().padding(.leading, 58)
                         }
                     }.panel(0)
-                    if visible.count > 100 { Text("100 / \(visible.count)개 표시").font(Theme.font(11)).foregroundStyle(Theme.secondary).help("전체 선택은 모든 추천 파일을 포함해요.") }
+                    ListPagination(total: visible.count, page: $page)
                     SelectionBar(selected: selected) { model.moveToTrash(selected, recommendedOnly: true) }
                 } else if focus != nil {
                     HStack { Text("추천 파일 없음").font(Theme.font(13)).foregroundStyle(Theme.secondary); Spacer(); DonyTextAction(title: "전체 보기") { focus = nil } }.panel()
                 }
             }
             IssuesView(issues: model.cleanup.issues)
-        }.onChange(of: model.cleanupDate) { _, _ in selection.removeAll(); focus = nil }
-            .onChange(of: filter) { _, _ in selection.removeAll(); focus = nil }
+        }.onChange(of: model.cleanupDate) { _, _ in selection.removeAll(); focus = nil; page = 0 }
+            .onChange(of: filter) { _, _ in selection.removeAll(); focus = nil; page = 0 }
+            .onChange(of: focus) { _, _ in page = 0 }
             .sheet(isPresented: $showSettings) { RetentionSettingsSheet() }
     }
     private func metric(_ title: String, value: String) -> some View {
@@ -91,9 +93,6 @@ struct CacheCleanupView: View {
 
 struct CleanupView: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "캐시·로그 정리")
-            CacheCleanupView()
-        }
+        CacheCleanupView()
     }
 }

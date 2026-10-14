@@ -99,6 +99,37 @@ int dc_read_processes(DCProcess *output, int capacity) {
     free(pids); return filled;
 }
 
+int dc_owned_process_capacity(void) {
+    int bytes = proc_listpids(PROC_UID_ONLY, getuid(), NULL, 0);
+    if (bytes <= 0 || bytes > 65536 * (int)sizeof(int)) return 0;
+    int count = bytes / (int)sizeof(int) + 128;
+    return count > 16384 ? 16384 : count;
+}
+
+int dc_read_owned_processes(DCProcess *output, int capacity, int *complete) {
+    *complete = 0;
+    if (!output || capacity < 1) return 0;
+    int needed = proc_listpids(PROC_UID_ONLY, getuid(), NULL, 0);
+    if (needed <= 0 || needed > 65536 * (int)sizeof(int)) return 0;
+    int allocated = needed + 128 * (int)sizeof(int);
+    int *pids = calloc(1, (size_t)allocated);
+    if (!pids) return 0;
+    int bytes = proc_listpids(PROC_UID_ONLY, getuid(), pids, allocated);
+    if (bytes <= 0 || bytes >= allocated || bytes % (int)sizeof(int)) { free(pids); return 0; }
+    int filled = 0, valid = 1;
+    for (int i = 0; i < bytes / (int)sizeof(int); i++) {
+        if (pids[i] <= 0) continue;
+        struct proc_bsdinfo bsd;
+        if (filled >= capacity || proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd) || bsd.pbi_uid != getuid()) { valid = 0; continue; }
+        DCProcess *row = &output[filled++]; memset(row, 0, sizeof(*row));
+        row->pid = pids[i]; row->parent_pid = bsd.pbi_ppid; row->uid = bsd.pbi_uid;
+        row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;
+        proc_pidpath(pids[i], row->path, sizeof(row->path));
+        strlcpy(row->name, bsd.pbi_comm, sizeof(row->name));
+    }
+    free(pids); *complete = valid && filled > 0; return filled;
+}
+
 int dc_process_matches(int32_t pid, uint32_t uid, uint64_t seconds, uint64_t micros) {
     struct proc_bsdinfo bsd;
     if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd)) return 0;

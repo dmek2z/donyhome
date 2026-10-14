@@ -22,19 +22,20 @@ public struct CacheCleanupResult: Sendable {
     public var measuredBytes: Int64 { groups.reduce(0) { $0 + $1.bytes } }
     public var recommendedBytes: Int64 { files.totalBytes }
     public var protectedBytes: Int64 { max(0, measuredBytes - recommendedBytes) }
-    public var incomplete: Bool { groups.contains(where: \.incomplete) }
+    public var rootInventoryIncomplete = false
+    public var incomplete: Bool { rootInventoryIncomplete || groups.contains(where: \.incomplete) }
     public init() {}
 }
 
 public enum CacheCleanup {
-    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, runningOwners: Set<String>, days: Int = 14, token: ScanToken, now: Date = Date(), limit: Int = 1_000_000, timeout: TimeInterval = 120, progress: Scanner.Progress? = nil) -> CacheCleanupResult {
+    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, runningOwners: Set<String>, days: Int = 14, token: ScanToken, now: Date = Date(), limit: Int = 1_000_000, timeout: TimeInterval = 120, candidateLimit: Int = 20_000, progress: Scanner.Progress? = nil) -> CacheCleanupResult {
         var result = CacheCleanupResult()
         guard (1...3650).contains(days), !token.isCancelled else {
             result.files.cancelled = true; return result
         }
         let base: URL
         do { base = try FileSafety.canonicalRoot(home) }
-        catch { result.files.issues.append(ScanIssue(path: home.path, error: error)); return result }
+        catch { result.rootInventoryIncomplete = true; result.files.issues.append(ScanIssue(path: home.path, error: error)); return result }
         var locations: [(URL, CandidateKind)] = []
         for (relative, kind) in [("Library/Caches", CandidateKind.cache), ("Library/Logs", .log)] {
             let root = base.appendingPathComponent(relative)
@@ -42,19 +43,23 @@ public enum CacheCleanup {
                 guard try FileSafety.metadataIfPresent(root) != nil else { continue }
                 guard try FileSafety.canonicalRoot(root).path == root.path else { throw DonyError.unsafePath }
                 locations += try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).map { ($0, kind) }
-            } catch { result.files.issues.append(ScanIssue(path: root.path, error: error)) }
+            } catch { result.rootInventoryIncomplete = true; result.files.issues.append(ScanIssue(path: root.path, error: error)) }
         }
         for alias in CacheScopes.namedOwners.keys.sorted() {
             for child in ["Cache", "Code Cache", "GPUCache", "ShaderCache"] {
                 let root = base.appendingPathComponent("Library/Application Support/" + alias + "/" + child)
-                if (try? FileSafety.metadataIfPresent(root)) != nil { locations.append((root, .cache)) }
+                do {
+                    if try FileSafety.metadataIfPresent(root) != nil { locations.append((root, .cache)) }
+                } catch { result.rootInventoryIncomplete = true; result.files.issues.append(ScanIssue(path: root.path, error: error)) }
             }
         }
+        let deadline = Date().addingTimeInterval(timeout)
         var identities = Set<String>()
         for (root, kind) in locations.sorted(by: { $0.0.path < $1.0.path }) {
             if token.isCancelled { break }
             var group = CacheInventoryGroup(root: root, kind: kind)
             do {
+                guard result.files.visited < limit, Date() < deadline else { throw DonyError.scanLimit }
                 let stamp = try FileSafety.fingerprint(root)
                 if stamp.isRegular {
                     group.files = 1; group.bytes = max(0, stamp.size)
@@ -62,7 +67,9 @@ public enum CacheCleanup {
                         let candidate = try FileCandidate.capture(url: root, root: root.deletingLastPathComponent(), kind: kind, token: token)
                         let decision = try CleanupPolicy(home: base, days: days).reason(for: candidate, now: now, runningBundleIDs: runningOwners, token: token)
                         group.status = decision.reason
-                        if decision.isRecommended { result.files.items.append(candidate); result.decisions[candidate.id] = decision; group.recommendedBytes = candidate.bytes }
+                        if decision.isRecommended {
+                            guard result.files.items.count < candidateLimit else { throw DonyError.scanLimit }
+                            result.files.items.append(candidate); result.decisions[candidate.id] = decision; group.recommendedBytes = candidate.bytes }
                     } else { group.bytes = 0 }
                     result.groups.append(group); continue
                 }
@@ -80,12 +87,14 @@ public enum CacheCleanup {
                     return true
                 }) { url, fingerprint in
                     result.files.visited += 1
+                    guard result.files.visited <= limit, Date() < deadline else { throw DonyError.scanLimit }
                     if result.files.visited.isMultiple(of: 250) { progress?(result.files.visited, group.title) }
                     guard fingerprint.isRegular, identities.insert(fingerprint.identity).inserted else { return }
                     group.files += 1; group.bytes += max(0, fingerprint.size)
                     guard known, !running, !CacheScopes.isProtected(url),
                           Double(fingerprint.seconds) + Double(fingerprint.nanoseconds) / 1e9 <= cutoff,
                           kind != .log || CacheScopes.isLog(url) else { return }
+                    guard result.files.items.count < candidateLimit else { throw DonyError.scanLimit }
                     let candidate = try FileCandidate.capture(url: url, root: root, kind: kind, token: token)
                     let decision = try policy.reason(for: candidate, now: now, runningBundleIDs: runningOwners, token: token)
                     guard decision.isRecommended else { return }
@@ -128,7 +137,9 @@ enum CacheScopes {
         url.pathComponents.contains { part in
             let value = part.lowercased()
             return protectedNames.contains(value) || value.contains("credential") || value.hasPrefix("auth.") ||
-                [".db", ".sqlite", ".sqlite3", ".vscdb", ".jsonl", ".db-wal", ".db-shm"].contains { value.hasSuffix($0) }
+                value.hasSuffix(".jsonl") || [".db", ".sqlite", ".sqlite3", ".vscdb"].contains { ext in
+                    value.hasSuffix(ext) || ["-wal", "-shm", "-journal"].contains { value.hasSuffix(ext + $0) }
+                }
         }
     }
     static func containsProject(_ url: URL) -> Bool {

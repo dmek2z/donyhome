@@ -7,7 +7,7 @@ extension AppModel {
         if bounded != projectRetentionDays { projectRetentionDays = bounded; return }
         UserDefaults.standard.set(projectRetentionDays, forKey: "projectRetentionDays")
         cancel()
-        cleanup = ScanResult(); cleanupInventory = []; cleanupDecisions = [:]; cleanupDate = nil
+        cleanup = ScanResult(); cleanupInventory = []; cleanupIncomplete = false; cleanupDecisions = [:]; cleanupDate = nil
         developer = DeveloperResult(); developerDate = nil
         toolStorage = ToolStorageResult(); toolStorageDate = nil
         projectScan = ScanResult(); projectScanDate = nil; projectSummary = nil

@@ -11,7 +11,8 @@ public struct OpenFileSnapshot: Sendable {
     public func contains(_ candidate: FileCandidate) -> Bool {
         paths.contains(candidate.id) || identities.contains(candidate.fingerprint.identity)
     }
-    public static func read(processes: [ProcessReading], token: ScanToken) -> Self {
+    public static func read(processes: [ProcessReading], token: ScanToken, enumerationComplete: Bool = false) -> Self {
+        guard enumerationComplete, !processes.isEmpty else { return Self(paths: [], complete: false) }
         var paths = Set<String>(); var identities = Set<String>(); var seen = Set<Int32>()
         var buffer = [CChar](repeating: 0, count: 2_000_000)
         for process in processes where seen.insert(process.pid).inserted {
@@ -33,5 +34,41 @@ public struct OpenFileSnapshot: Sendable {
             guard record.isEmpty else { return Self(paths: paths, identities: identities, complete: false) }
         }
         return Self(paths: paths, identities: identities, complete: !token.isCancelled)
+    }
+}
+
+/// Separate from the display sampler: no 4,096-row limit or silently skipped
+/// helpers may certify an inactive owner or a closed log.
+public struct OwnedProcessInventory: Sendable {
+    public let processes: [ProcessReading]
+    public let complete: Bool
+    public static func read(capacity requested: Int? = nil) -> Self {
+        let capacity = requested ?? Int(dc_owned_process_capacity())
+        guard (1...16_384).contains(capacity) else { return Self(processes: [], complete: false) }
+        var rows = Array(repeating: DCProcess(), count: capacity)
+        var complete: Int32 = 0
+        let count = rows.withUnsafeMutableBufferPointer { dc_read_owned_processes($0.baseAddress, Int32($0.count), &complete) }
+        let processes = (0..<max(0, Int(count))).map { i -> ProcessReading in
+            var row = rows[i]
+            let name = withUnsafePointer(to: &row.name) { $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) } }
+            let path = withUnsafePointer(to: &row.path) { $0.withMemoryRebound(to: CChar.self, capacity: 4096) { String(cString: $0) } }
+            var hint: String?
+            if AITool.isInterpreter(name) {
+                var args = [CChar](repeating: 0, count: 8192)
+                let length = args.withUnsafeMutableBufferPointer { dc_process_arguments(row.pid, $0.baseAddress, Int32($0.count)) }
+                if length > 0 {
+                    let values = args.prefix(Int(length)).split(separator: 0).map { String(decoding: $0.map { UInt8(bitPattern: $0) }, as: UTF8.self) }
+                    hint = AITool.commandHint(values)?.rawValue
+                }
+            }
+            return ProcessReading(pid: row.pid, uid: row.uid, startSeconds: row.start_seconds, startMicroseconds: row.start_microseconds, name: name, path: path, memoryBytes: -1, cpuNanos: nil, cpuPercent: nil, parentPID: row.parent_pid, toolHint: hint)
+        }
+        return Self(processes: processes, complete: complete != 0)
+    }
+    public func openFiles(token: ScanToken) -> OpenFileSnapshot {
+        let files = OpenFileSnapshot.read(processes: processes, token: token, enumerationComplete: complete)
+        let after = Self.read()
+        let stable = after.complete && Set(processes.map(\.id)) == Set(after.processes.map(\.id))
+        return OpenFileSnapshot(paths: files.paths, identities: files.identities, complete: files.complete && stable && !token.isCancelled)
     }
 }

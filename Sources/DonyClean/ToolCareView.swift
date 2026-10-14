@@ -3,6 +3,7 @@ import DonyCore
 
 struct ToolCareView: View {
     @EnvironmentObject var model: AppModel
+    @State private var page = 0
     @State private var selection = Set<String>()
     @State private var showSettings = false
     private var tools: [AITool] { AITool.allCases.filter { model.connectedTools.contains($0) } }
@@ -43,13 +44,13 @@ struct ToolCareView: View {
             }
             IssuesView(issues: model.toolStorage.issues)
         }
-        .onChange(of: model.toolStorageDate) { _, _ in selection.removeAll() }
-        .onChange(of: model.developmentToolFilter) { _, _ in selection.removeAll() }
+        .onChange(of: model.toolStorageDate) { _, _ in selection.removeAll(); page = 0 }
+        .onChange(of: model.developmentToolFilter) { _, _ in selection.removeAll(); page = 0 }
         .onChange(of: model.connectedTools) { _, _ in
             selection.removeAll()
             if let focus, !model.connectedTools.contains(focus) { model.developmentToolFilter = nil }
         }
-        .onChange(of: model.projectRetentionDays) { _, _ in selection.removeAll() }
+        .onChange(of: model.projectRetentionDays) { _, _ in selection.removeAll(); page = 0 }
         .sheet(isPresented: $showSettings) { RetentionSettingsSheet() }
     }
     private var summary: some View {
@@ -116,7 +117,7 @@ struct ToolCareView: View {
                 Text(model.toolStorageDate == nil ? "검사 전" : "정리 대상 없음").font(Theme.font(13)).foregroundStyle(Theme.secondary)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(items.prefix(100))) { item in
+                    ForEach(Array(items.dropFirst(page * 100).prefix(100))) { item in
                         HStack(spacing: 12) {
                             Toggle("선택 " + item.candidate.name, isOn: Binding(get: { selection.contains(item.id) }, set: { if $0 { selection.insert(item.id) } else { selection.remove(item.id) } }))
                                 .toggleStyle(DonyCheckbox()).labelsHidden().disabled(model.busy || !model.toolStorageCurrent || !item.isEligible)
@@ -129,7 +130,7 @@ struct ToolCareView: View {
                         Divider()
                     }
                 }
-                if items.count > 100 { Text("100 / \(items.count)개 표시").font(Theme.font(11)).foregroundStyle(Theme.secondary).help("전체 선택은 표시되지 않은 정리 가능 항목도 포함해요.") }
+                ListPagination(total: items.count, page: $page)
             }
             if !selection.isEmpty {
                 HStack {

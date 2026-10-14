@@ -63,24 +63,26 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var operationBusy = false
     @Published var operationLabel = "작업 처리 중…"
     @Published var scanEpoch = UUID()
-    @Published var cleanup = ScanResult()
+    @Published var cleanup = ScanResult() { didSet { recommendationCache.removeAll() } }
+    @Published var cleanupIncomplete = false
+    private var recommendationCache: [Int: RecommendedPlan] = [:]
     @Published var cleanupInventory: [CacheInventoryGroup] = []
-    @Published var cleanupDecisions: [String: CleanupDecision] = [:]
+    @Published var cleanupDecisions: [String: CleanupDecision] = [:] { didSet { recommendationCache.removeAll() } }
     @Published var smartScanPhase: SmartScanPhase?
     @Published var smart: SmartScanResult?
     @Published var smartDate: Date?
     @Published var smartFolder: URL?
     @Published var cleanupDate: Date?
     @Published var largeFiles = ScanResult()
-    @Published var duplicates = DuplicateResult()
+    @Published var duplicates = DuplicateResult() { didSet { recommendationCache.removeAll() } }
     @Published var filesDate: Date?
     @Published var duplicateDate: Date?
     @Published var folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
     @Published var trashItems = ScanResult()
     @Published var trashDate: Date?
-    @Published var similar = SimilarResult()
+    @Published var similar = SimilarResult() { didSet { recommendationCache.removeAll() } }
     @Published var similarDate: Date?
-    @Published var developer = DeveloperResult()
+    @Published var developer = DeveloperResult() { didSet { recommendationCache.removeAll() } }
     @Published var developerDate: Date?
     @Published var leftovers = LeftoverResult()
     @Published var leftoverDate: Date?
@@ -270,15 +272,9 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func cancel() { token?.cancel(); activity?.detail = "중단하는 중…" }
 
     var similarOriginals: [FileCandidate] { similar.groups.map(\.original) }
-    var recommendedCleanup: [FileCandidate] {
-        RecommendedActions.plan(cleanup: cleanup.items.filter { cleanupDecisions[$0.id]?.isRecommended == true }, duplicates: duplicates.groups, includeCopies: false, preserving: similarOriginals).items
-    }
-    var recommendedDeveloper: [FileCandidate] {
-        RecommendedActions.plan(cleanup: developer.recommended, duplicates: duplicates.groups, includeCopies: false, preserving: similarOriginals).items
-    }
-    var recommendedDuplicateCopies: [FileCandidate] {
-        RecommendedActions.plan(cleanup: [], duplicates: duplicates.groups, preserving: similarOriginals).items
-    }
+    var recommendedCleanup: [FileCandidate] { recommendedPlan(includeCleanup: true, includeDuplicates: false, includeDeveloper: false).items }
+    var recommendedDeveloper: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: false, includeDeveloper: true).items }
+    var recommendedDuplicateCopies: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: true, includeDeveloper: false).items }
     var duplicateCopies: [FileCandidate] { duplicates.groups.flatMap(\.copies) }
     var duplicateOriginals: [String: FileCandidate] {
         Dictionary(uniqueKeysWithValues: duplicates.groups.flatMap { group in group.copies.map { ($0.id, group.original) } })
@@ -328,7 +324,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             let result = await Task.detached(priority: .utility) { SmartScanner.scan(folder: folder, runningBundleIDs: running, token: token, days: days, phase: phase, progress: report) }.value
             guard days == projectRetentionDays else { finish(true, issues: []); return }
             smart = result; smartDate = Date(); smartFolder = folder
-            cleanup = result.cleanup; cleanupInventory = result.cacheGroups; cleanupDecisions = result.decisions; cleanupDate = smartDate
+            cleanup = result.cleanup; cleanupInventory = result.cacheGroups; cleanupIncomplete = result.cacheIncomplete; cleanupDecisions = result.decisions; cleanupDate = smartDate
             largeFiles = result.largeFiles; filesDate = smartDate; duplicates = result.duplicates; duplicateDate = smartDate
             applications = result.applications; inventoryDate = smartDate
             developer = result.developer; developerDate = smartDate
@@ -342,7 +338,12 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         }
     }
     func recommendedPlan(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true) -> RecommendedPlan {
-        RecommendedActions.plan(cleanup: (includeCleanup ? recommendedCleanup : []) + (includeDeveloper ? recommendedDeveloper : []), duplicates: duplicates.groups, includeCopies: includeDuplicates, preserving: similarOriginals)
+        let key = (includeCleanup ? 1 : 0) | (includeDuplicates ? 2 : 0) | (includeDeveloper ? 4 : 0)
+        if let cached = recommendationCache[key] { return cached }
+        let raw = (includeCleanup ? cleanup.items.filter { cleanupDecisions[$0.id]?.isRecommended == true } : []) + (includeDeveloper ? developer.recommended : [])
+        let plan = RecommendedActions.plan(cleanup: raw, duplicates: duplicates.groups, includeCopies: includeDuplicates, preserving: similarOriginals)
+        recommendationCache[key] = plan
+        return plan
     }
     func runRecommended(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true) {
         guard let smart, !smart.cancelled else { return }
@@ -359,7 +360,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                 CacheCleanup.scan(runningOwners: running, days: days, token: token, progress: report)
             }.value
             guard days == projectRetentionDays else { finish(true, issues: []); return }
-            cleanup = result.files; cleanupInventory = result.groups; cleanupDecisions = result.decisions
+            cleanup = result.files; cleanupInventory = result.groups; cleanupIncomplete = result.incomplete; cleanupDecisions = result.decisions
             cleanupDate = Date(); finish(cleanup.cancelled, issues: cleanup.issues)
         }
     }

@@ -125,7 +125,7 @@ struct RootView: View {
                     case .dony: DonyProfileView()
                     }
                 }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
-            }.background(Theme.canvas)
+            }.id(model.section).background(Theme.canvas)
         }.foregroundStyle(Theme.ink).tint(Theme.primary)
             .onAppear {
                 // Idempotent fallback; menu-bar startup also runs without this window.
