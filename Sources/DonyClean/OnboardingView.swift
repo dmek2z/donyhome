@@ -161,7 +161,11 @@ struct OnboardingView: View {
                         PermissionChecklist()
                         if let error = model.permissionError { Text(error).font(Theme.font(12)).foregroundStyle(Theme.amber) }
                         Text("시스템 창에서 직접 허용해 주세요. 전체 디스크 접근을 바꾸면 마지막에 한 번만 다시 열어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                        Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch()).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
+                        VStack(spacing: 16) {
+                            Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch())
+                            Divider()
+                            Toggle("Dock에 아이콘 숨기기", isOn: Binding(get: { model.hideDockIcon }, set: { model.setHideDockIcon($0) })).toggleStyle(DonySwitch())
+                        }.padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                     default:
                         VStack(spacing: 0) {
                             summaryRow("Mac 권한", "\(allowedPermissions) / \(totalPermissions) 허용", done: allowedPermissions == totalPermissions)

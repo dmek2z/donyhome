@@ -86,6 +86,9 @@ struct DonyHomeApp: App {
 @MainActor final class DonyAppDelegate: NSObject, NSApplicationDelegate {
     var openMainWindow: (() -> Void)?
     weak var clipboard: ClipboardController?
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        if UserDefaults.standard.bool(forKey: AppModel.hideDockIconKey) { NSApp.setActivationPolicy(.accessory); NSApp.activate(ignoringOtherApps: true) }
+    }
     func applicationWillTerminate(_ notification: Notification) { AgentTaskController.shared.resumeOwnedTasksForShutdown(); clipboard?.stop() }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openMainWindow?()
@@ -259,6 +262,9 @@ struct PreferencesView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch())
                         SettingsActionRow(title: "로그인 항목", actionTitle: "설정 열기") { model.openLoginSettings() }
+                        Divider()
+                        Toggle("Dock에 아이콘 숨기기", isOn: Binding(get: { model.hideDockIcon }, set: { model.setHideDockIcon($0) })).toggleStyle(DonySwitch())
+                        Text("메뉴 막대에서만 실행해요. 메뉴 막대 캐릭터를 눌러 창을 열 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
                     VStack(alignment: .leading, spacing: 14) {
                         Text("메뉴 막대 캐릭터").font(Theme.font(17, weight: .semibold))

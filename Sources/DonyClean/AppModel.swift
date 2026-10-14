@@ -248,6 +248,19 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         }
     }
 
+    /// Dock과 Cmd-Tab에서 아이콘을 숨기고 메뉴 막대에서만 실행한다(Maccy처럼).
+    static let hideDockIconKey = "hideDockIcon"
+    static func applyDockPolicy(hidden: Bool) {
+        NSApp.setActivationPolicy(hidden ? .accessory : .regular)
+        // 정책을 바꾸면 앞에 있던 창이 뒤로 밀리므로 다시 앞으로 가져온다.
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    var hideDockIcon: Bool { UserDefaults.standard.bool(forKey: Self.hideDockIconKey) }
+    func setHideDockIcon(_ hidden: Bool) {
+        UserDefaults.standard.set(hidden, forKey: Self.hideDockIconKey)
+        Self.applyDockPolicy(hidden: hidden)
+        objectWillChange.send()
+    }
     var loginEnabled: Bool { SMAppService.mainApp.status == .enabled }
     func setLogin(_ enabled: Bool) {
         do {
