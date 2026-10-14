@@ -5,6 +5,7 @@ public struct DeveloperResult: Sendable {
     public var decisions: [String: CleanupDecision] = [:]
     public var issues: [ScanIssue] = []
     public var cancelled = false
+    public var incomplete = false
     public var recommended: [FileCandidate] { items.filter { decisions[$0.id]?.isRecommended == true } }
     public init() {}
 }
@@ -14,9 +15,11 @@ public enum DeveloperCleanup {
         (".npm/_cacache", ["npm", "npx", "node"]),
         ("Library/Caches/pip", ["pip", "pip3", "python", "python3"]),
         ("Library/Caches/Homebrew", ["brew", "ruby"]),
-        ("Library/Caches/Yarn", ["yarn", "node"])
+        ("Library/Caches/Yarn", ["yarn", "node"]),
+        ("Library/Caches/pnpm", ["pnpm", "pnpx", "node"])
     ]
     public static func label(_ item: FileCandidate) -> String {
+        if StaleWorkspaces.isWorkspace(item) { return "작업공간" }
         if item.id.contains("/Xcode/DerivedData/") { return "Xcode · " + item.url.deletingLastPathComponent().lastPathComponent + " · " + item.name }
         if item.id.contains("/.npm/_cacache") { return "npm 다운로드 캐시" }
         return item.name + " 다운로드 캐시"
@@ -29,14 +32,17 @@ public enum DeveloperCleanup {
             return (url.path == target.path || FileSafety.isWithin(url, root: target) || FileSafety.isWithin(target, root: url)) && !running.isDisjoint(with: tools)
         }
     }
-    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, token: ScanToken, now: Date = Date()) -> DeveloperResult {
+    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, token: ScanToken, now: Date = Date(), days: Int = 7, candidateLimit: Int = 20_000) -> DeveloperResult {
         var result = DeveloperResult()
         guard !token.isCancelled else { result.cancelled = true; return result }
         guard let base = try? FileSafety.canonicalRoot(home) else { return result }
+        let deadline = Date().addingTimeInterval(120)
+        var visited = 0
         for (path, _) in targets {
             if token.isCancelled { result.cancelled = true; break }
             let target = base.appendingPathComponent(path)
             do {
+                guard result.items.count < candidateLimit, visited < 1_000_000, Date() < deadline else { throw DonyError.scanLimit }
                 guard try FileSafety.metadataIfPresent(target) != nil else { continue }
                 guard try FileSafety.canonicalRoot(target).path == target.path else { throw DonyError.unsafePath }
                 var urls = [target]
@@ -53,43 +59,74 @@ public enum DeveloperCleanup {
                 }
                 for url in urls {
                     try token.check()
-                    let root = url.deletingLastPathComponent()
-                    let item = try FileCandidate.capture(url: url, root: root, kind: .developer, token: token)
-                    guard item.bytes > 0 else { continue }
-                    result.items.append(item)
-                    do { try validate(item, home: base, runningTools: runningTools, now: now, token: token); result.decisions[item.id] = CleanupDecision(true, "7일 이상 변경 없는 재생성 가능 캐시") }
-                    catch { result.decisions[item.id] = CleanupDecision(false, error.localizedDescription) }
+                    guard try FileSafety.fingerprint(url).isDirectory, !CacheScopes.containsProject(url) else { continue }
+                    try ProjectFileWalker.walk(root: url, token: token, limit: 1_000_000, timeout: 120, shouldDescend: {
+                        if CacheScopes.isProtected($0) || CacheScopes.containsProject($0) { result.incomplete = true; return false }
+                        return true
+                    }) { file, stamp in
+                        visited += 1
+                        guard visited <= 1_000_000, Date() < deadline else { throw DonyError.scanLimit }
+                        guard stamp.isRegular, stamp.size > 0, !CacheScopes.isProtected(file) else { return }
+                        guard result.items.count < candidateLimit else { throw DonyError.scanLimit }
+                        let item = try FileCandidate.capture(url: file, root: url, kind: .developer, token: token)
+                        result.items.append(item)
+                        do {
+                            try validate(item, home: base, runningTools: runningTools, now: now, token: token, days: days)
+                            result.decisions[item.id] = CleanupDecision(true, "\(days)일 이상 변경 없는 재생성 가능 캐시")
+                        } catch { result.decisions[item.id] = CleanupDecision(false, error.localizedDescription) }
+                    }
                 }
             } catch {
                 if token.isCancelled { result.cancelled = true; break }
-                result.issues.append(ScanIssue(path: target.path, message: error.localizedDescription))
+                result.incomplete = true; result.issues.append(ScanIssue(path: target.path, error: error))
             }
+        }
+        if !result.cancelled && !token.isCancelled {
+            let workspaces = StaleWorkspaces.scan(home: home, token: token, now: now, days: days)
+            result.items += workspaces.items; result.decisions.merge(workspaces.decisions) { $1 }
+            result.issues += workspaces.issues; result.cancelled = workspaces.cancelled
         }
         result.items.sort { $0.bytes > $1.bytes }
         result.cancelled = result.cancelled || token.isCancelled
         if result.cancelled { result.decisions.removeAll() }
         return result
     }
-    public static func validate(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, now: Date = Date(), token: ScanToken = ScanToken(), requireOld: Bool = true) throws {
+    public static func validate(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, now: Date = Date(), token: ScanToken = ScanToken(), requireOld: Bool = true, days: Int = 7) throws {
         try token.check()
+        if StaleWorkspaces.isWorkspace(item, home: home) { try StaleWorkspaces.validate(item, home: home, requireOld: requireOld, now: now, days: days, token: token); return }
         let base = try FileSafety.canonicalRoot(home)
-        let known = targets.contains { path, _ in
+        guard (1...3650).contains(days), !CacheScopes.isProtected(item.url) else { throw DonyError.unsafePath }
+        let scopes = try targets.flatMap { path, _ -> [URL] in
             let target = base.appendingPathComponent(path)
-            if path.hasSuffix("DerivedData") {
-                return (item.url.deletingLastPathComponent().path == target.path && ["ModuleCache.noindex", "SDKStatCaches.noindex", "CompilationCache.noindex"].contains(item.name)) ||
-                    (item.url.deletingLastPathComponent().deletingLastPathComponent().path == target.path && ["Build", "Index.noindex"].contains(item.name))
+            if !path.hasSuffix("DerivedData") { return [target] }
+            guard try FileSafety.metadataIfPresent(target) != nil else { return [] }
+            return try FileManager.default.contentsOfDirectory(at: target, includingPropertiesForKeys: nil).flatMap { project -> [URL] in
+                if ["ModuleCache.noindex", "SDKStatCaches.noindex", "CompilationCache.noindex"].contains(project.lastPathComponent) { return [project] }
+                return ["Build", "Index.noindex"].map { project.appendingPathComponent($0) }
             }
-            return item.id == target.path
         }
-        guard known, item.fingerprint.isDirectory else { throw DonyError.unsafePath }
+        let known = scopes.contains { scope in
+            item.fingerprint.isRegular ? item.root.path == scope.path && FileSafety.isWithin(item.url, root: scope) : item.url.path == scope.path
+        }
+        guard known, item.fingerprint.isRegular || item.fingerprint.isDirectory else { throw DonyError.unsafePath }
+        if item.fingerprint.isRegular {
+            var parent = item.url.deletingLastPathComponent()
+            while true {
+                guard !CacheScopes.containsProject(parent), !CacheScopes.isProtected(parent) else { throw DonyError.unsafePath }
+                if parent.path == item.root.path { break }
+                guard FileSafety.isWithin(parent, root: item.root) else { throw DonyError.unsafePath }
+                parent.deleteLastPathComponent()
+            }
+        }
         guard !activeOwner(of: item.url, home: base, runningTools: runningTools) else { throw NSError(domain: "DonyClean", code: 1, userInfo: [NSLocalizedDescriptionKey: "관련 개발 도구 실행 중"]) }
         try FileSafety.validate(item, token: token)
-        let cutoff = now.addingTimeInterval(-7 * 86400).timeIntervalSince1970
+        let cutoff = now.addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970
         func old(_ url: URL) throws -> Bool {
             let fp = try FileSafety.fingerprint(url)
             return ![".git", ".hg", ".svn", "checkouts"].contains(url.lastPathComponent) && (fp.isDirectory || fp.isRegular) && (!requireOld || Double(fp.seconds) + Double(fp.nanoseconds) / 1e9 <= cutoff)
         }
         guard try old(item.url) else { throw DonyError.changed }
+        if item.fingerprint.isRegular { return }
         var issue: Error?
         guard let iterator = FileManager.default.enumerator(at: item.url, includingPropertiesForKeys: nil, errorHandler: { _, error in issue = error; return false }) else { throw DonyError.unsupported }
         var count = 0

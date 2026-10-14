@@ -16,7 +16,7 @@ public enum ClutterScanner {
             do { try token.check(); result.installers.items.append(try FileCandidate.capture(url: item.url, root: root, kind: .installer, token: token)) }
             catch {
                 if token.isCancelled { result.installers.cancelled = true; break }
-                result.installers.issues.append(ScanIssue(path: item.id, message: error.localizedDescription))
+                result.installers.issues.append(ScanIssue(path: item.id, error: error))
             }
         }
         result.oldFiles.cancelled = result.oldFiles.cancelled || token.isCancelled

@@ -25,15 +25,15 @@ public enum ApplicationScanner {
             do {
                 guard let metadata = try existingMetadata(root), metadata.isDirectory else { continue }
                 _ = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
-            } catch { result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)); continue }
+            } catch { result.issues.append(ScanIssue(path: root.path, error: error)); continue }
             guard let iterator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isSymbolicLinkKey, .isPackageKey], options: [.skipsHiddenFiles, .skipsPackageDescendants], errorHandler: { url, error in
-                result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)); return true
+                result.issues.append(ScanIssue(path: url.path, error: error)); return true
             }) else { result.issues.append(ScanIssue(path: root.path, message: "이 폴더를 읽을 수 없습니다.")); continue }
             for case let url as URL in iterator {
                 if token.isCancelled { result.cancelled = true; return result }
                 let values: URLResourceValues
                 do { values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isPackageKey]) }
-                catch { result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)); iterator.skipDescendants(); continue }
+                catch { result.issues.append(ScanIssue(path: url.path, error: error)); iterator.skipDescendants(); continue }
                 guard values.isSymbolicLink != true else { iterator.skipDescendants(); continue }
                 guard url.pathExtension == "app", let bundle = Bundle(url: url), let id = bundle.bundleIdentifier,
                       !id.hasPrefix("com.apple."), id != "local.dony.DonyClean" else { continue }
@@ -61,7 +61,7 @@ public enum ApplicationScanner {
             }
             catch {
                 if token.isCancelled { result.cancelled = true; break }
-                result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription))
+                result.issues.append(ScanIssue(path: url.path, error: error))
             }
         }
         result.items.sort { $0.bytes > $1.bytes }
@@ -71,7 +71,7 @@ public enum ApplicationScanner {
     public static func inspect(_ app: InstalledApplication, token: ScanToken) -> ScanResult {
         var result = relatedFiles(bundleID: app.bundleID, token: token)
         do { result.items.insert(try FileCandidate.capture(url: app.url, root: app.root, kind: .application, token: token), at: 0) }
-        catch { result.issues.append(ScanIssue(path: app.url.path, message: error.localizedDescription)) }
+        catch { result.issues.append(ScanIssue(path: app.url.path, error: error)) }
         result.cancelled = token.isCancelled
         return result
     }

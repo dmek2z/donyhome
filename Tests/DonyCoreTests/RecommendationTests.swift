@@ -45,6 +45,14 @@ import Foundation
             #expect(!(try policy.reason(for: file, now: now, runningBundleIDs: [])).isRecommended)
         }
     }
+    @Test func recognizesNestedCacheByItsOwnerRatherThanItsFileName() throws {
+        let owner = home.appendingPathComponent("Library/Caches/com.google.Chrome")
+        try FileManager.default.createDirectory(at: owner, withIntermediateDirectories: true)
+        let file = try candidate("com.google.Chrome/old-data", kind: .cache, age: 20)
+        let policy = CleanupPolicy(home: home)
+        #expect(try policy.reason(for: file, now: now, runningBundleIDs: []).isRecommended)
+        #expect(!(try policy.reason(for: file, now: now, runningBundleIDs: ["com.google.Chrome"])).isRecommended)
+    }
     @Test func rejectsChangedCandidateAndCancelledEvaluation() throws {
         let file = try candidate("old.log", kind: .log, age: 40)
         let policy = CleanupPolicy(home: home)
@@ -162,5 +170,22 @@ import Foundation
         if let path = action.trashPath { try FileManager.default.moveItem(at: URL(fileURLWithPath: path), to: plan.items[0].url) }
         #expect(!action.success)
         #expect(FileManager.default.fileExists(atPath: group.copies[0].url.path))
+    }
+}
+
+
+@Suite struct RecommendationScaleTests {
+    @Test func fiftyThousandRegularLeavesArePlannedWithoutPairwiseSearch() {
+        let root = URL(fileURLWithPath: "/fixture/cache")
+        let leaves = (0..<50_000).map { i in
+            FileCandidate(url: root.appendingPathComponent(String(i)), root: root, kind: .cache,
+                          fingerprint: FileFingerprint(device: 1, inode: UInt64(i), mode: 0o100644, size: 1, seconds: 0, nanoseconds: 0),
+                          anchors: [], bytes: 1, treeStamp: nil)
+        }
+        let start = Date()
+        let plan = RecommendedActions.plan(cleanup: leaves, duplicates: [])
+        #expect(plan.items.count == 50_000)
+        #expect(plan.bytes == 50_000)
+        #expect(Date().timeIntervalSince(start) < 5)
     }
 }

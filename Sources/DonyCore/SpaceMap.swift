@@ -70,11 +70,11 @@ public enum SpaceMap {
                     result.entries.append(SpaceEntry(candidate: item, bytes: bytes, selectable: !excludedCloud))
                 } catch {
                     if token.isCancelled { throw error }
-                    result.issues.append(ScanIssue(path: top.path, message: error.localizedDescription))
+                    result.issues.append(ScanIssue(path: top.path, error: error))
                     if (error as? DonyError) == .scanLimit { throw error }
                 }
             }
-        } catch { if token.isCancelled { result.cancelled = true } else { result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)) } }
+        } catch { if token.isCancelled { result.cancelled = true } else { result.issues.append(ScanIssue(path: root.path, error: error)) } }
         result.entries.sort { $0.bytes > $1.bytes }
         return result
     }

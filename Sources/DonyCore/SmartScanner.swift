@@ -3,6 +3,8 @@ import Foundation
 public struct SmartScanResult: Sendable {
     public var cleanup = ScanResult()
     public var decisions: [String: CleanupDecision] = [:]
+    public var cacheIncomplete = false
+    public var cacheGroups: [CacheInventoryGroup] = []
     public var largeFiles = ScanResult()
     public var duplicates = DuplicateResult()
     public var developer = DeveloperResult()
@@ -18,25 +20,37 @@ public struct SmartScanResult: Sendable {
     public init() {}
 }
 
+public enum SmartScanPhase: String, Sendable {
+    case cleanup, development, files, applications, space, photos, trash, complete
+}
+
 public enum SmartScanner {
-    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, folder: URL, runningBundleIDs: Set<String>, runningTools: Set<String> = RunningTools.read(), token: ScanToken, includeApplications: Bool = true, progress: Scanner.Progress? = nil) -> SmartScanResult {
+    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, folder: URL, runningBundleIDs: Set<String>, runningTools: Set<String> = RunningTools.read(), token: ScanToken, includeApplications: Bool = true, days: Int? = nil, phase: (@Sendable (SmartScanPhase) -> Void)? = nil, progress: Scanner.Progress? = nil) -> SmartScanResult {
         var result = SmartScanResult()
+        guard !token.isCancelled else { result.cancelled = true; return result }
+        phase?(.cleanup)
         let roots: [(URL, CandidateKind)] = [(home.appendingPathComponent("Library/Caches"), .cache), (home.appendingPathComponent("Library/Logs"), .log)]
         progress?(0, "캐시 · 로그")
-        result.cleanup = Scanner.cleanup(roots: roots, excluding: runningBundleIDs, token: token, progress: progress)
-        let policy = CleanupPolicy(home: home)
-        for item in result.cleanup.items {
-            if token.isCancelled { break }
-            do { result.decisions[item.id] = try policy.reason(for: item, runningBundleIDs: runningBundleIDs, token: token) }
-            catch {
-                if !token.isCancelled { result.cleanup.issues.append(ScanIssue(path: item.id, message: error.localizedDescription)) }
+        if let days {
+            let cache = CacheCleanup.scan(home: home, runningOwners: runningBundleIDs.union(runningTools), days: days, token: token, progress: progress)
+            result.cleanup = cache.files; result.decisions = cache.decisions; result.cacheGroups = cache.groups; result.cacheIncomplete = cache.incomplete
+        } else {
+            result.cleanup = Scanner.cleanup(roots: roots, excluding: runningBundleIDs, token: token, progress: progress)
+            let policy = CleanupPolicy(home: home)
+            for item in result.cleanup.items {
+                if token.isCancelled { break }
+                do { result.decisions[item.id] = try policy.reason(for: item, runningBundleIDs: runningBundleIDs, token: token) }
+                catch { if !token.isCancelled { result.cleanup.issues.append(ScanIssue(path: item.id, error: error)) } }
             }
         }
+        let policy = CleanupPolicy(home: home, days: days)
         if !token.isCancelled {
+            phase?(.development)
             progress?(0, "개발 캐시")
-            result.developer = DeveloperCleanup.scan(home: home, runningTools: runningTools.union(runningBundleIDs), token: token)
+            result.developer = DeveloperCleanup.scan(home: home, runningTools: runningTools.union(runningBundleIDs), token: token, days: days ?? 7)
         }
         if !token.isCancelled {
+            phase?(.files)
             progress?(0, "오래된 파일 · 설치 파일")
             result.clutter = ClutterScanner.scan(root: folder, token: token, progress: progress)
         }
@@ -60,29 +74,38 @@ public enum SmartScanner {
                 return copies.isEmpty ? nil : DuplicateGroup(original: group.original, copies: copies)
             }
         }
-        if !token.isCancelled && includeApplications {
-            progress?(0, "설치 앱")
-            result.applications = ApplicationScanner.inventory(token: token)
+        if !token.isCancelled {
+            // Application-related file inspection still runs when installed-app
+            // inventory is explicitly disabled (for example, fixture tests).
+            phase?(.applications)
+            if includeApplications && !token.isCancelled {
+                progress?(0, "설치 앱")
+                result.applications = ApplicationScanner.inventory(token: token)
+            }
         }
         if !token.isCancelled {
             progress?(0, "앱 잔여물 후보")
             result.leftovers = LeftoverScanner.scan(home: home, installedIDs: Set(result.applications.apps.map(\.bundleID)), runningIDs: runningBundleIDs, token: token)
         }
         if !token.isCancelled {
+            phase?(.space)
             progress?(0, "폴더 용량 지도")
             result.space = SpaceMap.scan(root: folder, token: token, progress: progress)
         }
         if !token.isCancelled {
+            phase?(.photos)
             progress?(0, "유사 사진")
             result.similar = SimilarPhotoFinder.find(root: folder, token: token, progress: progress)
         }
         if !token.isCancelled {
+            phase?(.trash)
             progress?(0, "휴지통 항목")
             result.trash = TrashEmptyService.scan(home: home, token: token)
         }
         result.cancelled = result.trash.cancelled || result.similar.cancelled || result.developer.cancelled || result.leftovers.cancelled || result.clutter.oldFiles.cancelled || result.clutter.installers.cancelled || result.space.cancelled || token.isCancelled || result.cleanup.cancelled || result.largeFiles.cancelled || result.duplicates.cancelled || result.applications.cancelled
         // Partial results are useful for review, but never become an executable recommendation plan.
         if result.cancelled { result.decisions.removeAll() }
+        else { phase?(.complete) }
         return result
     }
 }

@@ -7,7 +7,7 @@ struct DonyIcon: View {
     let size: CGFloat
     init(_ symbol: String, size: CGFloat = 20) { self.symbol = symbol; self.size = size }
     private static let names: [String: String] = [
-        "house": "house-fill", "square.grid.2x2": "squares-four-fill",
+        "linkedin": "linkedin-logo-fill", "house": "house-fill", "square.grid.2x2": "squares-four-fill",
         "sparkles": "broom-fill", "folder": "folder-simple-fill", "folder.fill": "folder-simple-fill",
         "waveform.path.ecg": "gauge-fill", "square.stack.3d.up": "squares-four-fill",
         "clock.arrow.circlepath": "clock-counter-clockwise-fill", "cpu": "cpu-fill",
@@ -20,7 +20,8 @@ struct DonyIcon: View {
         "magnifyingglass": "magnifying-glass", "arrow.up.forward.square": "arrow-square-out",
         "arrow.left.arrow.right": "arrows-left-right", "arrow.clockwise": "arrow-clockwise",
         "ellipsis": "dots-three", "chevron.right": "caret-right-bold", "xmark": "x-bold",
-        "checkmark": "check-bold", "trash": "broom-fill", "app.badge.checkmark": "squares-four-fill"
+        "checkmark": "check-bold", "trash": "broom-fill", "app.badge.checkmark": "squares-four-fill",
+        "battery": "battery-high-fill", "battery.75percent": "battery-high-fill", "clipboard": "clipboard-text-fill", "doc.on.clipboard": "clipboard-text-fill", "pin.fill": "push-pin-fill"
     ]
     private static let images: [String: NSImage] = {
         var result: [String: NSImage] = [:]

@@ -7,6 +7,48 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int dc_process_open_files(int32_t pid, char *output, int capacity) {
+    struct proc_bsdinfo before, after;
+    if (!output || capacity < 1 || proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &before, sizeof(before)) != sizeof(before) || before.pbi_uid != getuid()) return -1;
+    int required = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, NULL, 0);
+    if (required <= 0 || required > 65536 * (int)sizeof(struct proc_fdinfo)) return -1;
+    int allocated = required + 64 * (int)sizeof(struct proc_fdinfo);
+    struct proc_fdinfo *fds = malloc((size_t)allocated);
+    if (!fds) return -1;
+    int bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, allocated);
+    if (bytes <= 0 || bytes >= allocated || bytes % (int)sizeof(struct proc_fdinfo)) { free(fds); return -1; }
+    int used = 0;
+    for (int i = 0; i < bytes / (int)sizeof(struct proc_fdinfo); i++) {
+        if (fds[i].proc_fdtype != PROX_FDTYPE_VNODE) continue;
+        struct vnode_fdinfowithpath info;
+        if (proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDVNODEPATHINFO, &info, sizeof(info)) != sizeof(info)) { free(fds); return -1; }
+        size_t length = strnlen(info.pvip.vip_path, sizeof(info.pvip.vip_path));
+        if (length == sizeof(info.pvip.vip_path)) { free(fds); return -1; }
+        if (length && info.pvip.vip_path[0] == '/') {
+            if ((size_t)(capacity - used) < length + 2) { free(fds); return -1; }
+            output[used++] = 'p'; memcpy(output + used, info.pvip.vip_path, length + 1); used += (int)length + 1;
+        }
+        char identity[64];
+        int n = snprintf(identity, sizeof(identity), "i%llu:%llu", (unsigned long long)info.pvip.vip_vi.vi_stat.vst_dev, (unsigned long long)info.pvip.vip_vi.vi_stat.vst_ino);
+        if (n < 1 || n >= (int)sizeof(identity) || capacity - used < n + 1) { free(fds); return -1; }
+        memcpy(output + used, identity, (size_t)n + 1); used += n + 1;
+    }
+    free(fds);
+    if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &after, sizeof(after)) != sizeof(after) ||
+        before.pbi_uid != after.pbi_uid || before.pbi_start_tvsec != after.pbi_start_tvsec || before.pbi_start_tvusec != after.pbi_start_tvusec) return -1;
+    return used;
+}
+
+int dc_process_cwd(int32_t pid, char *output, int capacity) {
+    struct proc_vnodepathinfo info;
+    memset(&info, 0, sizeof(info));
+    if (capacity <= 0 || proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, sizeof(info)) != sizeof(info)) return 0;
+    strlcpy(output, info.pvi_cdir.vip_path, (size_t)capacity);
+    return output[0] != '\0';
+}
 
 int dc_read_system(DCSystem *out) {
     memset(out, 0, sizeof(*out));
@@ -44,7 +86,7 @@ int dc_read_processes(DCProcess *output, int capacity) {
         struct proc_bsdinfo bsd;
         if (pids[i] <= 0 || proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd)) continue;
         DCProcess *row = &output[filled++]; memset(row, 0, sizeof(*row));
-        row->pid = pids[i]; row->uid = bsd.pbi_uid; row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;
+        row->pid = pids[i]; row->parent_pid = bsd.pbi_ppid; row->uid = bsd.pbi_uid; row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;
         proc_pidpath(pids[i], row->path, sizeof(row->path)); proc_name(pids[i], row->name, sizeof(row->name));
         if (!row->name[0]) strlcpy(row->name, bsd.pbi_comm, sizeof(row->name));
         struct rusage_info_v2 usage;
@@ -55,6 +97,37 @@ int dc_read_processes(DCProcess *output, int capacity) {
         }
     }
     free(pids); return filled;
+}
+
+int dc_owned_process_capacity(void) {
+    int bytes = proc_listpids(PROC_UID_ONLY, getuid(), NULL, 0);
+    if (bytes <= 0 || bytes > 65536 * (int)sizeof(int)) return 0;
+    int count = bytes / (int)sizeof(int) + 128;
+    return count > 16384 ? 16384 : count;
+}
+
+int dc_read_owned_processes(DCProcess *output, int capacity, int *complete) {
+    *complete = 0;
+    if (!output || capacity < 1) return 0;
+    int needed = proc_listpids(PROC_UID_ONLY, getuid(), NULL, 0);
+    if (needed <= 0 || needed > 65536 * (int)sizeof(int)) return 0;
+    int allocated = needed + 128 * (int)sizeof(int);
+    int *pids = calloc(1, (size_t)allocated);
+    if (!pids) return 0;
+    int bytes = proc_listpids(PROC_UID_ONLY, getuid(), pids, allocated);
+    if (bytes <= 0 || bytes >= allocated || bytes % (int)sizeof(int)) { free(pids); return 0; }
+    int filled = 0, valid = 1;
+    for (int i = 0; i < bytes / (int)sizeof(int); i++) {
+        if (pids[i] <= 0) continue;
+        struct proc_bsdinfo bsd;
+        if (filled >= capacity || proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd) || bsd.pbi_uid != getuid()) { valid = 0; continue; }
+        DCProcess *row = &output[filled++]; memset(row, 0, sizeof(*row));
+        row->pid = pids[i]; row->parent_pid = bsd.pbi_ppid; row->uid = bsd.pbi_uid;
+        row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;
+        proc_pidpath(pids[i], row->path, sizeof(row->path));
+        strlcpy(row->name, bsd.pbi_comm, sizeof(row->name));
+    }
+    free(pids); *complete = valid && filled > 0; return filled;
 }
 
 int dc_process_matches(int32_t pid, uint32_t uid, uint64_t seconds, uint64_t micros) {
@@ -93,4 +166,27 @@ int dc_read_network(DCNetwork *output) {
         cursor += header->rtm_msglen;
     }
     free(buffer); output->generation = hash; return output->available;
+}
+
+int dc_process_arguments(int32_t pid, char *output, int capacity) {
+    struct proc_bsdinfo info;
+    if (capacity < 1 || proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, sizeof(info)) != sizeof(info) || info.pbi_uid != getuid()) return 0;
+    int mib[3] = {CTL_KERN, KERN_PROCARGS2, pid};
+    const size_t allocation = 65536; size_t size = allocation;
+    char *buffer = calloc(allocation, 1); if (!buffer) return 0;
+    int written = 0;
+    if (sysctl(mib, 3, buffer, &size, NULL, 0) == 0 && size <= allocation && size > sizeof(int)) {
+        int argc = 0; memcpy(&argc, buffer, sizeof(int));
+        size_t offset = sizeof(int);
+        while (offset < size && buffer[offset]) offset++;
+        while (offset < size && !buffer[offset]) offset++;
+        for (int i = 0; i < argc && i < 2 && offset < size; i++) {
+            size_t length = strnlen(buffer + offset, size - offset);
+            if (length >= size - offset || written + (int)length + 1 > capacity) break;
+            memcpy(output + written, buffer + offset, length + 1);
+            written += (int)length + 1; offset += length + 1;
+        }
+    }
+    memset(buffer, 0, allocation); free(buffer);
+    return written;
 }

@@ -60,7 +60,7 @@ public enum SimilarPhotoFinder {
                     try feature(item, token: token)
                 }
                 prints.append((item, observation))
-            } catch { if token.isCancelled { result.cancelled = true; break }; result.issues.append(ScanIssue(path: item.id, message: error.localizedDescription)) }
+            } catch { if token.isCancelled { result.cancelled = true; break }; result.issues.append(ScanIssue(path: item.id, error: error)) }
         }
         var assigned = Set<Int>()
         for index in prints.indices where !assigned.contains(index) {
@@ -71,7 +71,7 @@ public enum SimilarPhotoFinder {
                 do {
                     var distance: Float = 0; try prints[index].1.computeDistance(&distance, to: prints[other].1); result.compared += 1
                     if distance.isFinite && distance <= maximumDistance { copies.append(SimilarMatch(candidate: prints[other].0, distance: distance)); assigned.insert(other) }
-                } catch { result.issues.append(ScanIssue(path: prints[other].0.id, message: error.localizedDescription)) }
+                } catch { result.issues.append(ScanIssue(path: prints[other].0.id, error: error)) }
             }
             if !copies.isEmpty { result.groups.append(SimilarGroup(original: prints[index].0, copies: copies)) }
         }

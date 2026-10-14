@@ -9,18 +9,37 @@ public struct RecommendedPlan: Sendable {
 public enum RecommendedActions {
     public static func plan(cleanup: [FileCandidate], duplicates: [DuplicateGroup], includeCopies: Bool = true, preserving: [FileCandidate] = []) -> RecommendedPlan {
         let originals = Dictionary(uniqueKeysWithValues: duplicates.flatMap { group in group.copies.map { ($0.id, group.original) } })
-        let protected = duplicates.flatMap { [$0.original] + $0.copies } + preserving
-        // A chosen scan folder may itself be in Caches. Never recommend its parent
-        // for removal while promising to retain a duplicate original inside it.
-        let eligible = cleanup.filter { item in
-            !protected.contains { participant in item.id == participant.id || FileSafety.isWithin(participant.url, root: item.url) }
-        } + (includeCopies ? duplicates.flatMap(\.copies).filter { copy in
-            !preserving.contains { retained in copy.id == retained.id || FileSafety.isWithin(retained.url, root: copy.url) }
-        } : [])
+        // Index retained leaves and all of their ancestors once. Only directory
+        // candidates can contain another path; regular files need exact lookup.
+        func retainedIndex(_ candidates: [FileCandidate]) -> Set<String> {
+            var index = Set<String>()
+            for candidate in candidates {
+                var path = candidate.url
+                while true {
+                    index.insert(path.path)
+                    let parent = path.deletingLastPathComponent()
+                    if parent.path == path.path { break }
+                    path = parent
+                }
+            }
+            return index
+        }
+        let protected = retainedIndex(duplicates.flatMap { [$0.original] + $0.copies } + preserving)
+        let preserved = retainedIndex(preserving)
+        let eligible = cleanup.filter { !protected.contains($0.id) } +
+            (includeCopies ? duplicates.flatMap(\.copies).filter { !preserved.contains($0.id) } : [])
         var seen = Set<String>()
         let unique = eligible.filter { seen.insert($0.id).inserted }
+        let directories = Set(unique.filter { $0.fingerprint.isDirectory }.map(\.id))
         let items = unique.filter { item in
-            !unique.contains { other in other.id != item.id && other.fingerprint.isDirectory && FileSafety.isWithin(item.url, root: other.url) }
+            guard !directories.isEmpty else { return true }
+            var parent = item.url.deletingLastPathComponent()
+            while true {
+                if directories.contains(parent.path) { return false }
+                let next = parent.deletingLastPathComponent()
+                if next.path == parent.path { return true }
+                parent = next
+            }
         }
         return RecommendedPlan(items: items, originals: originals)
     }

@@ -4,6 +4,15 @@ import CoreText
 import DonyCore
 
 enum Theme {
+    static let controlHeight: CGFloat = 42
+    static let controlRadius: CGFloat = 10
+    static let actionWidth: CGFloat = 128
+    static let filterWidth: CGFloat = 160
+    static let listRowHeight: CGFloat = 64
+    static let quickRowHeight: CGFloat = 36
+    static let settingsWidth: CGFloat = 760
+    static let settingsHeight: CGFloat = 600
+    static let controlFill = Color(hex: 0xe8ebef)
     static let ink = Color(hex: 0x191f28)
     static let body = Color(hex: 0x333d4b)
     static let sidebar = Color(hex: 0xf6f7f9)
@@ -18,9 +27,12 @@ enum Theme {
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .custom("PretendardVariable-Regular", size: size).weight(weight)
     }
+    static func brandFont(_ size: CGFloat = 23) -> Font { .custom("Fredoka-SemiBold", size: size) }
     static func registerFonts() {
-        if let url = Bundle.main.url(forResource: "PretendardVariable", withExtension: "ttf", subdirectory: "Fonts") {
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        for name in ["PretendardVariable", "Fredoka"] {
+            if let url = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: "Fonts") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
         }
     }
 }
@@ -42,22 +54,22 @@ struct Panel: ViewModifier {
         content.padding(padding).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }
-extension View { func panel(_ padding: CGFloat = 28) -> some View { modifier(Panel(padding: padding)) } }
+extension View { func panel(_ padding: CGFloat = 24) -> some View { modifier(Panel(padding: padding)) } }
 
 struct PrimaryButton: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(Theme.font(14, weight: .semibold)).padding(.horizontal, 16).frame(height: 42)
+        configuration.label.font(Theme.font(14, weight: .semibold)).padding(.horizontal, 16).frame(height: Theme.controlHeight)
             .foregroundStyle(.white).background(enabled ? (configuration.isPressed ? Color(hex: 0x1b64da) : Theme.primary) : Color(hex: 0xb5d7ff))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
     }
 }
 struct QuietButton: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(Theme.font(14, weight: .medium)).padding(.horizontal, 12).frame(height: 42)
-            .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55)).background(configuration.isPressed ? Color(hex: 0xdfe4ea) : Color(hex: 0xe8ebef))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+        configuration.label.font(Theme.font(14, weight: .medium)).padding(.horizontal, 12).frame(height: Theme.controlHeight)
+            .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55)).background(configuration.isPressed ? Color(hex: 0xdfe4ea) : Theme.controlFill)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
     }
 }
 struct Chip: View {
@@ -111,12 +123,12 @@ struct IssuesView: View {
     let issues: [ScanIssue]
     var body: some View {
         if !issues.isEmpty {
-            DisclosureGroup("건너뛴 항목 \(issues.count)개 · 권한 또는 상태 확인 필요") {
+            DisclosureGroup("건너뛴 항목 \(issues.count)개") {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(issues.enumerated()), id: \.offset) { _, issue in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(issue.path).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
-                            Text(issue.message).font(Theme.font(11)).foregroundStyle(Theme.secondary)
+                            Text((issue.permissionDenied == true ? "접근 권한 필요 · " : "") + issue.message).font(Theme.font(11)).foregroundStyle(Theme.secondary)
                         }
                     }
                 }.padding(.top, 12).frame(maxWidth: .infinity, alignment: .leading)
@@ -127,16 +139,29 @@ struct IssuesView: View {
 struct Sparkline: View {
     let values: [Double]
     var color: Color = Theme.primary
+    var title: String = "사용량"
+    @State private var hoveredIndex: Int?
     var body: some View {
         GeometryReader { proxy in
             let points = values.enumerated().map { index, value in
                 CGPoint(x: proxy.size.width * Double(index) / Double(max(1, values.count - 1)), y: proxy.size.height * (1 - min(100, max(0, value)) / 100))
             }
-            Path { path in
+            ZStack(alignment: .topLeading) {
+              Path { path in
                 guard let first = points.first else { return }; path.move(to: first)
                 for point in points.dropFirst() { path.addLine(to: point) }
             }.stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-        }.frame(height: 36).accessibilityLabel("최근 사용량 그래프")
+              if let index = hoveredIndex, points.indices.contains(index) {
+                Circle().fill(color).frame(width: 6, height: 6).position(points[index])
+                Text(title + " · " + String(format: "%.1f%%", values[index])).font(Theme.font(10, weight: .medium)).padding(5).background(.white).clipShape(RoundedRectangle(cornerRadius: 5)).offset(y: -24)
+              }
+            }.contentShape(Rectangle()).onContinuousHover { phase in
+                switch phase {
+                case .active(let location): hoveredIndex = values.isEmpty ? nil : min(values.count - 1, max(0, Int((location.x / max(1, proxy.size.width) * Double(max(0, values.count - 1))).rounded())))
+                case .ended: hoveredIndex = nil
+                }
+            }
+        }.frame(height: 36).accessibilityLabel(title + " 최근 사용량 그래프")
     }
 }
 struct MetricCard: View {
@@ -151,14 +176,14 @@ struct MetricCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack { Text(title).font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.secondary); Spacer(); DonyIcon(symbol).foregroundStyle(color) }
             Text(value).font(Theme.font(29, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-            if !values.isEmpty { Sparkline(values: values, color: color) }
+            if !values.isEmpty { Sparkline(values: values, color: color, title: title) }
             else if let progress {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Theme.canvas)
                         Capsule().fill(color).frame(width: geometry.size.width * min(1, max(0, progress)))
                     }.frame(height: 5).frame(maxHeight: .infinity)
-                }.frame(height: 36)
+                }.frame(height: 36).help(title + " · " + value + " · " + detail)
             } else { Color.clear.frame(height: 36) }
             Text(detail).font(Theme.font(12)).foregroundStyle(Theme.secondary).lineLimit(2).frame(minHeight: 28, alignment: .topLeading)
         }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
@@ -176,12 +201,18 @@ struct CandidateRow: View {
                 .toggleStyle(DonyCheckbox()).labelsHidden().disabled(model.busy).accessibilityLabel("선택 " + candidate.name)
             DonyIcon(candidate.fingerprint.isDirectory ? "folder.fill" : "doc.fill").font(Theme.font(19)).foregroundStyle(Theme.primary).frame(width: 30)
             VStack(alignment: .leading, spacing: 4) {
-                Text(candidate.name).font(Theme.font(12, weight: .medium)).lineLimit(1)
-                Text(subtitle ?? candidate.url.path).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(candidate.url.path)
+                Text(candidate.name).font(Theme.font(12, weight: .medium)).lineLimit(1).help(candidate.url.path)
+                Text((model.excludedRecommendations.contains(candidate.id) ? "추천에서 제외됨 · " : "") + (subtitle ?? candidate.url.path)).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(candidate.url.path)
             }
             Spacer(minLength: 10)
             Text(DisplayFormat.bytes(candidate.bytes)).font(Theme.font(12, weight: .medium)).monospacedDigit().frame(width: 85, alignment: .trailing)
             Button { model.showFinder(candidate.url) } label: { DonyIcon("arrow.up.forward.square").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("Finder에서 보기")
+            DonyIconMenu(title: "항목 작업", size: 28) {
+                Button(candidate.fingerprint.isRegular ? "미리보기" : "Finder에서 보기") { model.quickLook(candidate) }
+                Divider()
+                if model.excludedRecommendations.contains(candidate.id) { Button("추천 제외 해제") { model.restoreRecommendation(candidate) } }
+                else { Button("다시 추천하지 않기") { model.excludeFromRecommendations(candidate) } }
+            }
         }.padding(.vertical, 12).padding(.horizontal, 16)
     }
 }
@@ -190,6 +221,7 @@ struct SelectionBar: View {
     let selected: [FileCandidate]
     let action: () -> Void
     var body: some View {
+        if !selected.isEmpty {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(selected.count)개 선택 · \(DisplayFormat.bytes(selected.reduce(0) { $0 + $1.bytes }))").font(Theme.font(13, weight: .semibold))
@@ -197,5 +229,6 @@ struct SelectionBar: View {
             }
             Spacer(); Button(action: action) { DonyLabel("휴지통으로 이동", icon: "trash") }.buttonStyle(PrimaryButton()).disabled(selected.isEmpty || model.busy)
         }.panel(16)
+        }
     }
 }

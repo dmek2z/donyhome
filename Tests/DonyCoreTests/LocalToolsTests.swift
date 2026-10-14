@@ -31,7 +31,7 @@ import Foundation
         #expect(!result.items.contains { $0.id.contains("Archives") })
         #expect(DeveloperCleanup.scan(home: home, runningTools: ["xcodebuild"], token: ScanToken(), now: now).recommended.isEmpty)
         _ = try file("Library/Developer/Xcode/DerivedData/Project-abc/Build/new", days: 0)
-        #expect(DeveloperCleanup.scan(home: home, runningTools: [], token: ScanToken(), now: now).recommended.isEmpty)
+        #expect(DeveloperCleanup.scan(home: home, runningTools: [], token: ScanToken(), now: now).recommended.map(\.name) == ["object"])
     }
     @Test func developerScanRejectsLinksAndChangedCandidates() throws {
         let pip = try file("Library/Caches/pip/old", days: 10)
@@ -172,7 +172,7 @@ import Foundation
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-10 * 86400)], ofItemAtPath: project.path)
         let result = DeveloperCleanup.scan(home: home, runningTools: [], token: ScanToken())
         #expect(!result.recommended.isEmpty)
-        #expect(result.recommended.allSatisfy { $0.name == "Build" })
+        #expect(result.recommended.allSatisfy { $0.url.deletingLastPathComponent().lastPathComponent == "Build" && $0.fingerprint.isRegular })
         let parent = try FileCandidate.capture(url: project, root: project.deletingLastPathComponent(), kind: .developer)
         expectThrows(try DeveloperCleanup.validate(parent, home: home, runningTools: []))
         #expect(try String(contentsOf: repo.appendingPathComponent("config")) == "local source edits")

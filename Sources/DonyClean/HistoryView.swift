@@ -4,15 +4,16 @@ import DonyCore
 
 struct HistoryView: View {
     @EnvironmentObject var model: AppModel
+    @State private var expanded = Set<UUID>()
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "정리 기록")
             HStack {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(DisplayFormat.bytes(model.movedBytes)).font(Theme.font(29, weight: .semibold))
-                    Text("보관된 기록에서 휴지통으로 이동한 항목 크기").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    Text("누적 휴지통 이동").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 }; Spacer()
-                Button("Finder 휴지통 열기") {
+                Button("휴지통 열기") {
                     NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".Trash"))
                 }.buttonStyle(QuietButton())
             }.panel()
@@ -22,21 +23,33 @@ struct HistoryView: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(model.history) { record in
-                        HStack(alignment: .top, spacing: 12) {
-                            DonyIcon(record.success ? "checkmark.circle.fill" : "exclamationmark.circle.fill").foregroundStyle(record.success ? Theme.primary : Theme.amber).font(Theme.font(16)).padding(.top, 2)
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text(record.kind + " · " + URL(fileURLWithPath: record.sourcePath).lastPathComponent).font(Theme.font(12, weight: .semibold)).lineLimit(1)
-                                    Spacer(); Text(record.timestamp, format: .dateTime.month().day().hour().minute()).font(Theme.font(10)).foregroundStyle(Theme.secondary)
-                                }
-                                Text(record.sourcePath).font(.system(size: 10, design: .monospaced)).foregroundStyle(Theme.secondary).textSelection(.enabled)
-                                Text(record.message).font(Theme.font(11)).foregroundStyle(record.success ? Theme.secondary : Theme.amber)
-                                if record.bytes > 0 { Text(DisplayFormat.bytes(record.bytes)).font(Theme.font(11, weight: .medium)) }
-                                if let trash = record.trashPath, FileManager.default.fileExists(atPath: trash) {
-                                    Button("휴지통의 항목 보기") { model.showFinder(URL(fileURLWithPath: trash)) }.buttonStyle(.plain).font(Theme.font(11)).foregroundStyle(Theme.primary)
-                                }
+                        HStack(spacing: 12) {
+                            DonyIcon(record.success ? "checkmark.circle.fill" : "exclamationmark.circle.fill").foregroundStyle(record.success ? Theme.primary : Theme.amber)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(record.kind + " · " + URL(fileURLWithPath: record.sourcePath).lastPathComponent).font(Theme.font(14, weight: .medium)).lineLimit(1).truncationMode(.middle).help(record.sourcePath)
+                                Text(record.timestamp, format: .dateTime.month().day().hour().minute()).font(Theme.font(11)).foregroundStyle(Theme.secondary)
                             }
-                        }.padding(18); Divider().padding(.leading, 45)
+                            Spacer(minLength: 12)
+                            if model.canRestore(record) {
+                                Button { model.restoreCleanup([record]) } label: { Text("되돌리기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(model.busy)
+                            }
+                            if let trash = record.trashPath, FileManager.default.fileExists(atPath: trash) {
+                                Button { model.showFinder(URL(fileURLWithPath: trash)) } label: { Text("항목 보기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())
+                            }
+                            Button {
+                                if expanded.contains(record.id) { expanded.remove(record.id) } else { expanded.insert(record.id) }
+                            } label: {
+                                DonyIcon("chevron.right", size: 12).rotationEffect(.degrees(expanded.contains(record.id) ? 90 : 0)).frame(width: 32, height: 32).contentShape(Rectangle())
+                            }.buttonStyle(.plain).help("상세 보기").accessibilityLabel("정리 기록 상세").accessibilityValue(expanded.contains(record.id) ? "펼쳐짐" : "접힘")
+                        }.padding(.horizontal, 24).frame(height: Theme.listRowHeight)
+                        if expanded.contains(record.id) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(record.sourcePath).font(Theme.font(11)).foregroundStyle(Theme.secondary).textSelection(.enabled)
+                                Text(record.message).font(Theme.font(12)).foregroundStyle(record.success ? Theme.secondary : Theme.amber)
+                                if record.bytes > 0 { Text(DisplayFormat.bytes(record.bytes)).font(Theme.font(12, weight: .medium)) }
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 56).padding(.bottom, 16)
+                        }
+                        Divider().padding(.leading, 56)
                     }
                 }.panel(0)
             }

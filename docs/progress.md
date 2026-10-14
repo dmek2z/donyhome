@@ -32,3 +32,15 @@ Verification: final scripts/test.sh passes 50 tests / 13 suites, including actua
 No personal files moved, no privileged DNS/index/snapshot modification executed, no notification/login/full disk permissions changed. GUI rendering/clicking remains PENDING: cua getApp again reported locked Mac and paused auto-unlock after physical input. OS admin authentication execution is also untested; command construction, errors, and date validation are tested only. Local updated app copied to ~/Applications/DonyClean.app; restart the previously running older process to see changes. Comparison review and README reflect implemented/partial/unsupported scope.
 
 Final local extension: added current-user Trash manifest inspection and explicit irreversible emptying. The immutable native confirmation list is revalidated item-by-item, accepts only .trash candidates at exact canonical ~/.Trash direct paths, keeps new/changed entries, rejects root links and skips running apps. Three fixture regressions verify new-entry preservation, changed/root-link rejection and nested-link target preservation. Actual private Trash was not emptied. Reviewer found no Critical/Important in this scope. Final suite passes 53 tests / 14 suites; release bundle/signature pass; installed app updated. GUI and administrator-authenticated execution remain pending as above.
+
+
+2026-10-14 2.3.8: 실측(스왑 8.8/10 GB, ~/.codex 50 GB 중 worktrees 40 GB)에 근거해 StaleWorkspaces를 DeveloperCleanup에 연결. 기존 프로젝트 정리는 관리 도구 worktree를 의도적으로 제외하므로 40 GB가 추천에 나오지 않던 공백을 메움. 읽기 전용 실측: 7개 13.7 GB 추천, 원격에 없는 커밋·변경 있는 작업공간 보호. 테스트 220개 · 디자인 규칙 · 빌드 통과. 화면 캡처 검증은 하지 않음(이 세션에서 GUI 조작 불가).
+
+2026-10-14 2.3.9: 폴더 용량 메뉴를 파일 검사 탭으로 통합(같은 폴더 대상 중복 제거; 전체 검사 결과의 이동 링크도 파일 검사 > 폴더 용량으로 변경). CLIProcessPolicy를 CPU·메모리 화면에 합류(새 패널 없이 기존 종료 버튼·추천 선택 사용). 테스트 221개 · 디자인 규칙 · UI 액션 가드 · 빌드 통과. 탭 전환과 CLI 종료 버튼의 실제 화면 캡처·클릭은 이 세션에서 확인하지 못함.
+
+2026-10-14 2.3.10: 사용자 화면 피드백 반영 — 전체 검사에서 작업공간이 「개발 캐시」로 잘못 표시되고, 검토 시 추천이 선택·표시되지 않으며 사유가 없던 문제. recommendedPlan에 includeWorkspaces 추가, 행 분리·사유 표시, 검토 이동 시 추천 항목 선택·정렬. 테스트 221개 · 디자인 규칙 · 빌드 통과. 화면은 사용자 스크린샷 피드백 기준이며 수정 후 캡처 확인은 하지 못함.
+
+2026-10-14 2.3.11: CleanMyMac 대비 편의성 리뷰 반영 1차 — 되돌리기(TrashRestore, 완료 카드·정리 기록), 휴지통 비우기 바로가기, 검토 시 추천 미리 선택(캐시·로그/중복). 테스트 223개 · 디자인 규칙 · UI 액션 가드 · 빌드 통과. 화면 캡처·클릭은 이 세션에 보조 접근 권한이 없어 확인하지 못함.
+
+2026-10-14 2.3.12: CleanMyMac 대비 편의성 리뷰 반영 2차 — 추천 제외 목록, 미리보기(qlmanage), 결과 상단 정리 버튼, 0개 줄 검토 비활성. 이번에는 DEBUG 전용 ReviewUIFixture로 실제 앱 창을 임시 데이터로 띄워 화면 캡처 확인(전체 검사 결과·완료 카드·캐시·로그 목록, 제외 표시). 항목 「⋯」 메뉴 열기와 미리보기 창은 클릭 권한이 없어 직접 확인하지 못함. 테스트 223개 · 디자인 규칙 · 빌드 통과.
+2026-10-14 2.3.13: 정리할 항목 검토 시 추천 항목만 선택된 채로 표시하고 추천 사유 배너·행별 사유 추가(전체 보기 전환 가능). PR 2개를 main 하나로 통합. 디자인 규칙 · 앱 빌드 통과. swift test는 이 Mac의 CommandLineTools에 Testing 매크로가 없어 빌드 단계에서 실패(코드 변경과 무관), 화면 클릭 확인은 하지 못함.

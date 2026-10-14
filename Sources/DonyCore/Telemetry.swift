@@ -35,14 +35,16 @@ public enum MemoryPressure: String, Codable, Sendable {
 public struct ProcessReading: Identifiable, Codable, Sendable {
     public var id: String { "\(pid):\(startSeconds):\(startMicroseconds)" }
     public let pid: Int32
+    public let parentPID: Int32
+    public let toolHint: String?
     public let uid: UInt32
     public let startSeconds, startMicroseconds: UInt64
     public let name, path: String
     public let memoryBytes: Int64
     public let cpuNanos: UInt64?
     public let cpuPercent: Double?
-    public init(pid: Int32, uid: UInt32, startSeconds: UInt64, startMicroseconds: UInt64, name: String, path: String, memoryBytes: Int64, cpuNanos: UInt64?, cpuPercent: Double?) {
-        self.pid = pid; self.uid = uid; self.startSeconds = startSeconds; self.startMicroseconds = startMicroseconds
+    public init(pid: Int32, uid: UInt32, startSeconds: UInt64, startMicroseconds: UInt64, name: String, path: String, memoryBytes: Int64, cpuNanos: UInt64?, cpuPercent: Double?, parentPID: Int32 = 0, toolHint: String? = nil) {
+        self.pid = pid; self.parentPID = parentPID; self.toolHint = toolHint; self.uid = uid; self.startSeconds = startSeconds; self.startMicroseconds = startMicroseconds
         self.name = name; self.path = path; self.memoryBytes = memoryBytes; self.cpuNanos = cpuNanos; self.cpuPercent = cpuPercent
     }
     public var memoryLabel: String { memoryBytes >= 0 ? DisplayFormat.bytes(memoryBytes) : "—" }
@@ -71,6 +73,7 @@ public final class SystemSampler: @unchecked Sendable {
     private var previousCPU: CPUCounters?
     private var previousProcesses: [String: UInt64] = [:]
     private var previousTime: Double?
+    private var toolHints: [String: String] = [:]
     private var timebase = mach_timebase_info_data_t()
     public init() { _ = mach_timebase_info(&timebase) }
     public func sample() -> SystemSnapshot {
@@ -100,20 +103,31 @@ public final class SystemSampler: @unchecked Sendable {
         var rows = Array(repeating: DCProcess(), count: 4096)
         let count = rows.withUnsafeMutableBufferPointer { dc_read_processes($0.baseAddress, Int32($0.count)) }
         var newCounters: [String: UInt64] = [:]
+        var newHints: [String: String] = [:]
         for index in 0..<max(0, Int(count)) {
             var row = rows[index]
             let name = withUnsafePointer(to: &row.name) { $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) } }
             let path = withUnsafePointer(to: &row.path) { $0.withMemoryRebound(to: CChar.self, capacity: 4096) { String(cString: $0) } }
             let key = "\(row.pid):\(row.start_seconds):\(row.start_microseconds)"
+            var hint = toolHints[key]
+            if hint == nil && row.uid == getuid() && AITool.isInterpreter(name) {
+                var args = [CChar](repeating: 0, count: 8192)
+                let length = args.withUnsafeMutableBufferPointer { dc_process_arguments(row.pid, $0.baseAddress, Int32($0.count)) }
+                if length > 0 {
+                    let values = args.prefix(Int(length)).split(separator: 0).map { bytes in String(decoding: bytes.map { UInt8(bitPattern: $0) }, as: UTF8.self) }
+                    hint = AITool.commandHint(values)?.rawValue
+                }
+            }
+            if let hint { newHints[key] = hint }
             var percent: Double?
             let nanos = row.counters_available != 0 ? ProcessCPU.nanoseconds(ticks: row.cpu_ticks, numerator: timebase.numer, denominator: timebase.denom) : nil
             if let nanos {
                 if let previous = previousProcesses[key], let time = previousTime { percent = ProcessCPU.usage(currentNanos: nanos, previousNanos: previous, elapsed: now - time) }
                 newCounters[key] = nanos
             }
-            snapshot.processes.append(ProcessReading(pid: row.pid, uid: row.uid, startSeconds: row.start_seconds, startMicroseconds: row.start_microseconds, name: name, path: path, memoryBytes: row.counters_available != 0 ? Int64(row.memory_bytes) : -1, cpuNanos: nanos, cpuPercent: percent))
+            snapshot.processes.append(ProcessReading(pid: row.pid, uid: row.uid, startSeconds: row.start_seconds, startMicroseconds: row.start_microseconds, name: name, path: path, memoryBytes: row.counters_available != 0 ? Int64(row.memory_bytes) : -1, cpuNanos: nanos, cpuPercent: percent, parentPID: row.parent_pid, toolHint: hint))
         }
-        previousTime = now; previousProcesses = newCounters
+        previousTime = now; previousProcesses = newCounters; toolHints = newHints
         return snapshot
     }
 }

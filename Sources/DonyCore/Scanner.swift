@@ -15,7 +15,7 @@ public enum Scanner {
             guard FileSafety.allowedRoot(base, kind: kind), try FileSafety.fingerprint(base).isDirectory else { throw DonyError.unsafePath }
             let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .isPackageKey, .fileSizeKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
             guard let iterator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsPackageDescendants], errorHandler: { url, error in
-                if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, error: error)) }
                 return true
             }) else { throw DonyError.unsupported }
             for case let url as URL in iterator {
@@ -30,10 +30,10 @@ public enum Scanner {
                     guard values.isRegularFile == true, Int64(values.fileSize ?? 0) >= minimumBytes else { continue }
                     result.items.append(try FileCandidate.capture(url: url, root: base, kind: kind, token: token))
                 } catch {
-                    if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                    if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, error: error)) }
                 }
             }
-        } catch { result.issues.append(ScanIssue(path: base.path, message: error.localizedDescription)) }
+        } catch { result.issues.append(ScanIssue(path: base.path, error: error)) }
         result.items.sort { $0.bytes == $1.bytes ? $0.url.path < $1.url.path : $0.bytes > $1.bytes }
         progress?(result.visited, "완료")
         return result
@@ -48,6 +48,11 @@ public enum Scanner {
                 for url in children.sorted(by: { $0.path < $1.path }) {
                     if token.isCancelled { result.cancelled = true; break }
                     result.visited += 1; progress?(result.visited, url.lastPathComponent)
+                    // Music's system-managed cache can block inside Foundation's directory open.
+                    // Exclude it before tree measurement; a stalled read is not proof of denial.
+                    if kind == .cache && url.lastPathComponent == "com.apple.Music" {
+                        result.issues.append(ScanIssue(path: url.path, message: "Music 캐시 · 접근 응답 지연으로 검사 제외")); continue
+                    }
                     if excluding.contains(url.lastPathComponent) {
                         result.issues.append(ScanIssue(path: url.path, message: "사용 중인 앱의 항목이라 건너뛰었습니다.")); continue
                     }
@@ -56,10 +61,10 @@ public enum Scanner {
                         if candidate.bytes > 0 { result.items.append(candidate) }
                     } catch {
                         if token.isCancelled { result.cancelled = true; break }
-                        if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, message: error.localizedDescription)) }
+                        if result.issues.count < 100 { result.issues.append(ScanIssue(path: url.path, error: error)) }
                     }
                 }
-            } catch { result.issues.append(ScanIssue(path: root.path, message: error.localizedDescription)) }
+            } catch { result.issues.append(ScanIssue(path: root.path, error: error)) }
         }
         result.items.sort { $0.bytes > $1.bytes }
         return result

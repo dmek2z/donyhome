@@ -1,0 +1,4 @@
+interface:
+  display_name: "도니홈 디자인"
+  short_description: "도니홈 화면을 공통 토큰과 실제 기준 화면으로 일관되게 구현"
+  default_prompt: "$donyhome-design을 적용해 도니홈 화면을 공통 규격으로 구현하고 실제 캡처로 검증해 주세요."

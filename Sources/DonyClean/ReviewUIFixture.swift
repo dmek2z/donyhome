@@ -1,0 +1,60 @@
+#if DEBUG
+import AppKit
+import SwiftUI
+import DonyCore
+
+/// 화면 검토용 DEBUG 전용 픽스처. 임시 폴더의 가짜 항목만 쓰며 사용자 데이터·기록을 건드리지 않는다.
+/// Info.plist의 DonyReviewFixture(상태 이름)가 있을 때만 동작하고 릴리스 빌드에는 포함되지 않는다.
+@MainActor enum ReviewUIFixture {
+    static func runIfRequested() -> Bool {
+        guard let state = Bundle.main.object(forInfoDictionaryKey: "DonyReviewFixture") as? String,
+              let path = Bundle.main.object(forInfoDictionaryKey: "DonyFixtureDirectory") as? String else { return false }
+        let directory = URL(fileURLWithPath: path)
+        try! FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        func make(_ name: String, kind: CandidateKind, bytes: Int, in folder: String) -> FileCandidate {
+            let dir = directory.appendingPathComponent(folder)
+            try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let url = dir.appendingPathComponent(name)
+            try! Data(repeating: 7, count: bytes).write(to: url)
+            return try! FileCandidate.capture(url: url, root: dir, kind: kind)
+        }
+        let model = AppModel(store: HistoryStore(directory: directory.appendingPathComponent("actions")), automaticallySample: false)
+        model.automaticStorageCheck = false; model.storageAlertsEnabled = false; model.notifyEnabled = false
+        model.automaticCleanupEnabled = false; model.onboardingShown = false; model.resumedScanChecked = true
+        model.permissionSetupReviewed = true; model.folder = directory
+        model.excludedRecommendations = []
+        if state == "inspection" || state == "review" {
+            let caches = ["com.google.Chrome", "com.spotify.client", "com.figma.Desktop"].enumerated().map { make($1, kind: .cache, bytes: 40_000 * ($0 + 1), in: "Caches") }
+            let developer = [make("DerivedData-Build", kind: .developer, bytes: 90_000, in: "Developer")]
+            var smart = SmartScanResult()
+            smart.cleanup.items = caches; smart.developer.items = developer
+            smart.decisions = Dictionary(uniqueKeysWithValues: caches.map { ($0.id, CleanupDecision(true, "14일 이상 변경 없는 확인된 앱 캐시")) })
+            smart.developer.decisions = Dictionary(uniqueKeysWithValues: developer.map { ($0.id, CleanupDecision(true, "7일 이상 변경 없는 재생성 가능 캐시")) })
+            model.smart = smart; model.smartDate = Date(); model.smartFolder = directory
+            model.cleanup = smart.cleanup
+            model.cleanupDecisions = Dictionary(uniqueKeysWithValues: caches.map { ($0.id, CleanupDecision(true, "14일 이상 변경 없는 확인된 앱 캐시")) })
+            model.developer = smart.developer
+            model.developer.decisions = Dictionary(uniqueKeysWithValues: developer.map { ($0.id, CleanupDecision(true, "7일 이상 변경 없는 재생성 가능 캐시")) })
+            model.cleanupDate = Date(); model.developerDate = Date()
+            if state == "review" { model.excludedRecommendations = [caches[1].id] }
+            model.section = state == "review" ? .cleanup : .inspection
+        } else if state == "outcome" {
+            let moved = make("old-cache.bin", kind: .cache, bytes: 120_000, in: "Caches")
+            let trashed = ActionRecord(kind: "휴지통 이동", sourcePath: moved.id, trashPath: NSHomeDirectory() + "/.Trash/does-not-matter", bytes: 120_000, success: true, message: "")
+            model.lastCleanupRecords = [trashed]
+            model.lastCleanupOutcome = CleanupOutcome(movedBytes: 13_690_000_000, successful: 7, failed: 0, beforeAvailable: 275_000_000_000, afterAvailable: 275_000_000_000, permanent: false)
+            model.section = .inspection
+        }
+        let app = NSApplication.shared; app.setActivationPolicy(.regular)
+        let lifecycle = DonyAppDelegate()
+        let clipboard = ClipboardController(pasteboard: NSPasteboard(name: .init("donyhome-review-" + UUID().uuidString)), storeURL: directory.appendingPathComponent("clipboard.json"))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1130, height: 900), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        window.title = "도니홈 화면 검토 · 임시 데이터"; window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light))
+        window.center(); window.makeKeyAndOrderFront(nil)
+        app.activate(ignoringOtherApps: true)
+        app.run()
+        return true
+    }
+}
+#endif

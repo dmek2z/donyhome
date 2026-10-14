@@ -4,6 +4,13 @@ import DonyCore
 
 @main enum DonyEntry {
     static func main() {
+        if let index = CommandLine.arguments.firstIndex(of: "--project-inventory"), CommandLine.arguments.count > index + 1 {
+            let project = LinkedProject(tool: .other, path: CommandLine.arguments[index + 1], enabled: false)
+            if let result = ProjectInventory.inspect(projects: [project], token: ScanToken()).first, let data = try? JSONEncoder().encode(result) {
+                FileHandle.standardOutput.write(data)
+            }
+            return
+        }
         if CommandLine.arguments.contains("--diagnostics") {
             let sampler = SystemSampler(); _ = sampler.sample(); Thread.sleep(forTimeInterval: 1)
             let snapshot = sampler.sample(); let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601
@@ -20,7 +27,7 @@ import DonyCore
             var folder = home.appendingPathComponent("Downloads")
             if let index = CommandLine.arguments.firstIndex(of: "--folder"), CommandLine.arguments.count > index + 1 { folder = URL(fileURLWithPath: CommandLine.arguments[index + 1]) }
             let running = Set(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier))
-            let result = SmartScanner.scan(folder: folder, runningBundleIDs: running, token: ScanToken())
+            let result = SmartScanner.scan(folder: folder, runningBundleIDs: running, token: ScanToken(), days: max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14)))
             let plan = RecommendedActions.plan(cleanup: result.recommended + result.developer.recommended, duplicates: result.duplicates.groups, preserving: result.similar.groups.map(\.original))
             let output: [String: Any] = [
                 "readOnly": true, "cancelled": result.cancelled, "folder": folder.path,
@@ -43,30 +50,54 @@ import DonyCore
             return
         }
         Theme.registerFonts()
-        DonyCleanApp.main()
+        #if DEBUG
+        if ClipboardUIFixture.runIfRequested() { return }
+        if ActionUIFixture.runIfRequested() { return }
+        if ReviewUIFixture.runIfRequested() { return }
+        #endif
+        DonyHomeApp.main()
     }
 }
 
-struct DonyCleanApp: App {
+struct DonyHomeApp: App {
+    @NSApplicationDelegateAdaptor(DonyAppDelegate.self) private var lifecycle
     @StateObject private var model = AppModel()
+    @StateObject private var clipboard = ClipboardController()
     var body: some Scene {
-        Window("DonyClean · 도니클린", id: "main") {
-            RootView().environmentObject(model).font(Theme.font(14)).preferredColorScheme(.light).frame(minWidth: 960, minHeight: 680)
+        Window("donyhome · 도니홈", id: "main") {
+            RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light).frame(minWidth: 960, minHeight: 680)
         }.windowStyle(.hiddenTitleBar).defaultSize(width: 1130, height: 790).defaultPosition(.center)
             .commands {
-                CommandGroup(replacing: .appSettings) { Button("도니클린 설정…") { model.preferencesShown = true }.keyboardShortcut(",") }
-                CommandGroup(after: .newItem) { Button("통합 점검") { model.section = .overview; model.scanSmart() }.keyboardShortcut("r") }
+                CommandGroup(replacing: .appSettings) { Button("도니홈 설정…") { model.preferencesShown = true }.keyboardShortcut(",") }
+                CommandGroup(after: .newItem) {
+                    Button("전체 검사") { model.scanSmart() }.keyboardShortcut("r").disabled(model.busy)
+                    Button("클립보드 빠르게 열기") { clipboard.showPopup() }
+                }
             }
         MenuBarExtra {
-            DonyMenuView().environmentObject(model)
+            DonyMenuView().environmentObject(model).environmentObject(clipboard)
         } label: {
-            DonyLabel("DC " + DisplayFormat.percent(model.snapshot.cpuPercent), icon: "sparkles")
+            CodingCharacterLabel(animator: model.menuAnimator)
+                .onAppear { lifecycle.clipboard = clipboard; clipboard.start() }
         }.menuBarExtraStyle(.window)
     }
 }
 
+@MainActor final class DonyAppDelegate: NSObject, NSApplicationDelegate {
+    var openMainWindow: (() -> Void)?
+    weak var clipboard: ClipboardController?
+    func applicationWillTerminate(_ notification: Notification) { AgentTaskController.shared.resumeOwnedTasksForShutdown(); clipboard?.stop() }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openMainWindow?()
+        return true
+    }
+}
+
 struct RootView: View {
+    let lifecycle: DonyAppDelegate
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var clipboard: ClipboardController
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -76,52 +107,88 @@ struct RootView: View {
                         HStack(spacing: 10) {
                             DonyIcon("info.circle").foregroundStyle(Theme.secondary)
                             Text(banner).font(Theme.font(12)).fixedSize(horizontal: false, vertical: true)
-                            Spacer(); Button { model.banner = nil } label: { DonyIcon("xmark", size: 14) }.buttonStyle(.plain)
+                            Spacer()
+                            if !model.blockedPaths.isEmpty { Button("권한 설정") { model.showPermissionGuidance() }.buttonStyle(QuietButton()) }
+                            Button { model.banner = nil } label: { DonyIcon("xmark", size: 14) }.buttonStyle(.plain)
                         }.panel(14)
                     }
+                    if model.section != .overview && model.section != .dony && model.storageAssessment.needsAttention { DeviceCareStatusView() }
                     ScanProgressView()
                     switch model.section {
                     case .overview: OverviewView()
+                    case .inspection: ScanResultsView()
                     case .cleanup: CleanupView()
                     case .files: FilesView()
-                    case .space: SpaceView()
                     case .tools: ToolsView()
                     case .performance: PerformanceView()
+                    case .battery: BatteryManagementView()
+                    case .clipboard: ClipboardView(controller: clipboard)
+                    case .development: AIProjectsView()
                     case .applications: ApplicationsView()
                     case .history: HistoryView()
+                    case .dony: DonyProfileView()
                     }
                 }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
-            }.background(Theme.canvas)
+            }.id(model.section).background(Theme.canvas)
         }.foregroundStyle(Theme.ink).tint(Theme.primary)
-            .sheet(isPresented: $model.preferencesShown) { PreferencesView().environmentObject(model) }
+            .onAppear {
+                // Idempotent fallback; menu-bar startup also runs without this window.
+                lifecycle.clipboard = clipboard
+                clipboard.start()
+                model.resumePendingScan()
+                lifecycle.openMainWindow = {
+                    openWindow(id: "main")
+                    if let window = NSApp.windows.first(where: { $0.title == "donyhome · 도니홈" && $0.sheetParent == nil }) {
+                        if window.isMiniaturized { window.deminiaturize(nil) }
+                        window.makeKeyAndOrderFront(nil)
+                    }
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+            .onChange(of: model.busy) { _, busy in if !busy { model.resumePendingScan() } }
+            .sheet(isPresented: Binding(get: { model.permissionsShown && !model.preferencesShown && !model.onboardingShown }, set: { model.permissionsShown = $0 })) {
+                PermissionsView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled()
+            }
+            .sheet(isPresented: Binding(get: { model.onboardingShown || model.preferencesShown }, set: { shown in if !shown { model.onboardingShown = false; model.preferencesShown = false } })) {
+                if model.onboardingShown { OnboardingView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled() }
+                else { PreferencesView().environmentObject(model) }
+            }
+    }
+    private func navigationButton(_ section: Section) -> some View {
+        Button { model.section = section } label: {
+                    HStack(spacing: 12) {
+                        if section == .development { Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 20, height: 20).accessibilityLabel("픽셀 개발자") } else { DonyIcon(section.icon).foregroundStyle(section.iconColor) }
+                        Text(section.title).font(Theme.font(14, weight: model.section == section ? .semibold : .medium))
+                        Spacer()
+                    }.foregroundStyle(Theme.body)
+                        .padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 36)
+                        .background(model.section == section ? Color(hex: 0xe8ebef) : .clear).clipShape(RoundedRectangle(cornerRadius: 10))
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).padding(.bottom, 4)
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 11) {
                 DonyLogo(size: 36)
-                Text("도니클린").font(Theme.font(19, weight: .bold)).foregroundStyle(Theme.body)
+                Text("donyhome").font(Theme.brandFont()).lineLimit(1).fixedSize().foregroundStyle(Theme.body)
             }.padding(.horizontal, 12).padding(.top, 43).padding(.bottom, 26)
             HStack(spacing: 10) {
                 DonyIcon("laptopcomputer").font(Theme.font(18)).foregroundStyle(Theme.secondary)
                 Text("Dony의 Mac").font(Theme.font(14, weight: .medium))
             }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(Color(hex: 0xe8ebef).opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: 10)).padding(.bottom, 24)
-            ForEach(Section.allCases) { section in
-                Button { model.section = section } label: {
-                    HStack(spacing: 12) {
-                        DonyIcon(section.icon).foregroundStyle(section.iconColor)
-                        Text(section.title).font(Theme.font(14, weight: model.section == section ? .semibold : .medium))
-                        Spacer()
-                    }.foregroundStyle(Theme.body)
-                        .padding(.horizontal, 12).frame(height: 36)
-                        .background(model.section == section ? Color(hex: 0xe8ebef) : .clear).clipShape(RoundedRectangle(cornerRadius: 10))
-                }.buttonStyle(.plain).padding(.bottom, 4)
-            }
-            Spacer(minLength: 40)
+            ScrollView {
+              VStack(spacing: 0) {
+               ForEach(Section.allCases.filter { $0 != .dony }) { section in
+                   navigationButton(section)
+               }
+              }
+            }.scrollIndicators(.hidden)
+            navigationButton(.dony).padding(.top, 8)
             VStack(alignment: .leading, spacing: 12) {
                 Rectangle().fill(Theme.line).frame(height: 1)
                 HStack {
-                    Text("DonyClean 1.0").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer()
-                    Button { model.preferencesShown = true } label: { DonyIcon("gearshape").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("도니클린 설정")
+                    Text("donyhome " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")).font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer()
+                    Button { model.preferencesShown = true } label: { DonyIcon("gearshape").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("도니홈 설정")
                 }
             }.padding(.horizontal, 10).padding(.bottom, 25)
         }.padding(.horizontal, 18).frame(width: 240).frame(maxHeight: .infinity).background(Theme.sidebar).overlay(alignment: .trailing) { Rectangle().fill(Theme.line).frame(width: 1) }
@@ -130,41 +197,87 @@ struct RootView: View {
 
 struct DonyMenuView: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var clipboard: ClipboardController
     @Environment(\.openWindow) var openWindow
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack { Text("donyclean").font(Theme.font(18, weight: .bold)); Spacer(); DonyIcon("sparkles").foregroundStyle(Theme.primary) }
-            HStack { Text("CPU"); Spacer(); Text(DisplayFormat.percent(model.snapshot.cpuPercent)).monospacedDigit() }
-            HStack { Text("메모리"); Spacer(); Text(model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—").monospacedDigit() }
-            HStack { Text("메모리 압박"); Spacer(); Chip(text: model.snapshot.pressure.label, color: model.pressureColor) }
-            if let battery = model.snapshot.battery { HStack { Text("배터리"); Spacer(); Text(String(format: "%.0f%%", battery.percent) + (battery.charging ? " · 충전" : "")).monospacedDigit() } }
-            HStack { Text("네트워크 ↓"); Spacer(); Text(model.snapshot.networkReceivedPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—").monospacedDigit() }
-            Divider()
-            Text("사용량 높은 앱을 확인하고 선택해서 종료하세요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-            Button { model.section = .performance; openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) } label: { Text("CPU · 메모리 관리 열기").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())
             HStack {
-                Button("도니클린 열기") { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }.buttonStyle(.plain)
-                Spacer(); Button("완전히 종료") { NSApp.terminate(nil) }.buttonStyle(.plain)
-            }.font(Theme.font(11)).foregroundStyle(Theme.secondary)
-        }.font(Theme.font(13)).padding(22).frame(width: 300).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+                Text("도니홈").font(Theme.font(18, weight: .semibold))
+                Spacer()
+                Button { clipboard.showPopup() } label: { DonyIcon("clipboard", size: 18) }.buttonStyle(.plain).help("클립보드 · ⇧⌘C")
+                Button("종료") { NSApp.terminate(nil) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)
+            }
+            VStack(spacing: 12) {
+                metric("CPU", value: DisplayFormat.percent(model.snapshot.cpuPercent))
+                metric("메모리", value: model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—")
+                HStack { Text("메모리 압박").foregroundStyle(Theme.secondary); Spacer(); Chip(text: model.snapshot.pressure.label, color: model.pressureColor) }.frame(height: 26)
+                Divider()
+                if let total = model.snapshot.diskTotal, let available = model.snapshot.diskAvailable, total > 0 {
+                    metric("저장 공간", value: DisplayFormat.bytes(max(0, total - available)) + " / " + DisplayFormat.bytes(total))
+                    ProgressView(value: min(1, max(0, Double(total - available) / Double(total)))).tint(Theme.primary)
+                    HStack { Text("남은 용량").foregroundStyle(Theme.secondary); Spacer(); Text(DisplayFormat.bytes(available)).monospacedDigit() }.font(Theme.font(11))
+                } else { metric("저장 공간", value: "—") }
+            }.font(Theme.font(13)).frame(maxWidth: .infinity).panel(18)
+            VStack(spacing: 12) {
+                metric("배터리", value: model.snapshot.battery.map { String(format: "%.0f%%", $0.percent) + ($0.charging ? " · 충전" : $0.externalPower ? " · 전원 연결" : "") } ?? "미감지")
+                metric("다운로드 ↓", value: model.snapshot.networkReceivedPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—")
+                metric("업로드 ↑", value: model.snapshot.networkSentPerSecond.map { DisplayFormat.bytes(Int64($0)) + "/s" } ?? "—")
+            }.frame(maxWidth: .infinity).panel(18)
+            Button {
+                openWindow(id: "main")
+                if let window = NSApp.windows.first(where: { $0.title == "donyhome · 도니홈" && $0.sheetParent == nil }) {
+                    if window.isMiniaturized { window.deminiaturize(nil) }
+                    window.makeKeyAndOrderFront(nil)
+                }
+                NSApp.activate(ignoringOtherApps: true)
+            } label: { Text("앱 열기").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())
+        }.padding(20).frame(width: 340).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+    }
+    private func metric(_ title: String, value: String) -> some View {
+        HStack { Text(title).font(Theme.font(13)).foregroundStyle(Theme.secondary); Spacer(minLength: 8); Text(value).font(Theme.font(13, weight: .medium)).monospacedDigit().lineLimit(1) }.frame(height: 26)
     }
 }
 
 struct PreferencesView: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var clipboard: ClipboardController
     @Environment(\.dismiss) var dismiss
+    @State private var clipboardSettingsShown = false
+    @State private var informationShown = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack { Text("도니클린 설정").font(Theme.font(22, weight: .bold)); Spacer(); Button("완료") { dismiss() }.buttonStyle(QuietButton()) }
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("지속적인 CPU · 메모리 과부하 알림", isOn: Binding(get: { model.notifyEnabled }, set: { model.setNotifications($0) }))
-                Text("CPU 85% 이상 또는 메모리 압박이 30초간 이어지면 알려줘요. 같은 알림은 10분에 한 번만 표시합니다.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-            }.panel()
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("로그인할 때 도니클린 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) }))
-                Button("로그인 항목 · 백그라운드 앱 설정 열기") { model.openLoginSettings() }.buttonStyle(QuietButton())
-            }.panel()
-            Text("모든 검사와 기록은 이 Mac에만 저장됩니다. 창을 닫아도 메뉴 막대에서 상태를 확인할 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-        }.padding(28).frame(width: 540).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+        VStack(spacing: 0) {
+            HStack {
+                Text("설정").font(Theme.font(22, weight: .bold))
+                Spacer(); Button("완료") { dismiss() }.buttonStyle(QuietButton())
+            }.padding(24)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("과부하 알림", isOn: Binding(get: { model.notifyEnabled }, set: { model.setNotifications($0) })).toggleStyle(DonySwitch())
+                        Text("CPU 85% · 메모리 압박 30초").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch())
+                        SettingsActionRow(title: "로그인 항목", actionTitle: "설정 열기") { model.openLoginSettings() }
+                    }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("메뉴 막대 캐릭터").font(Theme.font(17, weight: .semibold))
+                        DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
+                        CharacterPreviewView(mode: model.characterMode)
+                    }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
+                    SettingsActionRow(title: "앱 권한", actionTitle: "설정 열기") { model.showPermissions(continueScan: false) }.panel(24)
+                    RetentionSettingsRow().panel()
+                    AutomaticCleanupView()
+                    StorageCareSettingsView()
+                    SettingsActionRow(title: "초기 설정", actionTitle: "다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)
+                    SettingsActionRow(title: "개발", actionTitle: "설정 열기") { model.section = .development; dismiss() }.panel(24)
+                    SettingsActionRow(title: "클립보드", actionTitle: "설정 열기") { clipboardSettingsShown = true }.panel(24)
+                    SettingsActionRow(title: "앱 정보", actionTitle: "열기") { informationShown = true }.panel(24)
+                }.padding(.horizontal, 24).padding(.bottom, 24)
+            }
+        }.frame(width: 560, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+            .sheet(isPresented: $clipboardSettingsShown) { ClipboardSettingsView(controller: clipboard).padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight).background(Theme.canvas).preferredColorScheme(.light) }
+            .sheet(isPresented: $informationShown) { AboutView() }
+            .sheet(isPresented: $model.permissionsShown) { PermissionsView().environmentObject(model).environmentObject(clipboard).interactiveDismissDisabled() }
     }
 }

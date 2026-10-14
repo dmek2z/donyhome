@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-    <key>CFBundleExecutable</key><string>DonyClean</string>
+    <key>CFBundleExecutable</key><string>DonyHome</string>
     <key>CFBundleIdentifier</key><string>local.dony.DonyClean</string>
-    <key>CFBundleName</key><string>DonyClean</string>
-    <key>CFBundleDisplayName</key><string>DonyClean · 도니클린</string>
-    <key>CFBundleShortVersionString</key><string>1.0.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleName</key><string>donyhome</string>
+    <key>CFBundleDisplayName</key><string>donyhome · 도니홈</string>
+    <key>CFBundleShortVersionString</key><string>2.3.13</string>
+    <key>CFBundleVersion</key><string>30</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleIconFile</key><string>DonyClean.icns</string>
+    <key>CFBundleIconFile</key><string>DonyHome.icns</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>선택한 다운로드 폴더의 파일을 검사하고 정리합니다.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>선택한 문서 폴더의 파일과 프로젝트를 검사하고 정리합니다.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>선택한 데스크탑 폴더의 파일을 검사하고 정리합니다.</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSHumanReadableCopyright</key><string>2026 Dony. Personal Mac utility.</string>

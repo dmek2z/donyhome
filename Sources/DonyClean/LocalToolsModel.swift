@@ -25,14 +25,15 @@ extension AppModel {
     func scanDeveloper() {
         guard let (token, _) = begin("개발 캐시 검사") else { return }
         smart = nil; smartDate = nil
-        let bundleIDs = runningBundleIDs
+        let bundleIDs = runningBundleIDs; let days = projectRetentionDays
         Task {
-            developer = await Task.detached(priority: .utility) { DeveloperCleanup.scan(runningTools: RunningTools.read().union(bundleIDs), token: token) }.value
+            developer = await Task.detached(priority: .utility) { DeveloperCleanup.scan(runningTools: RunningTools.read().union(bundleIDs), token: token, days: days) }.value
+            if days != projectRetentionDays { developer = DeveloperResult(); finish(true, issues: []); return }
             developerDate = Date(); finish(developer.cancelled, issues: developer.issues)
         }
     }
     func scanLeftovers() {
-        guard let (token, _) = begin("앱 잔여물 후보 검사") else { return }
+        guard let (token, _) = begin("남은 앱 파일 검사") else { return }
         let running = runningBundleIDs
         Task {
             let result = await Task.detached(priority: .utility) {
@@ -75,6 +76,9 @@ extension AppModel {
         }
     }
     func runMaintenance(_ task: MaintenanceTask) {
+        Task { await runMaintenanceAfterReview(task) }
+    }
+    private func runMaintenanceAfterReview(_ task: MaintenanceTask) async {
         guard !busy else { return }
         let message: String
         switch task {
@@ -84,7 +88,8 @@ extension AppModel {
             guard localSnapshots.contains(date) else { banner = "스냅샷 목록을 다시 확인해 주세요."; return }
             message = "선택한 로컬 Time Machine 스냅샷 " + date + "를 영구 제거합니다. 이 백업 시점은 복구할 수 없습니다. 다른 스냅샷과 외부 백업은 유지합니다. macOS 관리자 인증이 필요합니다."
         }
-        guard confirm(task.title, message: message, action: "실행", destructive: true) else { return }
+        guard await confirm(task.title, message: message, action: "실행", destructive: true) else { return }
+        guard !busy else { return }
         operationLabel = task.title + " · 시스템 인증 또는 작업 완료 대기 중…"
         operationBusy = true; maintenanceOutput = nil
         Task {
