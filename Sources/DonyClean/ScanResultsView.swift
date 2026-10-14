@@ -3,11 +3,17 @@ import DonyCore
 
 struct ScanResultsView: View {
     @EnvironmentObject var model: AppModel
+    private var headerPlan: RecommendedPlan { model.recommendedPlan(includeCleanup: model.cleanCaches, includeDuplicates: model.cleanCopies, includeDeveloper: model.cleanDeveloper, includeWorkspaces: model.cleanWorkspaces) }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
                 PageHeader(title: model.smart == nil ? "전체 검사" : "검사 결과")
-                Button(model.smart == nil ? "검사 시작" : "다시 검사") { model.scanSmart() }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                if let smart = model.smart, !smart.cancelled, headerPlan.items.count > 0 {
+                    Button("다시 검사") { model.scanSmart() }.buttonStyle(QuietButton()).disabled(model.busy)
+                    Button("선택 항목 정리 · " + DisplayFormat.bytes(headerPlan.bytes)) { model.runRecommended(includeCleanup: model.cleanCaches, includeDuplicates: model.cleanCopies, includeDeveloper: model.cleanDeveloper, includeWorkspaces: model.cleanWorkspaces) }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                } else {
+                    Button(model.smart == nil ? "검사 시작" : "다시 검사") { model.scanSmart() }.buttonStyle(PrimaryButton()).disabled(model.busy)
+                }
             }.frame(height: 42)
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {

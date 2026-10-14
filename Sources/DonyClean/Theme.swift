@@ -202,11 +202,17 @@ struct CandidateRow: View {
             DonyIcon(candidate.fingerprint.isDirectory ? "folder.fill" : "doc.fill").font(Theme.font(19)).foregroundStyle(Theme.primary).frame(width: 30)
             VStack(alignment: .leading, spacing: 4) {
                 Text(candidate.name).font(Theme.font(12, weight: .medium)).lineLimit(1).help(candidate.url.path)
-                Text(subtitle ?? candidate.url.path).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(candidate.url.path)
+                Text((model.excludedRecommendations.contains(candidate.id) ? "추천에서 제외됨 · " : "") + (subtitle ?? candidate.url.path)).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(candidate.url.path)
             }
             Spacer(minLength: 10)
             Text(DisplayFormat.bytes(candidate.bytes)).font(Theme.font(12, weight: .medium)).monospacedDigit().frame(width: 85, alignment: .trailing)
             Button { model.showFinder(candidate.url) } label: { DonyIcon("arrow.up.forward.square").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help("Finder에서 보기")
+            DonyIconMenu(title: "항목 작업", size: 28) {
+                Button(candidate.fingerprint.isRegular ? "미리보기" : "Finder에서 보기") { model.quickLook(candidate) }
+                Divider()
+                if model.excludedRecommendations.contains(candidate.id) { Button("추천 제외 해제") { model.restoreRecommendation(candidate) } }
+                else { Button("다시 추천하지 않기") { model.excludeFromRecommendations(candidate) } }
+            }
         }.padding(.vertical, 12).padding(.horizontal, 16)
     }
 }

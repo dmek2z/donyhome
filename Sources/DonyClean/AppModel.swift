@@ -34,6 +34,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var developmentMode = "도구 정리"
     /// 전체 검사의 「검토」에서 넘어온 추천 항목. 개발 캐시 화면이 열릴 때 한 번 선택해 준다.
     @Published var reviewSelection: [String] = []
+    /// 전체 검사 결과에서 정리할 추천 종류. 결과 카드와 상단 버튼이 같은 선택을 쓴다.
+    @Published var cleanCaches = true
+    @Published var cleanCopies = true
+    @Published var cleanDeveloper = true
+    @Published var cleanWorkspaces = true
     /// 가장 최근 정리에서 휴지통으로 옮긴 기록. 「되돌리기」에 쓴다.
     @Published var lastCleanupRecords: [ActionRecord] = []
     @Published var developmentToolFilter: AITool?
@@ -71,6 +76,10 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var cleanup = ScanResult() { didSet { recommendationCache.removeAll() } }
     @Published var cleanupIncomplete = false
     private var recommendationCache: [Int: RecommendedPlan] = [:]
+    /// 사용자가 「다시 추천하지 않기」로 뺀 항목의 경로. 추천 계산에서만 제외하며 직접 선택은 막지 않는다.
+    @Published var excludedRecommendations: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "excludedRecommendations") ?? []) {
+        didSet { recommendationCache.removeAll(); UserDefaults.standard.set(excludedRecommendations.sorted(), forKey: "excludedRecommendations") }
+    }
     @Published var cleanupInventory: [CacheInventoryGroup] = []
     @Published var cleanupDecisions: [String: CleanupDecision] = [:] { didSet { recommendationCache.removeAll() } }
     @Published var smartScanPhase: SmartScanPhase?
@@ -353,8 +362,12 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func recommendedPlan(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true, includeWorkspaces: Bool = true) -> RecommendedPlan {
         let key = (includeCleanup ? 1 : 0) | (includeDuplicates ? 2 : 0) | (includeDeveloper ? 4 : 0) | (includeWorkspaces ? 8 : 0)
         if let cached = recommendationCache[key] { return cached }
-        let raw = (includeCleanup ? cleanup.items.filter { cleanupDecisions[$0.id]?.isRecommended == true } : []) + developer.recommended.filter { StaleWorkspaces.isWorkspace($0) ? includeWorkspaces : includeDeveloper }
-        let plan = RecommendedActions.plan(cleanup: raw, duplicates: duplicates.groups, includeCopies: includeDuplicates, preserving: similarOriginals)
+        let raw = ((includeCleanup ? cleanup.items.filter { cleanupDecisions[$0.id]?.isRecommended == true } : []) + developer.recommended.filter { StaleWorkspaces.isWorkspace($0) ? includeWorkspaces : includeDeveloper }).filter { !excludedRecommendations.contains($0.id) }
+        let groups = duplicates.groups.compactMap { group -> DuplicateGroup? in
+            let copies = group.copies.filter { !excludedRecommendations.contains($0.id) }
+            return copies.isEmpty ? nil : DuplicateGroup(original: group.original, copies: copies)
+        }
+        let plan = RecommendedActions.plan(cleanup: raw, duplicates: groups, includeCopies: includeDuplicates, preserving: similarOriginals)
         recommendationCache[key] = plan
         return plan
     }

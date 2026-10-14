@@ -3,11 +3,7 @@ import DonyCore
 
 struct SmartCareView: View {
     @EnvironmentObject var model: AppModel
-    @State private var cleanCaches = true
-    @State private var cleanCopies = true
-    @State private var cleanDeveloper = true
-    @State private var cleanWorkspaces = true
-    private var plan: RecommendedPlan { model.recommendedPlan(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper, includeWorkspaces: cleanWorkspaces) }
+    private var plan: RecommendedPlan { model.recommendedPlan(includeCleanup: model.cleanCaches, includeDuplicates: model.cleanCopies, includeDeveloper: model.cleanDeveloper, includeWorkspaces: model.cleanWorkspaces) }
     private var selectedCount: Int { plan.items.count }
     private var selectedBytes: Int64 { plan.bytes }
     var body: some View {
@@ -29,13 +25,13 @@ struct SmartCareView: View {
                 }
                 Text("정리할 항목 선택").font(Theme.font(15, weight: .semibold))
                 VStack(spacing: 0) {
-                    recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $cleanCaches, section: .cleanup, mode: "캐시 · 로그", review: model.recommendedCleanup.map(\.id))
+                    recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $model.cleanCaches, section: .cleanup, mode: "캐시 · 로그", review: model.recommendedCleanup.map(\.id))
                     Divider()
-                    recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $cleanCopies, section: .files, mode: "중복 파일", review: model.recommendedDuplicateCopies.map(\.id))
+                    recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $model.cleanCopies, section: .files, mode: "중복 파일", review: model.recommendedDuplicateCopies.map(\.id))
                     Divider()
-                    recommendedRow("방치된 작업공간", icon: "folder", detail: "\(model.recommendedWorkspaces.count)개 · " + DisplayFormat.bytes(model.recommendedWorkspaces.reduce(0) { $0 + $1.bytes }), selected: $cleanWorkspaces, section: .development, mode: "캐시", reason: "\(model.projectRetentionDays)일 이상 활동 없음 · 변경·미푸시 없음 · 휴지통에서 복원 가능", review: model.recommendedWorkspaces.map(\.id))
+                    recommendedRow("방치된 작업공간", icon: "folder", detail: "\(model.recommendedWorkspaces.count)개 · " + DisplayFormat.bytes(model.recommendedWorkspaces.reduce(0) { $0 + $1.bytes }), selected: $model.cleanWorkspaces, section: .development, mode: "캐시", reason: "\(model.projectRetentionDays)일 이상 활동 없음 · 변경·미푸시 없음 · 휴지통에서 복원 가능", review: model.recommendedWorkspaces.map(\.id))
                     Divider()
-                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloperCaches.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloperCaches.reduce(0) { $0 + $1.bytes }), selected: $cleanDeveloper, section: .development, mode: "캐시", review: model.recommendedDeveloperCaches.map(\.id))
+                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloperCaches.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloperCaches.reduce(0) { $0 + $1.bytes }), selected: $model.cleanDeveloper, section: .development, mode: "캐시", review: model.recommendedDeveloperCaches.map(\.id))
                     Divider()
                 }.font(Theme.font(13))
                 DisclosureGroup("직접 확인할 항목") {
@@ -61,10 +57,18 @@ struct SmartCareView: View {
                         Text("선택 항목은 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }
                     Spacer()
-                    Button("선택 항목 정리") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper, includeWorkspaces: cleanWorkspaces) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
+                    Button("선택 항목 정리") { model.runRecommended(includeCleanup: model.cleanCaches, includeDuplicates: model.cleanCopies, includeDeveloper: model.cleanDeveloper, includeWorkspaces: model.cleanWorkspaces) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
                 }.padding(.top, 8)
                 DisclosureGroup("추천 기준") {
-                    Text("보관 기간 \(model.projectRetentionDays)일 · 개별 파일 재확인 · 원본 보관\n작업공간: 활동 없음 · 커밋하지 않은 변경 없음 · 모든 커밋이 원격에 있음 · 사용 중인 프로세스 없음").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("보관 기간 \(model.projectRetentionDays)일 · 개별 파일 재확인 · 원본 보관\n작업공간: 활동 없음 · 커밋하지 않은 변경 없음 · 모든 커밋이 원격에 있음 · 사용 중인 프로세스 없음").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        if !model.excludedRecommendations.isEmpty {
+                            HStack(spacing: 12) {
+                                Text("추천에서 뺀 항목 \(model.excludedRecommendations.count)개").font(Theme.font(12, weight: .medium))
+                                DonyTextAction(title: "초기화") { model.clearExcludedRecommendations() }.disabled(model.busy)
+                            }
+                        }
+                    }.padding(.top, 8)
                 }.font(Theme.font(12)).tint(Theme.secondary)
                 IssuesView(issues: smart.issues)
             }
@@ -86,7 +90,7 @@ struct SmartCareView: View {
             }
             Spacer()
             Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)
-            Button("검토") { model.reviewSelection = review; open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy)
+            Button("검토") { model.reviewSelection = review; open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy || detail.hasPrefix("0개"))
         }.padding(.vertical, 10)
     }
     private func reviewRow(_ title: String, icon: String, detail: String, section: Section, mode: String? = nil) -> some View {

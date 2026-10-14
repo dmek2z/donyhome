@@ -53,6 +53,7 @@ import DonyCore
         #if DEBUG
         if ClipboardUIFixture.runIfRequested() { return }
         if ActionUIFixture.runIfRequested() { return }
+        if ReviewUIFixture.runIfRequested() { return }
         #endif
         DonyHomeApp.main()
     }
