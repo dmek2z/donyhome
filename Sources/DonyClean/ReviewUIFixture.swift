@@ -38,6 +38,10 @@ import DonyCore
             model.cleanupDate = Date(); model.developerDate = Date()
             if state == "review" { model.excludedRecommendations = [caches[1].id] }
             model.section = state == "review" ? .cleanup : .inspection
+        } else if state.hasPrefix("onboarding") {
+            model.onboardingShown = true; model.setupStep = Int(state.dropFirst("onboarding".count)) ?? 0
+            model.connectedTools = [.codex, .claude, .terminal]
+            model.linkedProjects = ["donyhome", "blog", "agent-skills"].map { LinkedProject(tool: .codex, path: directory.appendingPathComponent($0).path, discovered: true) }
         } else if state == "outcome" {
             let moved = make("old-cache.bin", kind: .cache, bytes: 120_000, in: "Caches")
             let trashed = ActionRecord(kind: "휴지통 이동", sourcePath: moved.id, trashPath: NSHomeDirectory() + "/.Trash/does-not-matter", bytes: 120_000, success: true, message: "")
@@ -53,6 +57,17 @@ import DonyCore
         window.contentView = NSHostingView(rootView: RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light))
         window.center(); window.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
+        if let snapshot = Bundle.main.object(forInfoDictionaryKey: "DonyFixtureSnapshot") as? String {
+            // 화면 녹화 권한 없이 창(시트 포함)의 내용을 PNG로 저장하고 종료한다.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                let view = (window.attachedSheet ?? window).contentView!
+                if let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: snapshot))
+                }
+                NSApp.terminate(nil)
+            }
+        }
         app.run()
         return true
     }

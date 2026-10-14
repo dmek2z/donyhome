@@ -4,9 +4,10 @@ import DonyCore
 struct ToolSelectionView: View {
     @Binding var selection: Set<AITool>
     var statuses: [AITool: String] = [:]
+    var tools: [AITool] = AITool.allCases
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), spacing: 8)], spacing: 8) {
-            ForEach(AITool.allCases) { tool in
+            ForEach(tools) { tool in
                 Button {
                     if selection.contains(tool) { selection.remove(tool) } else { selection.insert(tool) }
                 } label: {
