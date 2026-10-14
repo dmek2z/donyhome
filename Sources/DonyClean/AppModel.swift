@@ -57,6 +57,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var scanEpoch = UUID()
     @Published var cleanup = ScanResult()
     @Published var cleanupDecisions: [String: CleanupDecision] = [:]
+    @Published var smartScanPhase: SmartScanPhase?
     @Published var smart: SmartScanResult?
     @Published var smartDate: Date?
     @Published var smartFolder: URL?
@@ -88,6 +89,17 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var appFiles = ScanResult()
     @Published var history: [ActionRecord] = []
     @Published var banner: String?
+    @Published var storageAssessment = StorageAssessment.resolve(available: nil, total: nil)
+    @Published var lastCleanupOutcome: CleanupOutcome?
+    @Published var storageWarningGB = max(1, min(1000, UserDefaults.standard.object(forKey: "storageWarningGB") as? Int ?? 20))
+    @Published var storageAlertsEnabled = UserDefaults.standard.object(forKey: "storageAlertsEnabled") as? Bool ?? true
+    @Published var automaticStorageCheck = UserDefaults.standard.object(forKey: "automaticStorageCheck") as? Bool ?? true
+    var storageReviewPending = false
+    var storageCheckGate = StorageNoticeGate()
+    @Published var storageRecommendations = ScanResult()
+    @Published var storageRecommendationDate: Date?
+    var storageRecommendationDecisions: [String: CleanupDecision] = [:]
+    var storageNoticeGate = StorageNoticeGate(lastNotice: UserDefaults.standard.object(forKey: "lastStorageNotice") as? Date)
     @Published var lastRelief: ReliefObservation?
     @Published var notifyEnabled = UserDefaults.standard.bool(forKey: "overloadNotifications")
     @Published var preferencesShown = false
@@ -161,6 +173,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             if let cpu = value.cpuPercent { cpuHistory = Array((cpuHistory + [cpu]).suffix(60)) }
             if let memory = value.memoryPercent { memoryHistory = Array((memoryHistory + [memory]).suffix(60)) }
             checkOverload(value)
+            updateStorageCare(value)
             if resumedScanChecked, projectCleanupEnabled, value.pressure == .warning || value.pressure == .critical,
                memoryHighSince.map({ Date().timeIntervalSince($0) >= 30 }) == true,
                lastProjectPressureAttempt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true, !busy, !permissionsShown {
@@ -297,10 +310,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func performSmartScan() {
         guard let (token, epoch) = begin("전체 검사") else { return }
         section = .inspection
-        smart = nil; smartDate = nil
+        smart = nil; smartDate = nil; smartScanPhase = nil
+        let phase: @Sendable (SmartScanPhase) -> Void = { [weak self] value in Task { @MainActor in guard let self, self.scanEpoch == epoch else { return }; self.smartScanPhase = value } }
         let folder = folder; let running = runningBundleIDs; let report = progress(epoch)
         Task {
-            let result = await Task.detached(priority: .utility) { SmartScanner.scan(folder: folder, runningBundleIDs: running, token: token, progress: report) }.value
+            let result = await Task.detached(priority: .utility) { SmartScanner.scan(folder: folder, runningBundleIDs: running, token: token, phase: phase, progress: report) }.value
             smart = result; smartDate = Date(); smartFolder = folder
             cleanup = result.cleanup; cleanupDecisions = result.decisions; cleanupDate = smartDate
             largeFiles = result.largeFiles; filesDate = smartDate; duplicates = result.duplicates; duplicateDate = smartDate
@@ -429,6 +443,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         guard !automatic || (recommendedOnly && candidates.allSatisfy { ($0.kind == .cache || $0.kind == .log) && $0.fingerprint.isRegular }) else { return }
         let body = "선택한 \(candidates.count)개 항목 · \(DisplayFormat.bytes(candidates.reduce(0) { $0 + $1.bytes }))\n휴지통을 비우기 전에는 저장 공간이 즉시 늘어나지 않습니다." + (candidates.contains { $0.kind == .support } ? "\n관련 파일에는 설정과 사용자 데이터가 포함될 수 있습니다." : "")
         if !automatic && !confirm("선택한 항목을 휴지통으로 이동", message: body, action: "휴지통으로 이동", destructive: true, paths: candidates.map { $0.url.path }) { return }
+        let spaceMeasurement = CleanupSpaceMeasurement()
         operationLabel = "선택한 항목을 다시 확인하고 이동하는 중…"
         operationBusy = true
         let operationToken = ScanToken()
@@ -462,7 +477,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                             guard try CleanupPolicy().reason(for: candidate, runningBundleIDs: cleanupOwners, token: operationToken).isRecommended else { throw DonyError.changed }
                         } catch { return ActionRecord(kind: "휴지통 이동", sourcePath: candidate.id, trashPath: nil, bytes: 0, success: false, message: "추천 기준을 다시 통과하지 못했습니다: " + error.localizedDescription) }
                     }
-                    return TrashService.move(candidate, keeping: original, token: operationToken)
+                    return TrashService.move(candidate, keeping: original, token: operationToken, beforeMutation: { spaceMeasurement.captureBeforeMutation() })
                 }.value
                 results.append(result)
             }
@@ -481,7 +496,9 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             }
             if let inspectedApp, moved.contains(inspectedApp.url.path) { applications.apps.removeAll { $0.id == inspectedApp.id } }
             if smart != nil { smart?.cleanup = cleanup; smart?.duplicates = duplicates; smart?.largeFiles = largeFiles; smart?.developer = developer; smart?.leftovers = leftovers; smart?.clutter = clutter; smart?.space = spaceMap; smart?.similar = similar }
-            let historyError = append(results); operationBusy = false; scanEpoch = UUID(); sample()
+            let historyError = append(results)
+            await measureCleanupOutcome(records: results, before: spaceMeasurement.beforeAvailable)
+            operationBusy = false; scanEpoch = UUID(); sample()
             let failures = results.filter { !$0.success }.count
             banner = OperationFeedback.compose(summary: "\(moved.count)개 항목을 휴지통으로 이동했습니다." + (failures > 0 ? " \(failures)개는 이동하지 못했습니다. 정리 기록에서 이유를 확인하세요." : ""), historyError: historyError)
             if automatic {

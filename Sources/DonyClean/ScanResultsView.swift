@@ -17,6 +17,7 @@ struct ScanResultsView: View {
                 Spacer()
                 Button("폴더 선택") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)
             }.panel(20)
+            if model.activity?.title == "전체 검사" || model.smart != nil { SmartScanStatusView() }
             if model.smart != nil { SmartCareView() }
             else if model.activity == nil {
                 VStack(alignment: .leading, spacing: 14) {

@@ -40,7 +40,7 @@ public struct HistoryStore: Sendable {
 }
 
 public enum TrashService {
-    public static func move(_ candidate: FileCandidate, keeping original: FileCandidate? = nil, token: ScanToken = ScanToken()) -> ActionRecord {
+    public static func move(_ candidate: FileCandidate, keeping original: FileCandidate? = nil, token: ScanToken = ScanToken(), beforeMutation: (() -> Void)? = nil) -> ActionRecord {
         do {
             try token.check()
             if candidate.kind == .duplicate {
@@ -57,6 +57,7 @@ public enum TrashService {
                       !id.hasPrefix("com.apple."), id != "local.dony.DonyClean" else { throw DonyError.unsafePath }
             }
             var destination: NSURL?
+            beforeMutation?()
             try FileManager.default.trashItem(at: candidate.url, resultingItemURL: &destination)
             return ActionRecord(kind: "휴지통 이동", sourcePath: candidate.url.path, trashPath: destination?.path, bytes: candidate.bytes, success: true, message: "휴지통으로 이동했습니다.")
         } catch {

@@ -138,6 +138,7 @@ extension AppModel {
         }
         let items = projectScan.items; let links = projectScanLinks; let allLinks = linkedProjects; let days = projectScanDays; let scope = projectScanScope; let requireRemote = projectScanRequiresRemoteBackup
         if !automatic && !confirm("AI 프로젝트 정리", message: (scope == .wholeProject && !requireRemote ? "원격 저장 여부와 관계없이 로컬 코드·파일을 정리합니다.\n" : "") + "\(days)일 이상 업데이트되지 않은 \(items.count)개 항목의 \(scope.title)를 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id)) { return }
+        let spaceMeasurement = CleanupSpaceMeasurement()
         operationBusy = true; operationLabel = "프로젝트 상태를 다시 확인하고 이동하는 중…"
         Task {
             var records: [ActionRecord] = []
@@ -173,12 +174,13 @@ extension AppModel {
                             }
                             try ProjectCleanup.validate(item, project: project, days: days, scope: scope, activePaths: active, runningTools: tools, token: token, sourceState: states[project.path])
                         }
-                        return (TrashService.move(item, token: token), states)
+                        return (TrashService.move(item, token: token, beforeMutation: { spaceMeasurement.captureBeforeMutation() }), states)
                     } catch { return (ActionRecord(kind: "휴지통 이동", sourcePath: item.id, trashPath: nil, bytes: 0, success: false, message: "AI 프로젝트 보호: " + error.localizedDescription), priorStates) }
                 }.value
                 records.append(output.0); sourceStates = output.1
             }
             let error = append(records)
+            await measureCleanupOutcome(records: records, before: spaceMeasurement.beforeAvailable)
             let successful = records.filter(\.success)
             let summary = "AI 프로젝트: \(successful.count)개 · " + DisplayFormat.bytes(successful.reduce(0) { $0 + $1.bytes }) + " 휴지통 이동 · \(records.count - successful.count)개 건너뜀"
             projectSummary = OperationFeedback.compose(summary: summary, historyError: error); banner = projectSummary

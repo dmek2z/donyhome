@@ -16,13 +16,14 @@ public enum TrashEmptyService {
         } catch { result.issues.append(ScanIssue(path: root.path, error: error)) }
         return result
     }
-    public static func remove(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> ActionRecord {
+    public static func remove(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser, beforeMutation: (() -> Void)? = nil) -> ActionRecord {
         do {
             let root = try FileSafety.canonicalRoot(home).appendingPathComponent(".Trash")
             guard item.kind == .trash, item.root.path == root.path, item.url.deletingLastPathComponent().path == root.path,
                   try FileSafety.canonicalRoot(root).path == root.path else { throw DonyError.unsafePath }
             try FileSafety.validate(item)
             // Native removeItem unlinks nested symlinks, without following their targets.
+            beforeMutation?()
             try FileManager.default.removeItem(at: item.url)
             return ActionRecord(kind: "휴지통 영구 삭제", sourcePath: item.id, trashPath: nil, bytes: item.bytes, success: true, message: "검사한 휴지통 항목을 영구 삭제했습니다.")
         } catch { return ActionRecord(kind: "휴지통 영구 삭제", sourcePath: item.id, trashPath: nil, bytes: 0, success: false, message: error.localizedDescription) }

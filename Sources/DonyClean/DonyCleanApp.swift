@@ -81,7 +81,7 @@ struct DonyHomeApp: App {
 @MainActor final class DonyAppDelegate: NSObject, NSApplicationDelegate {
     var openMainWindow: (() -> Void)?
     weak var clipboard: ClipboardController?
-    func applicationWillTerminate(_ notification: Notification) { clipboard?.stop() }
+    func applicationWillTerminate(_ notification: Notification) { AgentTaskController.shared.resumeOwnedTasksForShutdown(); clipboard?.stop() }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openMainWindow?()
         return true
@@ -107,6 +107,7 @@ struct RootView: View {
                             Button { model.banner = nil } label: { DonyIcon("xmark", size: 14) }.buttonStyle(.plain)
                         }.panel(14)
                     }
+                    if model.section != .overview && model.section != .dony && model.storageAssessment.needsAttention { DeviceCareStatusView() }
                     ScanProgressView()
                     switch model.section {
                     case .overview: OverviewView()
@@ -262,6 +263,7 @@ struct PreferencesView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
                     SettingsActionRow(title: "앱 권한", actionTitle: "설정 열기") { model.showPermissions(continueScan: false) }.panel(24)
                     AutomaticCleanupView()
+                    StorageCareSettingsView()
                     SettingsActionRow(title: "초기 설정", actionTitle: "다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)
                     SettingsActionRow(title: "개발", actionTitle: "설정 열기") { model.section = .development; dismiss() }.panel(24)
                     SettingsActionRow(title: "클립보드", actionTitle: "설정 열기") { clipboardSettingsShown = true }.panel(24)
