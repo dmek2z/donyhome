@@ -41,9 +41,11 @@ import DonyCore
             if state == "review" { model.excludedRecommendations = [caches[1].id] }
             model.section = state == "review" ? .cleanup : .inspection
         } else if state.hasPrefix("onboarding") {
-            model.onboardingShown = true; model.setupStep = Int(state.dropFirst("onboarding".count)) ?? 0
+            model.onboardingShown = true; model.setupStep = Int(state.dropFirst("onboarding".count).prefix(1)) ?? 0
             model.connectedTools = [.codex, .claude, .terminal]
-            model.linkedProjects = ["donyhome", "blog", "agent-skills"].map { LinkedProject(tool: .codex, path: directory.appendingPathComponent($0).path, discovered: true) }
+            model.connectedTools = [.codex, .claude, .cursor]
+            model.linkedProjects = ["donyhome", "blog", "agent-skills"].map { LinkedProject(tool: .codex, path: directory.appendingPathComponent($0).path, enabled: $0 != "blog", discovered: true) }
+                + ["medi-admin", "dony-social-studio"].map { LinkedProject(tool: .claude, path: directory.appendingPathComponent($0).path, discovered: true) }
         } else if state == "development" {
             model.connectedTools = [.codex, .claude, .cursor, .hermes, .tmux, .terminal]
             model.section = .development; model.developmentMode = "도구 정리"

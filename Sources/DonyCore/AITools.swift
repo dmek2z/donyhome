@@ -36,22 +36,44 @@ public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
         if script.contains("/node_modules/@google/gemini-cli/") { return .gemini }
         return allCases.first { tool in tool != .terminal && tool != .other && tool.executableNames.map { $0.lowercased() }.contains(scriptName) }
     }
-    public static func identify(_ process: ProcessReading, applicationTools: [String: AITool] = [:]) -> Self? {
-        rawIdentify(process, applicationTools: applicationTools)?.canonical
+    /// 도구별 별칭(소문자)을 한 번만 계산한다.
+    private static let aliasTable: [(tool: AITool, aliases: Set<String>)] = allCases.map { tool in
+        (tool, Set([tool.title.lowercased()] + tool.executableNames.map { $0.lowercased() }))
     }
-    private static func rawIdentify(_ process: ProcessReading, applicationTools: [String: AITool]) -> Self? {
+    /// 경로의 `○○.app` 구성요소 이름들(소문자). 경로 전체를 도구마다 다시 검색하지 않는다.
+    private static func appNames(in lowercasedPath: String) -> Set<String> {
+        var names = Set<String>()
+        for component in lowercasedPath.split(separator: "/") where component.hasSuffix(".app") { names.insert(String(component.dropLast(4))) }
+        return names
+    }
+    private static func applicationPrefixes(_ applicationTools: [String: AITool]) -> [(prefix: String, key: String)] {
+        applicationTools.keys.sorted { $0.count > $1.count }.map { ($0 + "/", $0) }
+    }
+    public static func identify(_ process: ProcessReading, applicationTools: [String: AITool] = [:]) -> Self? {
+        rawIdentify(process, applicationTools: applicationTools, prefixes: applicationPrefixes(applicationTools))?.canonical
+    }
+    private static func rawIdentify(_ process: ProcessReading, applicationTools: [String: AITool], prefixes: [(prefix: String, key: String)]) -> Self? {
         if let hint = process.toolHint.flatMap(Self.init(rawValue:)) { return hint }
-        if let application = applicationTools.keys.sorted(by: { $0.count > $1.count }).first(where: { process.path.hasPrefix($0 + "/") }) { return applicationTools[application] }
-        let path = process.path.lowercased(); let name = process.name.lowercased()
-        return allCases.first { tool in
-            let aliases = [tool.title.lowercased()] + tool.executableNames.map { $0.lowercased() }
-            return aliases.contains { path.contains("/" + $0 + ".app/") || name == $0 } || (tool == .tmux && name.hasPrefix("tmux:")) || (tool == .herdr && name == "herdr-server")
-        }
+        if let match = prefixes.first(where: { process.path.hasPrefix($0.prefix) }) { return applicationTools[match.key] }
+        let apps = appNames(in: process.path.lowercased()); let name = process.name.lowercased()
+        return aliasTable.first { entry in
+            !entry.aliases.isDisjoint(with: apps) || entry.aliases.contains(name) || (entry.tool == .tmux && name.hasPrefix("tmux:")) || (entry.tool == .herdr && name == "herdr-server")
+        }?.tool
     }
     public static func assignments(_ processes: [ProcessReading], currentUID: UInt32, applicationTools: [String: AITool] = [:]) -> [Int32: AITool] {
         let local = processes.filter { $0.uid == currentUID }
         let byPID = Dictionary(local.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
-        let direct = Dictionary(local.compactMap { process in identify(process, applicationTools: applicationTools).map { (process.pid, $0) } }, uniquingKeysWith: { first, _ in first })
+        let prefixes = applicationPrefixes(applicationTools)
+        // 같은 이름·경로의 헬퍼 프로세스가 많아서 판별 결과를 재사용한다.
+        var memo: [String: Self?] = [:]
+        var direct: [Int32: AITool] = [:]
+        for process in local {
+            let key = process.name + "\u{0}" + process.path + "\u{0}" + (process.toolHint ?? "")
+            let tool: Self?
+            if let cached = memo[key] { tool = cached }
+            else { tool = rawIdentify(process, applicationTools: applicationTools, prefixes: prefixes)?.canonical; memo[key] = .some(tool) }
+            if let tool, direct[process.pid] == nil { direct[process.pid] = tool }
+        }
         var result: [Int32: AITool] = [:]
         for process in local {
             var current = process.pid; var seen = Set<Int32>()
@@ -65,10 +87,9 @@ public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
     }
     public static func usage(_ processes: [ProcessReading], currentUID: UInt32, applicationTools: [String: AITool] = [:]) -> [AIToolUsage] {
         let owners = assignments(processes, currentUID: currentUID, applicationTools: applicationTools)
-        return allCases.compactMap { tool in
-            let family = processes.filter { $0.uid == currentUID && owners[$0.pid] == tool }
-            return family.isEmpty ? nil : AIToolUsage(tool: tool, processes: family)
-        }.sorted { $0.bytes > $1.bytes }
+        var grouped: [AITool: [ProcessReading]] = [:]
+        for process in processes where process.uid == currentUID { if let tool = owners[process.pid] { grouped[tool, default: []].append(process) } }
+        return allCases.compactMap { tool in grouped[tool].map { AIToolUsage(tool: tool, processes: $0) } }.sorted { $0.bytes > $1.bytes }
     }
 }
 public struct AIToolUsage: Identifiable, Sendable {

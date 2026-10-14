@@ -16,10 +16,15 @@ struct DonyProfileView: View {
                             .font(Theme.font(14)).foregroundStyle(Theme.secondary)
                     }
                     Spacer(minLength: 12)
-                    Link(destination: URL(string: "https://www.linkedin.com/in/donghun-kim94/")!) {
-                        HStack(spacing: 7) { DonyIcon("linkedin", size: 18); Text("LinkedIn") }
-                            .frame(width: Theme.actionWidth - 24)
-                    }.buttonStyle(QuietButton()).help("Dony의 LinkedIn 프로필 열기")
+                    HStack(spacing: 8) {
+                        Link(destination: URL(string: "https://www.linkedin.com/in/donghun-kim94/")!) {
+                            HStack(spacing: 7) { DonyIcon("linkedin", size: 18); Text("LinkedIn") }
+                                .frame(width: Theme.actionWidth - 24)
+                        }.buttonStyle(QuietButton()).help("Dony의 LinkedIn 프로필 열기")
+                        Link(destination: URL(string: "mailto:winking116@gmail.com")!) {
+                            Image(systemName: "envelope.fill").font(.system(size: 16)).frame(width: 18)
+                        }.buttonStyle(QuietButton()).help("winking116@gmail.com으로 메일 보내기").accessibilityLabel("Dony에게 메일 보내기")
+                    }
                 }
                 VStack(alignment: .leading, spacing: 14) {
                     Text("안녕하세요, 도니예요.").font(Theme.font(16, weight: .semibold))

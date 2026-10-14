@@ -13,7 +13,6 @@ extension AppModel {
         }
         return mapping
     }
-    var aiUsage: [AIToolUsage] { AITool.usage(snapshot.processes, currentUID: getuid(), applicationTools: aiApplicationTools) }
     var selectedProjects: [LinkedProject] { linkedProjects.filter { $0.enabled && (projectSource == "모두" || $0.discovered == (projectSource == "작업 이력")) } }
     func connectInstalledTools() {
         connectedTools.formUnion(Set(AITool.allCases.filter { DevelopmentRuntime.installed($0) }).union(aiUsage.map(\.tool)))

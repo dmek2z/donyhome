@@ -146,6 +146,13 @@ struct ClipboardSettingsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     switch category {
                     case "일반":
+                        if controller.pasteboardAccess != .allowed {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(controller.pasteboardAccess == .denied ? "복사 기록 저장이 막혀 있어요" : "복사할 때마다 허용 확인이 떠요").font(Theme.font(14, weight: .semibold)).foregroundStyle(Theme.amber)
+                                Text(ClipboardController.pasteboardDeniedMessage).font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                                DonyTextAction(title: "설정 열기") { controller.openPasteboardSettings() }
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Theme.amber.opacity(0.1)).clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                         Toggle("로그인할 때 도니홈 실행", isOn: $loginEnabled).toggleStyle(DonySwitch()).onChange(of: loginEnabled) { _, value in do { if value { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { loginEnabled = SMAppService.mainApp.status == .enabled; controller.status = error.localizedDescription } }
                         Divider()
                         Toggle("빠른 창 단축키", isOn: $controller.preferences.hotkeyEnabled).toggleStyle(DonySwitch())

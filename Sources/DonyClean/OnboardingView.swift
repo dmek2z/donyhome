@@ -41,11 +41,65 @@ struct OnboardingView: View {
     }
     private var otherTools: [AITool] { AITool.selectable.filter { !detectedTools.contains($0) } }
     private var projectPaths: [String] { Array(Set(model.linkedProjects.map(\.path))).sorted() }
-    private func projectEnabled(_ path: String) -> Binding<Bool> {
-        Binding(get: { model.linkedProjects.contains { $0.path == path && $0.enabled } }, set: { enabled in
-            for index in model.linkedProjects.indices where model.linkedProjects[index].path == path { model.linkedProjects[index].enabled = enabled }
-            model.saveProjectSettings()
-        })
+    @State private var projectQuery = ""
+    @State private var showExclude = (Bundle.main.object(forInfoDictionaryKey: "DonyReviewFixture") as? String)?.hasSuffix("x") == true
+    private func toolLinks(_ tool: AITool, filtered: Bool = true) -> [LinkedProject] {
+        let query = projectQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        var seen = Set<String>()
+        return model.linkedProjects.filter { $0.tool == tool && seen.insert($0.path).inserted && (!filtered || query.isEmpty || $0.path.lowercased().contains(query)) }.sorted { $0.path < $1.path }
+    }
+    private func setLinks(_ tool: AITool, path: String? = nil, enabled: Bool) {
+        for index in model.linkedProjects.indices where model.linkedProjects[index].tool == tool && (path == nil || model.linkedProjects[index].path == path) { model.linkedProjects[index].enabled = enabled }
+        model.saveProjectSettings()
+    }
+    private func linkEnabled(_ tool: AITool, _ path: String) -> Binding<Bool> {
+        Binding(get: { model.linkedProjects.contains { $0.tool == tool && $0.path == path && $0.enabled } }, set: { setLinks(tool, path: path, enabled: $0) })
+    }
+    private func toolEnabled(_ tool: AITool) -> Binding<Bool> {
+        Binding(get: { let all = toolLinks(tool, filtered: false); return !all.isEmpty && all.allSatisfy { link in model.linkedProjects.contains { $0.tool == tool && $0.path == link.path && $0.enabled } } }, set: { setLinks(tool, enabled: $0) })
+    }
+    private var syncedProjectCount: Int { Set(model.linkedProjects.filter(\.enabled).map(\.path)).count }
+    private var excludePanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(.easeInOut(duration: 0.15)) { showExclude.toggle() } } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("정리에서 제외할 프로젝트").font(Theme.font(16, weight: .semibold))
+                        Text("\(syncedProjectCount)개가 정리 대상이에요. 빼고 싶은 프로젝트만 체크를 끄세요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    }
+                    Spacer(minLength: 12)
+                    Text(showExclude ? "접기" : "고르기").font(Theme.font(13, weight: .medium)).foregroundStyle(Theme.primary)
+                    DonyIcon("chevron.right", size: 12).foregroundStyle(Theme.primary).rotationEffect(.degrees(showExclude ? 90 : 0))
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("정리에서 제외할 프로젝트 " + (showExclude ? "접기" : "고르기"))
+            if showExclude {
+                DonySearchField(placeholder: "프로젝트 이름·경로 검색", text: $projectQuery).padding(.top, 16)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(model.connectedTools.sorted { $0.title < $1.title }.filter { !toolLinks($0).isEmpty }) { tool in
+                            HStack(spacing: 10) {
+                                Toggle("\(tool.title) 전체", isOn: toolEnabled(tool)).toggleStyle(DonyCheckbox()).labelsHidden()
+                                ToolIcon(tool: tool, size: 24)
+                                Text(tool.title).font(Theme.font(14, weight: .semibold))
+                                Text("\(toolLinks(tool, filtered: false).count)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                                Spacer()
+                            }.frame(height: 48).padding(.top, 6)
+                            ForEach(toolLinks(tool)) { link in
+                                Divider()
+                                HStack(spacing: 12) {
+                                    Toggle("정리 대상 " + URL(fileURLWithPath: link.path).lastPathComponent, isOn: linkEnabled(tool, link.path)).toggleStyle(DonyCheckbox()).labelsHidden()
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(URL(fileURLWithPath: link.path).lastPathComponent).font(Theme.font(13, weight: .medium)).lineLimit(1)
+                                        Text(link.path).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(link.path)
+                                    }
+                                    Spacer()
+                                }.frame(height: 52)
+                            }
+                        }
+                    }
+                }.frame(maxHeight: 340).padding(.top, 8)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
     }
     var body: some View {
         if model.introPage != nil { IntroView().environmentObject(model) } else { setupBody }
@@ -97,22 +151,7 @@ struct OnboardingView: View {
                             Text("마지막 작업 후 \(model.projectRetentionDays)일 동안 활동이 없으면 빌드·캐시를 정리 후보로 추천해요. 정리한 파일은 휴지통으로 가요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                             DonyChoices(options: ["3일", "7일", "14일", "30일"], selection: Binding(get: { "\(model.projectRetentionDays)일" }, set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14; model.saveProjectSettings() }))
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
-                        DisclosureGroup("정리에서 제외할 프로젝트 직접 선택") {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text("체크 해제한 프로젝트는 정리하지 않아요").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.vertical, 12)
-                                ForEach(projectPaths, id: \.self) { path in
-                                    Divider()
-                                    HStack(spacing: 12) {
-                                        Toggle("정리 대상 " + URL(fileURLWithPath: path).lastPathComponent, isOn: projectEnabled(path)).toggleStyle(DonyCheckbox()).labelsHidden()
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(URL(fileURLWithPath: path).lastPathComponent).font(Theme.font(13, weight: .medium)).lineLimit(1)
-                                            Text(path).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(path)
-                                        }
-                                        Spacer()
-                                    }.frame(height: Theme.listRowHeight)
-                                }
-                            }
-                        }.font(Theme.font(13, weight: .medium)).tint(Theme.secondary)
+                        excludePanel
                     case 0:
                         HStack {
                             Text("권한 \(totalPermissions)개 중 \(allowedPermissions)개 허용됨").font(Theme.font(14, weight: .semibold)).foregroundStyle(allowedPermissions == totalPermissions ? Theme.success : Theme.body)
@@ -160,6 +199,7 @@ struct OnboardingView: View {
                 if value == 1 { scanTools() }
                 if value == 2, !model.busy { model.projectSource = "모두"; model.saveProjectSettings(); model.saveConnectedTools(); model.discoverProjects(includeInventory: false) }
             }
+            .onChange(of: model.busy) { _, busy in if !busy && model.setupStep == 2 { model.enableDiscoveredProjectsOnce() } }
             .onChange(of: model.notifyEnabled) { _, _ in model.refreshToolConnections() }
     }
     private func summaryRow(_ title: String, _ value: String, done: Bool) -> some View {

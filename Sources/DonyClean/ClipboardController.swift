@@ -116,7 +116,10 @@ final class ClipboardPanel: NSPanel {
         currentCopiedItemID = nil; copiedChangeCount = nil
         dismissPopup()
         if ignoreNextCopy { ignoreNextCopy = false; captureSession.synchronize(); return }
-        guard let item = captureSession.poll(preferences: preferences) else { return }
+        guard let item = captureSession.poll(preferences: preferences) else {
+            if pasteboardAccess == .denied { status = Self.pasteboardDeniedMessage }
+            return
+        }
         accept(item)
     }
     private func accept(_ item: ClipboardItem) {
@@ -267,6 +270,16 @@ final class ClipboardPanel: NSPanel {
         }
         return true
     }
+    enum PasteboardAccess { case allowed, ask, denied }
+    /// macOS 15.4+의 「다른 앱에서 붙여넣기」 설정. 꺼져 있으면 복사한 내용을 읽지 못해 기록이 쌓이지 않는다.
+    var pasteboardAccess: PasteboardAccess {
+        if #available(macOS 15.4, *) {
+            switch pasteboard.accessBehavior { case .alwaysDeny: return .denied; case .ask: return .ask; default: return .allowed }
+        }
+        return .allowed
+    }
+    static let pasteboardDeniedMessage = "다른 앱에서 붙여넣기가 꺼져 있어 복사 기록을 저장할 수 없어요. 시스템 설정 → 개인정보 보호 및 보안 → 다른 앱에서 붙여넣기에서 도니홈을 허용해 주세요."
+    func openPasteboardSettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Pasteboard")!) }
     func requestAccessibility() { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
     func paste(_ item: ClipboardItem, plainText: Bool = false) {
         guard copy(item, plainText: plainText) else { return }

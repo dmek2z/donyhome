@@ -28,6 +28,13 @@ extension AppModel {
             }
         }
     }
+    /// 처음 연동할 때 도구에서 찾은 프로젝트를 모두 정리 대상으로 켠다(이후 사용자가 끈 항목은 존중). 한 번만 적용한다.
+    func enableDiscoveredProjectsOnce() {
+        guard !UserDefaults.standard.bool(forKey: "projectsDefaultSynced"), !linkedProjects.isEmpty else { return }
+        for index in linkedProjects.indices where linkedProjects[index].discovered { linkedProjects[index].enabled = true }
+        UserDefaults.standard.set(true, forKey: "projectsDefaultSynced")
+        saveProjectSettings()
+    }
     func completeOnboarding() {
         saveConnectedTools(); UserDefaults.standard.set(true, forKey: "onboardingCompleted")
         onboardingShown = false; section = .development

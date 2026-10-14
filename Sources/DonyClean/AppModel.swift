@@ -133,6 +133,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var toolStatuses: [AITool: String] = [:]
     @Published var notificationStatus = "확인 중"
     @Published var setupStep = 0
+    /// 도구별 실행 중 프로세스. 샘플링할 때 한 번만 계산해 화면은 저장된 값을 읽는다.
+    @Published private(set) var aiUsage: [AIToolUsage] = []
     /// 첫 설치 때 설정보다 먼저 보여주는 소개 페이지. nil이면 소개를 건너뛴 상태.
     @Published var introPage: Int? = FirstLaunchSetup.shouldShow() ? 0 : nil
     @Published var automaticCleanupEnabled = UserDefaults.standard.bool(forKey: "automaticCleanupEnabled")
@@ -197,10 +199,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func sample() {
         guard !sampling else { return }; sampling = true
         let sampler = sampler
+        let applicationTools = aiApplicationTools
         Task {
-            let value = await Task.detached(priority: .utility) { sampler.sample() }.value
+            let (value, usage) = await Task.detached(priority: .utility) { () -> (SystemSnapshot, [AIToolUsage]) in
+                let value = sampler.sample()
+                return (value, AITool.usage(value.processes, currentUID: getuid(), applicationTools: applicationTools))
+            }.value
             menuAnimator.update(cpu: value.cpuPercent, pressure: value.pressure)
-            snapshot = value; sampling = false; lastSample = Date()
+            aiUsage = usage; snapshot = value; sampling = false; lastSample = Date()
             if let cpu = value.cpuPercent { cpuHistory = Array((cpuHistory + [cpu]).suffix(60)) }
             if let memory = value.memoryPercent { memoryHistory = Array((memoryHistory + [memory]).suffix(60)) }
             checkOverload(value)
