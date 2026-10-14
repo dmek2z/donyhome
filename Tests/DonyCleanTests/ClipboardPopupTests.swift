@@ -139,6 +139,56 @@ import DonyCore
         #expect(f.0.copyShortcut("1"))
         #expect(f.1.string(forType: .string) == "copy immediately before opening")
     }
+    @Test func clearConfirmationReturnsWithoutHoldingAnApplicationModalLoop() throws {
+        let f = try controller(); defer { cleanup(f) }
+        var watchdogFired = false
+        let watchdog = Timer(timeInterval: 0.4, repeats: false) { _ in
+            MainActor.assumeIsolated { watchdogFired = true; NSApp.stopModal(withCode: .cancel) }
+        }
+        RunLoop.main.add(watchdog, forMode: .modalPanel)
+        defer { watchdog.invalidate() }
+        f.0.confirmClearAll()
+        #expect(!watchdogFired)
+        #expect(NSApp.modalWindow == nil)
+        #expect(f.0.items.count == 2)
+        let confirmation = try #require(f.0.clearConfirmationPanel)
+        f.0.confirmClearAll()
+        #expect(f.0.clearConfirmationPanel === confirmation)
+        f.0.showQuickSettings()
+        #expect(f.0.quickSettingsShown)
+        confirmation.cancelOperation(nil)
+        #expect(f.0.clearConfirmationPanel == nil)
+        #expect(f.0.items.count == 2)
+    }
+    @Test func acceptingTheNonblockingClearConfirmationDeletesOnlyFixtureHistory() throws {
+        let f = try controller(); defer { cleanup(f) }
+        f.0.setPinned(f.0.items[0])
+        #expect(f.0.copy(f.0.items[0]))
+        f.0.confirmClearAll()
+        let confirmation = try #require(f.0.clearConfirmationPanel)
+        confirmation.resolve(true)
+        #expect(f.0.items.isEmpty)
+        #expect(f.0.clearConfirmationPanel == nil)
+        #expect(try ClipboardStore(url: f.2.appendingPathComponent("history.json")).load().isEmpty)
+        #expect(f.1.string(forType: .string) == nil)
+        #expect((f.1.pasteboardItems ?? []).isEmpty)
+        f.0.poll()
+        #expect(f.0.items.isEmpty)
+        #expect(!f.0.canClearAll)
+    }
+    @Test func clearAllCanRemoveASystemCopyEvenWithNoStoredHistoryAndCancelPreservesIt() throws {
+        let f = try controller(); defer { cleanup(f) }
+        f.0.clear(includePinned: true)
+        f.1.clearContents(); f.1.setString("unrecorded fixture", forType: .string)
+        #expect(f.0.canClearAll)
+        f.0.confirmClearAll()
+        try #require(f.0.clearConfirmationPanel).cancelOperation(nil)
+        #expect(f.1.string(forType: .string) == "unrecorded fixture")
+        f.0.confirmClearAll()
+        try #require(f.0.clearConfirmationPanel).resolve(true)
+        #expect(!f.0.canClearAll)
+        #expect(f.1.string(forType: .string) == nil)
+    }
     @Test func clearingAllIncludesPinsAndPersistsAnEmptyHistoryWithoutErasingTheSystemCopy() throws {
         let f = try controller(); defer { cleanup(f) }
         let pinned = f.0.quickItems[1]; f.0.setPinned(pinned)

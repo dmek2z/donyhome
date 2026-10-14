@@ -39,6 +39,7 @@ final class ClipboardPanel: NSPanel {
     private var handler: EventHandlerRef?
     private var panel: NSPanel?
     private var quickSettingsPanel: ClipboardPanel?
+    private(set) var clearConfirmationPanel: ConfirmationPanel?
     private var sourceApp: NSRunningApplication?
     private var activationObserver: NSObjectProtocol?
     private var pendingPaste: Task<Void, Never>?
@@ -58,6 +59,7 @@ final class ClipboardPanel: NSPanel {
     var pinnedItems: [ClipboardItem] { ClipboardHistory.sorted(items, by: preferences.sort, pinsAtBottom: preferences.pinsAtBottom).filter(\.pinned) }
     var accessibilityAllowed: Bool { AXIsProcessTrusted() }
     var needsRecovery: Bool { !storeWritable }
+    var canClearAll: Bool { !items.isEmpty || !(pasteboard.types ?? []).isEmpty }
     init(pasteboard: NSPasteboard = .general, storeURL: URL? = nil, defaults: UserDefaults = .standard, popup: ClipboardPanel? = nil) {
         self.pasteboard = pasteboard; self.defaults = defaults; self.panel = popup
         captureSession = ClipboardCaptureSession(pasteboard: pasteboard, application: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
@@ -96,6 +98,9 @@ final class ClipboardPanel: NSPanel {
     }
     func stop() {
         cancelShortcutRecording()
+        clearConfirmationPanel?.completion = nil
+        clearConfirmationPanel?.contentView = nil
+        clearConfirmationPanel?.close(); clearConfirmationPanel = nil
         if preferences.behavior?.clearOnQuit == true { clear(includePinned: true) }
         if preferences.behavior?.clearSystemOnQuit == true { pasteboard.clearContents() }
         timer?.invalidate(); timer = nil
@@ -169,13 +174,20 @@ final class ClipboardPanel: NSPanel {
         persist()
     }
     func confirmClearAll() {
-        guard !items.isEmpty else { return }
+        if let existing = clearConfirmationPanel { existing.makeKeyAndOrderFront(nil); return }
+        guard canClearAll else { return }
         let reopen = panel?.isVisible == true
         dismissPopup()
-        if ConfirmationDialog.show(title: "전체 기록을 지울까요?", message: "고정한 항목을 포함해 클립보드 기록 \(items.count)개를 지워요. 지운 기록은 복구할 수 없어요.", action: "전체 지우기", destructive: true, paths: []) {
-            clear(includePinned: true)
+        clearConfirmationPanel = ConfirmationDialog.present(title: "클립보드를 전부 비울까요?", message: "고정한 항목을 포함한 기록 \(items.count)개와 현재 복사된 내용을 지워요. 지운 기록은 복구할 수 없어요.", action: "전체 지우기", destructive: true, paths: []) { [weak self] accepted in
+            guard let self else { return }
+            self.clearConfirmationPanel = nil
+            if accepted {
+                self.pasteboard.clearContents()
+                self.captureSession.synchronize()
+                self.clear(includePinned: true)
+            }
+            if reopen { self.showPopup() }
         }
-        if reopen { showPopup() }
     }
     func resetUnreadableStore() {
         do {

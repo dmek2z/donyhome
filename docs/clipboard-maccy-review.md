@@ -1,4 +1,4 @@
-# Clipboard flow ·2.3.3
+# Clipboard flow ·2.3.5
 
 Reference: https://github.com/p0deje/Maccy at fe0d74d2a622bdadb6513b8bf8fe4aeb0609f6f2. Reviewed FloatingPanel.swift, Observables/Popup.swift, Observables/History.swift, Observables/AppState.swift, Views/KeyHandlingView.swift and README usage. Existing clipboard capture/format handling attribution and MIT license remain bundled.
 
@@ -43,3 +43,16 @@ CUA numbered/direction-key attempts during this check returned focus to the main
 The quick-popup footer now exposes a direct 전체 지우기 button, disabled for empty history. The main management action uses the same confirmation flow. Confirmation shows the complete history count, includes pinned entries and states that deletion cannot be undone. A popup is temporarily hidden for confirmation and rebuilt afterward; cancellation does not modify history. Clearing resets the paste queue/current marker/search as needed, persists empty history and preserves the system pasteboard bytes.
 
 Verification: popup14 tests (including persisted full deletion with a pin/current copy and preservation of pinned-only clearing), design5 tests,2.3.4/build22 release/signature/ZIP/installed binary verification passed. Installed app reported2.3.4; native confirmation rendered the25-record count, irreversible warning and Cancel/Delete buttons in the common style. Personal history deletion was not executed by the agent; deletion is tested only on private fixtures. Other physical Macs were not checked.
+
+
+## 2.3.5: blocked button actions and complete clipboard clearing
+
+Reproduction in the installed2.3.4 app found the clear confirmation still present and its Cancel/button actions unable to complete. A main-thread sample showed the original mouse-up action retained inside SwiftUICore Update.dispatchActions → SwiftUI ButtonAction → ClipboardController.confirmClearAll → NSApplication.runModal. Running that nested modal loop before the SwiftUI button/update transaction returned kept later SwiftUI actions queued. Accessor/modal-admission assertions and the previous displayed-confirmation check did not catch that failure.
+
+Clipboard clear confirmation now uses a retained callback-based panel, returning immediately from the original action. It does not enter an application modal loop. Repeated opening brings the existing panel forward; completion resolves at most once; shutdown disposes it without executing deletion. The common confirmation appearance and Cancel default are retained. Existing non-clipboard synchronous confirmation callers are unchanged by this scoped correction.
+
+The user clarified that complete clearing must remove the existing clipboard. On acceptance, the action clears the system pasteboard, synchronizes capture so empty contents cannot be recaptured, deletes all stored/pinned history and resets queue/current/search state. Empty history with a remaining system copy can also be cleared. Cancellation preserves both history and system contents. The history-only internal/quit preference path retains its separate existing semantics.
+
+Regression evidence: the original blocking-confirmation test failed when its modal watchdog had to stop the application loop, then passed with the asynchronous presenter. A system-clearing test failed because the previous implementation retained the text and pasteboard item, then passed. Final popup17 tests passed, covering nonblocking presentation, single confirmation ownership, cancellation, pinned history persistence, system clearing, empty history with an unrecorded copy, state invalidation and hosted numbered key events. Design5 policy tests and release2.3.5/build23 build/signature passed.
+
+Final installed app: clicked the quick-popup Whole Clear button and observed the new confirmation describing all25 stored entries plus current copied contents. Cancel returned to the popup; Settings then opened its independent window; Done closed it. Original history IDs remained present. These checks used native CUA element clicks; coordinate-click attempts were rejected with noWindowsAvailable and are not claimed as pointer-coordinate verification. Actual deletion was exercised only against private test pasteboards/stores; no personal history deletion was performed by the agent. Other physical Macs and unrelated cleanup-modal flows were not checked.

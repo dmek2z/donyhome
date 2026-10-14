@@ -22,7 +22,7 @@ struct ClipboardView: View {
                     Button("다음 복사 한 번 무시") { controller.ignoreNextCopy = true }
                     Divider()
                     Button("고정하지 않은 기록 지우기") { controller.clear() }
-                    Button("전체 지우기…", role: .destructive) { controller.confirmClearAll() }.disabled(controller.items.isEmpty)
+                    Button("전체 지우기…", role: .destructive) { controller.confirmClearAll() }.disabled(!controller.canClearAll)
                 }
             }.frame(height: 42)
             HStack(spacing: 12) {
@@ -261,7 +261,7 @@ struct ClipboardQuickView: View {
                     Button("설정") { controller.showQuickSettings() }.buttonStyle(QuietButton())
                     Spacer()
                     Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                    Button("전체 지우기", role: .destructive) { controller.confirmClearAll() }.buttonStyle(QuietButton()).disabled(controller.items.isEmpty)
+                    Button("전체 지우기", role: .destructive) { controller.confirmClearAll() }.buttonStyle(QuietButton()).disabled(!controller.canClearAll)
                     DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } }
                 }
             }
