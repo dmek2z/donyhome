@@ -187,7 +187,7 @@ struct ClipboardSettingsView: View {
                         DonyChoices(options: ["앱", "클립보드 타입", "정규식"], selection: $exclusion)
                         if exclusion == "앱" {
                             TextEditor(text: listBinding(\.ignoredApps)).frame(height: 180).padding(8).background(Theme.canvas)
-                            HStack { Text("bundle identifier · 한 줄에 하나").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer(); Button("앱 추가") { addExcludedApp() }.buttonStyle(QuietButton()) }
+                            HStack { Text("bundle identifier · 한 줄에 하나").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer(); Button("앱 추가") { Task { await addExcludedApp() } }.buttonStyle(QuietButton()) }
                             Toggle("목록의 앱만 기록", isOn: $controller.preferences.onlyListedApps).toggleStyle(DonySwitch())
                         } else if exclusion == "클립보드 타입" {
                             TextEditor(text: listBinding(\.ignoredTypes)).frame(height: 180).padding(8).background(Theme.canvas)
@@ -214,9 +214,9 @@ struct ClipboardSettingsView: View {
 
     @State private var pinEditing: ClipboardItem?
     @State private var pinText = ""
-    private func addExcludedApp() {
+    private func addExcludedApp() async {
         let picker = NSOpenPanel(); picker.canChooseDirectories = false; picker.canChooseFiles = true; picker.allowsMultipleSelection = true; picker.allowedContentTypes = [.application]; picker.directoryURL = URL(fileURLWithPath: "/Applications")
-        guard picker.runModal() == .OK else { return }
+        guard await OpenPanelPresenter.show(picker) else { return }
         for url in picker.urls { if let id = Bundle(url: url)?.bundleIdentifier, !controller.preferences.ignoredApps.contains(id) { controller.preferences.ignoredApps.append(id) } }
     }
 

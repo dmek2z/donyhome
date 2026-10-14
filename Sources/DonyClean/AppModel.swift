@@ -61,6 +61,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var memoryHistory: [Double] = []
     @Published var activity: ScanActivity?
     @Published var operationBusy = false
+    @Published private(set) var interactionPending = false
     @Published var operationLabel = "작업 처리 중…"
     @Published var scanEpoch = UUID()
     @Published var cleanup = ScanResult() { didSet { recommendationCache.removeAll() } }
@@ -143,7 +144,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     var projectScanScope: ProjectCleanupScope = .generated
 
     private let sampler = SystemSampler()
-    private let store = HistoryStore()
+    private let store: HistoryStore
     private var historyWritable = true
     private var token: ScanToken?
     private var timer: Timer?
@@ -152,21 +153,23 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     private var memoryHighSince: Date?
     private var lastNotice = Date.distantPast
     private var lastSample = Date.distantPast
-    var busy: Bool { activity != nil || operationBusy }
+    var busy: Bool { activity != nil || operationBusy || interactionPending || ConfirmationDialog.presentedPanel != nil }
     var movedBytes: Int64 { history.filter { $0.success && $0.kind == "휴지통 이동" }.reduce(0) { $0 + $1.bytes } }
     var pressureColor: Color {
         switch snapshot.pressure { case .normal: return Theme.success; case .warning: return Theme.amber; case .critical: return Theme.red; case .unknown: return Theme.secondary }
     }
 
-    init() {
+    init(store: HistoryStore = HistoryStore(), automaticallySample: Bool = true) {
+        self.store = store
         // Retire legacy disk cleanup triggered by memory pressure.
-        UserDefaults.standard.set(false, forKey: "projectCleanupEnabled")
+        if automaticallySample { UserDefaults.standard.set(false, forKey: "projectCleanupEnabled") }
         if let path = UserDefaults.standard.string(forKey: "scanFolder") {
             let saved = URL(fileURLWithPath: path)
             if FileSafety.allowedRoot(saved, kind: .large) { folder = saved }
         }
         do { history = try store.load() }
         catch { historyWritable = false; banner = "이전 기록을 읽지 못했습니다. 기존 파일은 보존합니다: " + error.localizedDescription }
+        guard automaticallySample else { return }
         sample()
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -236,10 +239,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func openLoginSettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!) }
     func showFinder(_ url: URL) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
     func chooseFolder() {
+        Task { await chooseFolderAfterReview() }
+    }
+    private func chooseFolderAfterReview() async {
         guard !busy else { return }
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         panel.prompt = "이 폴더 검사"; panel.message = "큰 파일과 중복 파일을 찾을 폴더를 선택하세요."; panel.directoryURL = folder
-        if panel.runModal() == .OK, let url = panel.url {
+        let accepted = await pickFolder(panel)
+        if accepted, !busy, let url = panel.url {
             let resolved = url.resolvingSymlinksInPath()
             guard FileSafety.allowedRoot(resolved, kind: .large) else { banner = "시스템 폴더나 홈 전체 대신 다운로드·문서 같은 하위 폴더를 선택해 주세요."; return }
             UserDefaults.standard.set(resolved.path, forKey: "scanFolder")
@@ -305,7 +312,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                 automaticCleanupSummary = "자동 정리 기준을 통과한 파일이 없습니다." + (result.issues.isEmpty ? "" : " 확인하지 못한 항목 \(result.issues.count)개.")
                 return
             }
-            moveToTrash(plan.items, recommendedOnly: true, automatic: true, scanIssueCount: result.issues.count)
+            await moveToTrashAfterReview(plan.items, recommendedOnly: true, automatic: true, scanIssueCount: result.issues.count)
         }
     }
     func scanSmart() {
@@ -399,10 +406,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         return ProcessPolicy.canQuit(process, currentUID: getuid(), ownPID: getpid(), regularApplication: app.activationPolicy == .regular) && app.bundleIdentifier != Bundle.main.bundleIdentifier
     }
     func quit(_ process: ProcessReading, force: Bool = false) {
-        guard !operationBusy, canQuit(process), let app = NSRunningApplication(processIdentifier: process.pid) else { return }
+        Task { await quitAfterReview(process, force: force) }
+    }
+    private func quitAfterReview(_ process: ProcessReading, force: Bool = false) async {
+        guard !busy, canQuit(process), let app = NSRunningApplication(processIdentifier: process.pid) else { return }
         let title = force ? process.name + " 강제 종료" : process.name + " 종료"
         let body = force ? "저장하지 않은 작업이 사라질 수 있습니다. 이 앱을 강제로 종료할까요?" : "이 앱에 일반 종료를 요청합니다. 작업을 저장한 후 진행하세요. 저장 대화상자가 뜨면 앱에서 처리해 주세요."
-        guard confirm(title, message: body, action: force ? "강제 종료" : "종료 요청", destructive: force) else { return }
+        guard await confirm(title, message: body, action: force ? "강제 종료" : "종료 요청", destructive: force) else { return }
+        guard !busy else { return }
         do { try ProcessPolicy.verifyIdentity(process) }
         catch { banner = error.localizedDescription; return }
         guard canQuit(process) else { banner = DonyError.protectedProcess.localizedDescription; return }
@@ -419,10 +430,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     }
 
     func quitSelected(_ processes: [ProcessReading]) {
+        Task { await quitSelectedAfterReview(processes) }
+    }
+    private func quitSelectedAfterReview(_ processes: [ProcessReading]) async {
         guard !busy, !processes.isEmpty else { return }
         let eligible = processes.filter { canQuit($0) }
         guard !eligible.isEmpty else { banner = "종료 가능한 앱이 없습니다."; return }
-        guard confirm("선택한 앱 \(eligible.count)개 종료", message: "사용하지 않는 앱인지 확인하고 작업을 저장해 주세요. 일반 종료를 요청하며 저장 창이 뜨면 해당 앱에서 처리해 주세요.", action: "종료 요청", destructive: true, paths: eligible.map { $0.name + " · PID \($0.pid)" }) else { return }
+        guard await confirm("선택한 앱 \(eligible.count)개 종료", message: "사용하지 않는 앱인지 확인하고 작업을 저장해 주세요. 일반 종료를 요청하며 저장 창이 뜨면 해당 앱에서 처리해 주세요.", action: "종료 요청", destructive: true, paths: eligible.map { $0.name + " · PID \($0.pid)" }) else { return }
+        guard !busy else { return }
         let before = snapshot
         var records: [ActionRecord] = []
         for process in eligible {
@@ -444,10 +459,17 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     }
 
     func moveToTrash(_ candidates: [FileCandidate], originals: [String: FileCandidate] = [:], ownerBundleID: String? = nil, recommendedOnly: Bool = false, automatic: Bool = false, scanIssueCount: Int = 0) {
+        Task { await moveToTrashAfterReview(candidates, originals: originals, ownerBundleID: ownerBundleID, recommendedOnly: recommendedOnly, automatic: automatic, scanIssueCount: scanIssueCount) }
+    }
+    private func moveToTrashAfterReview(_ candidates: [FileCandidate], originals: [String: FileCandidate] = [:], ownerBundleID: String? = nil, recommendedOnly: Bool = false, automatic: Bool = false, scanIssueCount: Int = 0) async {
         guard !busy, !candidates.isEmpty else { return }
         guard !automatic || (recommendedOnly && candidates.allSatisfy { ($0.kind == .cache || $0.kind == .log) && $0.fingerprint.isRegular }) else { return }
+        let reviewEpoch = scanEpoch; let reviewDays = projectRetentionDays
         let body = "선택한 \(candidates.count)개 항목 · \(DisplayFormat.bytes(candidates.reduce(0) { $0 + $1.bytes }))\n휴지통을 비우기 전에는 저장 공간이 즉시 늘어나지 않습니다." + (candidates.contains { $0.kind == .support } ? "\n관련 파일에는 설정과 사용자 데이터가 포함될 수 있습니다." : "")
-        if !automatic && !confirm("선택한 항목을 휴지통으로 이동", message: body, action: "휴지통으로 이동", destructive: true, paths: candidates.map { $0.url.path }) { return }
+        if !automatic {
+            guard await confirm("선택한 항목을 휴지통으로 이동", message: body, action: "휴지통으로 이동", destructive: true, paths: candidates.map { $0.url.path }) else { return }
+        }
+        guard !busy, scanEpoch == reviewEpoch, projectRetentionDays == reviewDays else { banner = "정리 기준이 바뀌었어요. 다시 검사해 주세요."; return }
         let spaceMeasurement = CleanupSpaceMeasurement()
         operationLabel = "선택한 항목을 다시 확인하고 이동하는 중…"
         operationBusy = true
@@ -523,8 +545,17 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         guard historyWritable else { return "기존 기록 파일에 문제가 있어 이번 기록은 앱 안에서만 유지합니다." }
         do { try store.save(history); return nil } catch { return "기록을 저장하지 못했습니다: " + error.localizedDescription }
     }
-    func confirm(_ title: String, message: String, action: String, destructive: Bool, paths: [String] = []) -> Bool {
-        ConfirmationDialog.show(title: title, message: message, action: action, destructive: destructive, paths: paths)
+    func pickFolder(_ panel: NSOpenPanel) async -> Bool {
+        guard !busy else { return false }
+        interactionPending = true
+        defer { interactionPending = false }
+        return await OpenPanelPresenter.show(panel)
+    }
+    func confirm(_ title: String, message: String, action: String, destructive: Bool, paths: [String] = []) async -> Bool {
+        guard !interactionPending else { return false }
+        interactionPending = true
+        defer { interactionPending = false }
+        return await ConfirmationDialog.show(title: title, message: message, action: action, destructive: destructive, paths: paths)
     }
     func showPermissionGuidance() { showPermissions(continueScan: true) }
 }

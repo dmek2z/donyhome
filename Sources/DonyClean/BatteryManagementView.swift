@@ -36,7 +36,7 @@ struct BatteryManagementView: View {
                 if battery.hasBattery && battery.supportedArchitecture {
                 if !battery.installed {
                     VStack(alignment: .leading, spacing: 12) {
-                        SettingsActionRow(title: "배터리 제어 도구", actionTitle: "설치 검토", enabled: battery.canInstall) { reviewInstallation() }
+                        SettingsActionRow(title: "배터리 제어 도구", actionTitle: "설치 검토", enabled: battery.canInstall) { Task { await reviewInstallation() } }
                         Text("검토한 battery 엔진을 이 앱 전용 위치에 설치합니다. macOS 관리자 인증이 필요하며, 기존 battery 도구가 있으면 설치를 중단합니다.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
                     }.panel()
                 }
@@ -80,13 +80,13 @@ struct BatteryManagementView: View {
                         Button("충전") { battery.execute(.charge(manualTarget), title: "목표까지 충전") }.buttonStyle(QuietButton()).disabled(!idle)
                         Button("방전") { battery.execute(.discharge(manualTarget), title: "목표까지 방전") }.buttonStyle(QuietButton()).disabled(!idle || !battery.adapterSupported)
                     }
-                    SettingsActionRow(title: "배터리 보정", actionTitle: "보정 검토", enabled: idle && battery.adapterSupported) { reviewCalibration() }
+                    SettingsActionRow(title: "배터리 보정", actionTitle: "보정 검토", enabled: idle && battery.adapterSupported) { Task { await reviewCalibration() } }
                     if let operation = battery.operation { HStack { ProgressView().controlSize(.small); Text(operation).font(Theme.font(13)) } }
                   }.padding(.top, 16)
                 }.font(Theme.font(16, weight: .semibold)).tint(Theme.secondary).panel()
                 if battery.installed {
                     VStack(alignment: .leading, spacing: 12) {
-                        SettingsActionRow(title: "배터리 제어 도구 제거", actionTitle: "제거 검토", enabled: idle) { reviewRemoval() }
+                        SettingsActionRow(title: "배터리 제어 도구 제거", actionTitle: "제거 검토", enabled: idle) { Task { await reviewRemoval() } }
                         Text("충전과 어댑터 공급을 복원한 뒤 앱 전용 도구·권한·유지 LaunchAgent를 제거합니다. 로그와 목표 설정은 보존합니다.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
                     }.panel()
                 }
@@ -104,20 +104,23 @@ struct BatteryManagementView: View {
         }.background(Theme.canvas)
             .onReceive(timer) { _ in battery.refresh() }
     }
-    @MainActor private func reviewInstallation() {
+    @MainActor private func reviewInstallation() async {
         let paths = [BatteryInstallation.directory + "/battery", BatteryInstallation.directory + "/smc", BatteryInstallation.directory + "/privileges.conf", BatteryInstallation.sudoers, NSHomeDirectory() + "/Library/LaunchAgents/kr.donyhome.battery.plist"]
-        if ConfirmationDialog.show(title: "배터리 제어 도구 설치", message: "포함된 오프라인 엔진과 SMC 도구를 root 소유로 설치합니다. 현재 사용자에게 지정된 17개 배터리 SMC 쓰기 명령만 암호 없이 허용합니다. 유지 시작 시 LaunchAgent가 재시동 뒤에도 설정을 적용합니다. 기존 도구는 덮어쓰지 않으며, 다음 단계에서 macOS 관리자 인증을 요청합니다.", action: "관리자 인증 후 설치", destructive: true, paths: paths) {
+        if await ConfirmationDialog.show(title: "배터리 제어 도구 설치", message: "포함된 오프라인 엔진과 SMC 도구를 root 소유로 설치합니다. 현재 사용자에게 지정된 17개 배터리 SMC 쓰기 명령만 암호 없이 허용합니다. 유지 시작 시 LaunchAgent가 재시동 뒤에도 설정을 적용합니다. 기존 도구는 덮어쓰지 않으며, 다음 단계에서 macOS 관리자 인증을 요청합니다.", action: "관리자 인증 후 설치", destructive: true, paths: paths) {
+            guard battery.canInstall else { return }
             battery.install()
         }
     }
-    @MainActor private func reviewCalibration() {
-        if ConfirmationDialog.show(title: "배터리 보정을 시작할까요?", message: "원본 순서: 15%까지 방전 → 100% 충전 → 1시간 유지 → 80%까지 방전 → 기존 유지 설정 복원. 여러 시간이 걸리며 어댑터가 연결되어 있어야 합니다. 중단 버튼으로 종료하고 충전을 복원할 수 있어요.", action: "보정 시작", destructive: true, paths: []) {
+    @MainActor private func reviewCalibration() async {
+        if await ConfirmationDialog.show(title: "배터리 보정을 시작할까요?", message: "원본 순서: 15%까지 방전 → 100% 충전 → 1시간 유지 → 80%까지 방전 → 기존 유지 설정 복원. 여러 시간이 걸리며 어댑터가 연결되어 있어야 합니다. 중단 버튼으로 종료하고 충전을 복원할 수 있어요.", action: "보정 시작", destructive: true, paths: []) {
+            guard idle, battery.adapterSupported else { return }
             battery.execute(.calibrate, title: "배터리 보정")
         }
     }
-    @MainActor private func reviewRemoval() {
+    @MainActor private func reviewRemoval() async {
         let paths = [BatteryInstallation.directory + "/battery", BatteryInstallation.directory + "/smc", BatteryInstallation.directory + "/privileges.conf", BatteryInstallation.sudoers, NSHomeDirectory() + "/Library/LaunchAgents/kr.donyhome.battery.plist"] + ["battery.pid", "operation.pid", "calibrate.pid"].map { NSHomeDirectory() + "/.donyhome-battery/" + $0 }
-        if ConfirmationDialog.show(title: "배터리 제어 도구를 제거할까요?", message: "먼저 유지·방전을 중단하고 충전과 어댑터 공급 복원을 확인합니다. 그다음 macOS 관리자 인증으로 아래 도니홈 전용 파일과 SMC 권한을 제거합니다. 인증을 취소해도 충전 복원 상태는 유지됩니다. 로그·목표 설정과 다른 battery 설치는 보존합니다.", action: "충전 복원 후 제거", destructive: true, paths: paths) {
+        if await ConfirmationDialog.show(title: "배터리 제어 도구를 제거할까요?", message: "먼저 유지·방전을 중단하고 충전과 어댑터 공급 복원을 확인합니다. 그다음 macOS 관리자 인증으로 아래 도니홈 전용 파일과 SMC 권한을 제거합니다. 인증을 취소해도 충전 복원 상태는 유지됩니다. 로그·목표 설정과 다른 battery 설치는 보존합니다.", action: "충전 복원 후 제거", destructive: true, paths: paths) {
+            guard idle else { return }
             battery.uninstall()
         }
     }

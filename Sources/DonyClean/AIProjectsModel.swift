@@ -30,10 +30,13 @@ extension AppModel {
     }
     func addProject(tool: AITool) { addProjects(tools: [tool]) }
     func addProjects(tools: Set<AITool>) {
+        Task { await addProjectsAfterReview(tools: tools) }
+    }
+    private func addProjectsAfterReview(tools: Set<AITool>) async {
         guard !busy, !tools.isEmpty else { return }
         let picker = NSOpenPanel(); picker.canChooseDirectories = true; picker.canChooseFiles = false; picker.allowsMultipleSelection = true
         picker.prompt = "프로젝트 연결"; picker.message = "프로젝트 폴더 선택"
-        guard picker.runModal() == .OK else { return }
+        guard await pickFolder(picker), !busy else { return }
         for url in picker.urls {
             do {
                 let root = try ProjectCleanup.projectRoot(url.path)
@@ -119,6 +122,9 @@ extension AppModel {
         }
     }
     func runProjectCleanup() {
+        Task { await runProjectCleanupAfterReview() }
+    }
+    private func runProjectCleanupAfterReview() async {
         guard !busy, !projectScan.cancelled, !projectScan.items.isEmpty, projectScanDate != nil else { return }
         let enabledIDs = Set(selectedProjects.map(\.id))
         guard projectScanScope == projectCleanupScope, projectScanDays == projectRetentionDays, projectScanRequiresRemoteBackup == projectRequireRemoteBackup,
@@ -126,7 +132,8 @@ extension AppModel {
             banner = "정리 대상 또는 설정이 바뀌었어요. 다시 검사해 주세요."; return
         }
         let items = projectScan.items; let links = projectScanLinks; let allLinks = linkedProjects; let days = projectScanDays; let scope = projectScanScope; let requireRemote = projectScanRequiresRemoteBackup
-        if !confirm("AI 프로젝트 정리", message: (scope == .wholeProject && !requireRemote ? "원격 저장 여부와 관계없이 로컬 코드·파일을 정리합니다.\n" : "") + "\(days)일 이상 업데이트되지 않은 \(items.count)개 항목의 \(scope.title)를 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id)) { return }
+        if !(await confirm("AI 프로젝트 정리", message: (scope == .wholeProject && !requireRemote ? "원격 저장 여부와 관계없이 로컬 코드·파일을 정리합니다.\n" : "") + "\(days)일 이상 업데이트되지 않은 \(items.count)개 항목의 \(scope.title)를 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id))) { return }
+        guard !busy, projectScanDays == projectRetentionDays, scope == projectCleanupScope, requireRemote == projectRequireRemoteBackup, links.allSatisfy({ Set(selectedProjects.map(\.id)).contains($0.id) }) else { banner = "정리 대상 또는 설정이 바뀌었어요. 다시 검사해 주세요."; return }
         let spaceMeasurement = CleanupSpaceMeasurement()
         operationBusy = true; operationLabel = "프로젝트 상태를 다시 확인하고 이동하는 중…"
         Task {

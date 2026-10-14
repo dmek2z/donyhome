@@ -12,3 +12,4 @@ jobs:
           python-version: '3.x'
       - run: python scripts/check-design-rules.py
       - run: python scripts/test-design-rules.py
+      - run: python scripts/check-ui-actions.py

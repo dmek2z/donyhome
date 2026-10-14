@@ -32,11 +32,15 @@ extension AppModel {
         performanceTool = tool; section = .performance
     }
     func cleanToolStorage(_ ids: Set<String>) {
+        Task { await cleanToolStorageAfterReview(ids) }
+    }
+    private func cleanToolStorageAfterReview(_ ids: Set<String>) async {
         guard !busy, toolStorageCurrent else { banner = "도구 또는 보관 기간이 바뀌었어요. 다시 검사해 주세요."; return }
         let items = toolStorage.eligible.filter { ids.contains($0.id) }
         guard !items.isEmpty, items.count == ids.count else { return }
         let bytes = items.reduce(0) { $0 + $1.candidate.bytes }
-        guard confirm("개발 도구 캐시·로그 정리", message: "\(items.count)개 · \(DisplayFormat.bytes(bytes))를 휴지통으로 이동합니다. 대화·인증·프로젝트 원본은 제외하며 실행 중인 도구는 다시 확인합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id)) else { return }
+        guard await confirm("개발 도구 캐시·로그 정리", message: "\(items.count)개 · \(DisplayFormat.bytes(bytes))를 휴지통으로 이동합니다. 대화·인증·프로젝트 원본은 제외하며 실행 중인 도구는 다시 확인합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id)) else { return }
+        guard !busy, toolStorageCurrent else { banner = "정리 기준이 바뀌었어요. 다시 검사해 주세요."; return }
         let days = toolStorageDays
         let measurement = CleanupSpaceMeasurement()
         operationBusy = true; operationLabel = "개발 도구 상태를 다시 확인하는 중…"

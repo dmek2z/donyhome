@@ -52,6 +52,7 @@ import DonyCore
         Theme.registerFonts()
         #if DEBUG
         if ClipboardUIFixture.runIfRequested() { return }
+        if ActionUIFixture.runIfRequested() { return }
         #endif
         DonyHomeApp.main()
     }
@@ -68,7 +69,7 @@ struct DonyHomeApp: App {
             .commands {
                 CommandGroup(replacing: .appSettings) { Button("도니홈 설정…") { model.preferencesShown = true }.keyboardShortcut(",") }
                 CommandGroup(after: .newItem) {
-                    Button("전체 검사") { model.scanSmart() }.keyboardShortcut("r")
+                    Button("전체 검사") { model.scanSmart() }.keyboardShortcut("r").disabled(model.busy)
                     Button("클립보드 빠르게 열기") { clipboard.showPopup() }
                 }
             }

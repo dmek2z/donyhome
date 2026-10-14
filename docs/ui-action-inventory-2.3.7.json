@@ -1,0 +1,1027 @@
+[
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 24,
+    "source": "Button(\"프로젝트 관리\") { model.developmentMode = \"프로젝트\" }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 30,
+    "source": "Button(\"프로젝트 검사\") { model.discoverProjects() }.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 43,
+    "source": "HStack { Spacer(); Button(\"휴지통으로 이동\") { model.runProjectCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy || model.projectScan.cancelled) }"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 67,
+    "source": "Button(\"연동 확인\") { model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 72,
+    "source": "Button(\"자동 연결\") { model.connectInstalledTools(); projectTools = model.connectedTools }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 101,
+    "source": "Button(\"전체 선택\") { projectTools = Set(AITool.allCases) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.primary)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 102,
+    "source": "Button(\"선택 해제\") { projectTools.removeAll() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 107,
+    "source": "Button(\"폴더 연결\") { model.addProjects(tools: projectTools) }.buttonStyle(QuietButton()).disabled(model.busy || projectTools.isEmpty)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 108,
+    "source": "if model.projectSource != \"직접 등록\" { Button(\"작업 이력에서 찾기\") { model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy) }"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 117,
+    "source": "Button(\"−\") { model.projectRetentionDays = max(1, model.projectRetentionDays - 1) }.buttonStyle(QuietButton()).disabled(model.busy || model.projectRetentionDays == 1)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 122,
+    "source": "Button(\"+\") { model.projectRetentionDays = min(3650, model.projectRetentionDays + 1) }.buttonStyle(QuietButton()).disabled(model.busy || model.projectRetentionDays == 3650)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 145,
+    "source": "DonyTextAction(title: projects.contains { $0.enabled } ? \"선택 해제\" : \"전체 선택\") {"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 148,
+    "source": "Button(\"정리 대상 확인\") { model.scanAIProjects() }.buttonStyle(QuietButton()).disabled(model.busy || model.selectedProjects.isEmpty)"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 180,
+    "source": "Button { focusedProjectPath = path } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 212,
+    "source": "Button(\"Finder에서 보기\") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path) }"
+  },
+  {
+    "file": "Sources/DonyClean/AIProjectsView.swift",
+    "line": 213,
+    "source": "Button(\"연결 해제\") { model.linkedProjects.removeAll { $0.path == path }; model.saveProjectSettings() }"
+  },
+  {
+    "file": "Sources/DonyClean/AboutView.swift",
+    "line": 16,
+    "source": "HStack { Text(\"도니홈 정보\").font(Theme.font(22, weight: .bold)); Spacer(); Button(\"완료\") { dismiss() }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/ApplicationsView.swift",
+    "line": 21,
+    "source": "Button(\"새로고침\") { model.scanApplications() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ApplicationsView.swift",
+    "line": 30,
+    "source": "Button { model.inspect(app) } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/ApplicationsView.swift",
+    "line": 58,
+    "source": "SelectionBar(selected: selected) { model.moveToTrash(selected, ownerBundleID: app.bundleID) }.disabled(appRunning)"
+  },
+  {
+    "file": "Sources/DonyClean/AutomaticCleanupView.swift",
+    "line": 7,
+    "source": "SettingsActionRow(title: \"자동 정리\", actionTitle: \"지금 정리\", enabled: !model.busy) { model.runAutomaticCleanup() }"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 33,
+    "source": "Button(\"새로고침\") { battery.refresh() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 39,
+    "source": "SettingsActionRow(title: \"배터리 제어 도구\", actionTitle: \"설치 검토\", enabled: battery.canInstall) { Task { await reviewInstallation() } }"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 64,
+    "source": "Button(\"유지 시작\") {"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 67,
+    "source": "}.buttonStyle(PrimaryButton()).disabled(!idle)"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 74,
+    "source": "SettingsActionRow(title: \"유지 · 진행 중 작업 중단\", actionTitle: \"중단\", enabled: battery.canControl) { battery.execute(.stop, title: \"중단 및 충전 복원\") }"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 80,
+    "source": "Button(\"충전\") { battery.execute(.charge(manualTarget), title: \"목표까지 충전\") }.buttonStyle(QuietButton()).disabled(!idle)"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 81,
+    "source": "Button(\"방전\") { battery.execute(.discharge(manualTarget), title: \"목표까지 방전\") }.buttonStyle(QuietButton()).disabled(!idle || !battery.adapterSupported)"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 83,
+    "source": "SettingsActionRow(title: \"배터리 보정\", actionTitle: \"보정 검토\", enabled: idle && battery.adapterSupported) { Task { await reviewCalibration() } }"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 89,
+    "source": "SettingsActionRow(title: \"배터리 제어 도구 제거\", actionTitle: \"제거 검토\", enabled: idle) { Task { await reviewRemoval() } }"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 98,
+    "source": "Button(\"소스 · 라이선스 폴더 열기\") {"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 100,
+    "source": "}.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 133,
+    "source": "Button(\"켜기\") { battery.execute(on, title: \"\\(title) 켜기\") }.buttonStyle(QuietButton()).disabled(!enabled)"
+  },
+  {
+    "file": "Sources/DonyClean/BatteryManagementView.swift",
+    "line": 134,
+    "source": "Button(\"끄기\") { battery.execute(off, title: \"\\(title) 끄기\") }.buttonStyle(QuietButton()).disabled(!enabled)"
+  },
+  {
+    "file": "Sources/DonyClean/CleanupView.swift",
+    "line": 23,
+    "source": "DonyTextAction(title: \"보관 설정\") { showSettings = true }.disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/CleanupView.swift",
+    "line": 24,
+    "source": "Button(\"검사\") { model.scanCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/CleanupView.swift",
+    "line": 43,
+    "source": "Button { focus = focus == group.id ? nil : group.id; selection.removeAll() } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/CleanupView.swift",
+    "line": 64,
+    "source": "if focus != nil { DonyTextAction(title: \"전체 보기\") { focus = nil; selection.removeAll() } }"
+  },
+  {
+    "file": "Sources/DonyClean/CleanupView.swift",
+    "line": 75,
+    "source": "SelectionBar(selected: selected) { model.moveToTrash(selected, recommendedOnly: true) }"
+  },
+  {
+    "file": "Sources/DonyClean/CleanupView.swift",
+    "line": 77,
+    "source": "HStack { Text(\"추천 파일 없음\").font(Theme.font(13)).foregroundStyle(Theme.secondary); Spacer(); DonyTextAction(title: \"전체 보기\") { focus = nil } }.panel()"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 18,
+    "source": "Button(\"설정\") { showSettings = true }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 19,
+    "source": "Button(\"빠르게 열기\") { controller.showPopup() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 21,
+    "source": "Button(controller.preferences.paused ? \"기록 다시 시작\" : \"기록 일시 정지\") { controller.preferences.paused.toggle() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 22,
+    "source": "Button(\"다음 복사 한 번 무시\") { controller.ignoreNextCopy = true }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 24,
+    "source": "Button(\"고정하지 않은 기록 지우기\") { controller.clear() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 25,
+    "source": "Button(\"전체 지우기\", role: .destructive) { controller.clearAll() }.disabled(!controller.canClearAll)"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 37,
+    "source": "HStack { Text(\"순서대로 붙여넣기 · \\(controller.pasteStack.count)개\").font(Theme.font(13, weight: .semibold)); Spacer(); Button(\"다음 붙여넣기\") { controller.pasteNext() }.buttonStyle(QuietButton()); DonyIconMenu(title: \"순서 작업\") {"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 38,
+    "source": "Button(\"순서대로 복사 준비\") { controller.startStack() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 39,
+    "source": "Button(\"일반 텍스트로 준비\") { controller.startStack(plainText: true) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 40,
+    "source": "Button(\"순서 뒤집기\") { controller.reverseStack() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 41,
+    "source": "Button(\"텍스트 합쳐 복사\") { controller.copyStackAsText() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 42,
+    "source": "Button(\"순서 비우기\") { controller.clearStack() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 62,
+    "source": "HStack { Spacer(); Button(\"취소\") { editing = nil }.buttonStyle(QuietButton()); Button(\"저장\") { controller.edit(item, text: editText); editing = nil }.buttonStyle(PrimaryButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 81,
+    "source": "Button(\"복사\") { controller.copy(item) }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 83,
+    "source": "Button(\"붙여넣기\") { controller.paste(item) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 84,
+    "source": "Button(\"일반 텍스트로 복사\") { controller.copy(item, plainText: true) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 85,
+    "source": "Button(\"일반 텍스트로 붙여넣기\") { controller.paste(item, plainText: true) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 87,
+    "source": "Button(item.pinned ? \"고정 해제\" : \"고정\") { controller.setPinned(item) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 90,
+    "source": "ForEach(controller.availablePinLetters, id: \\.self) { letter in Button(\"⌘\" + letter.uppercased()) { controller.assignPinLetter(item, letter: letter) } }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 92,
+    "source": "Button(\"고정 순서 위로\") { controller.movePin(item, up: true) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 93,
+    "source": "Button(\"고정 순서 아래로\") { controller.movePin(item, up: false) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 95,
+    "source": "if item.text != nil { Button(\"텍스트 편집…\", action: edit) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 96,
+    "source": "Button(controller.pasteStack.contains(item.id) ? \"붙여넣기 순서에서 제거\" : \"붙여넣기 순서에 추가\") { controller.toggleStack(item) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 97,
+    "source": "Button(\"삭제\", role: .destructive) { controller.delete(item) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 121,
+    "source": "HStack { Text(\"고정 단축키\").font(Theme.font(20, weight: .semibold)); Spacer(); DonyTextAction(title: \"완료\") { choosingPin = nil } }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 124,
+    "source": "Button(\"⌘\" + letter.uppercased()) { controller.assignPinLetter(item, letter: letter); choosingPin = nil }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 139,
+    "source": "HStack { Spacer(); Button(\"취소\") { pinEditing = nil }.buttonStyle(QuietButton()); Button(\"저장\") { controller.edit(item, text: pinText); pinEditing = nil }.buttonStyle(PrimaryButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 143,
+    "source": "HStack { Text(\"클립보드 설정\").font(Theme.font(22, weight: .bold)); Spacer(); Button(\"완료\") { if let closeAction { closeAction() } else { dismiss() } }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 161,
+    "source": "SettingsActionRow(title: \"붙여넣기 접근 권한\", actionTitle: controller.accessibilityAllowed ? \"허용됨\" : \"권한 요청\", enabled: !controller.accessibilityAllowed) { controller.requestAccessibility() }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 184,
+    "source": "HStack { Button(item.pinLetter.map { \"⌘\" + $0.uppercased() } ?? \"키 선택\") { choosingPin = item }.buttonStyle(QuietButton()); TextField(\"제목\", text: Binding(get: { item.title }, set: { controller.renamePin(item, title: $0) })).textFieldStyle(.roundedBorder); Button(\"편집\") { pinEditing = item; pinText = item.text ?? \"\" }.buttonStyle(QuietButton()).disabled(item.text == nil); DonyIconMenu(title: \"고정 항목 작업\") { Button(\"위로\") { controller.movePin(item, up: true) }; Button(\"아래로\") { controller.movePin(item, up: false) }; Button(\"고정 해제\") { controller.setPinned(item) } } }.frame(height: Theme.listRowHeight)"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 190,
+    "source": "HStack { Text(\"bundle identifier · 한 줄에 하나\").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer(); Button(\"앱 추가\") { Task { await addExcludedApp() } }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 201,
+    "source": "SettingsActionRow(title: \"다음 복사 한 번 무시\", actionTitle: \"무시\") { controller.ignoreNextCopy = true }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 206,
+    "source": "if controller.needsRecovery { SettingsActionRow(title: \"기록 파일 복구\", actionTitle: \"초기화 검토\") { controller.resetUnreadableStore() } }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 241,
+    "source": "Button { controller.selectItem(item, flags: NSApp.currentEvent?.modifierFlags ?? []) } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 261,
+    "source": "Button(\"설정\") { controller.showQuickSettings() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 264,
+    "source": "Button(\"전체 지우기\", role: .destructive) { controller.clearAll() }.buttonStyle(QuietButton()).disabled(!controller.canClearAll)"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 265,
+    "source": "DonyIconMenu(title: \"기록 작업\") { Button(\"고정하지 않은 기록 지우기\") { controller.clear() }; Button(\"일시 정지\") { controller.preferences.paused.toggle() } }"
+  },
+  {
+    "file": "Sources/DonyClean/ClipboardView.swift",
+    "line": 338,
+    "source": "SettingsActionRow(title: kind == \"열기\" ? \"빠른 창 단축키\" : kind + \" 단축키\", actionTitle: recording ? \"입력 중\" : shortcutName) { beginRecording() }"
+  },
+  {
+    "file": "Sources/DonyClean/ConfirmationDialog.swift",
+    "line": 112,
+    "source": "if destructive { Button(\"취소\") { completion(false) }.buttonStyle(QuietButton()).keyboardShortcut(.defaultAction) }"
+  },
+  {
+    "file": "Sources/DonyClean/ConfirmationDialog.swift",
+    "line": 113,
+    "source": "else { Button(\"취소\") { completion(false) }.buttonStyle(QuietButton()).keyboardShortcut(.cancelAction) }"
+  },
+  {
+    "file": "Sources/DonyClean/ConfirmationDialog.swift",
+    "line": 114,
+    "source": "if destructive { Button(action) { completion(true) }.buttonStyle(PrimaryButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/ConfirmationDialog.swift",
+    "line": 115,
+    "source": "else { Button(action) { completion(true) }.buttonStyle(PrimaryButton()).keyboardShortcut(.defaultAction) }"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperTasksView.swift",
+    "line": 15,
+    "source": "Button { controller.update(model.snapshot) } label: { Text(\"새로고침\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(controller.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperTasksView.swift",
+    "line": 66,
+    "source": "Button(controller.isOwned(task) ? \"재개\" : \"일시 정지\") {"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperTasksView.swift",
+    "line": 68,
+    "source": "}.buttonStyle(QuietButton()).help(\"일시 정지는 CPU 실행을 멈추지만 RAM은 유지해요.\")"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperTasksView.swift",
+    "line": 69,
+    "source": "DonyTextAction(title: \"중단\") { controller.stop(task) }"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperTasksView.swift",
+    "line": 80,
+    "source": "Button { controller.resume(record.id) } label: { Text(\"재개 검토\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(controller.busy || controller.recoveryUnavailable)"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperView.swift",
+    "line": 13,
+    "source": "Spacer(); Button(\"검사\") { model.scanDeveloper() }.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/DeveloperView.swift",
+    "line": 27,
+    "source": "SelectionBar(selected: selected) { model.moveToTrash(selected) }"
+  },
+  {
+    "file": "Sources/DonyClean/DeviceCareModel.swift",
+    "line": 68,
+    "source": "Button { model.openStorageCare() } label: { Text(\"정리 추천\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/DeviceCareModel.swift",
+    "line": 72,
+    "source": "SettingsActionRow(title: \"메모리 압박 · \" + model.snapshot.pressure.label, actionTitle: \"사용량 확인\") { model.section = .performance }.panel(20)"
+  },
+  {
+    "file": "Sources/DonyClean/DeviceCareModel.swift",
+    "line": 81,
+    "source": "Button { model.section = outcome.permanent ? .history : .tools } label: { Text(outcome.permanent ? \"정리 기록\" : \"휴지통 검토\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 70,
+    "source": "CommandGroup(replacing: .appSettings) { Button(\"도니홈 설정…\") { model.preferencesShown = true }.keyboardShortcut(\",\") }"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 72,
+    "source": "Button(\"전체 검사\") { model.scanSmart() }.keyboardShortcut(\"r\").disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 73,
+    "source": "Button(\"클립보드 빠르게 열기\") { clipboard.showPopup() }"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 110,
+    "source": "if !model.blockedPaths.isEmpty { Button(\"권한 설정\") { model.showPermissionGuidance() }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 111,
+    "source": "Button { model.banner = nil } label: { DonyIcon(\"xmark\", size: 14) }.buttonStyle(.plain)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 157,
+    "source": "private func navigationButton(_ section: Section) -> some View {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 158,
+    "source": "Button { model.section = section } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 182,
+    "source": "navigationButton(section)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 186,
+    "source": "navigationButton(.dony).padding(.top, 8)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 191,
+    "source": "Button { model.preferencesShown = true } label: { DonyIcon(\"gearshape\").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help(\"도니홈 설정\")"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 207,
+    "source": "Button { clipboard.showPopup() } label: { DonyIcon(\"clipboard\", size: 18) }.buttonStyle(.plain).help(\"클립보드 · ⇧⌘C\")"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 208,
+    "source": "Button(\"종료\") { NSApp.terminate(nil) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 226,
+    "source": "Button {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 233,
+    "source": "} label: { Text(\"앱 열기\").frame(maxWidth: .infinity) }.buttonStyle(PrimaryButton())"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 251,
+    "source": "Spacer(); Button(\"완료\") { dismiss() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 261,
+    "source": "SettingsActionRow(title: \"로그인 항목\", actionTitle: \"설정 열기\") { model.openLoginSettings() }"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 268,
+    "source": "SettingsActionRow(title: \"앱 권한\", actionTitle: \"설정 열기\") { model.showPermissions(continueScan: false) }.panel(24)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 272,
+    "source": "SettingsActionRow(title: \"초기 설정\", actionTitle: \"다시 열기\") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 273,
+    "source": "SettingsActionRow(title: \"개발\", actionTitle: \"설정 열기\") { model.section = .development; dismiss() }.panel(24)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 274,
+    "source": "SettingsActionRow(title: \"클립보드\", actionTitle: \"설정 열기\") { clipboardSettingsShown = true }.panel(24)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyCleanApp.swift",
+    "line": 275,
+    "source": "SettingsActionRow(title: \"앱 정보\", actionTitle: \"열기\") { informationShown = true }.panel(24)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyProfileView.swift",
+    "line": 21,
+    "source": "}.buttonStyle(QuietButton()).help(\"김동훈의 LinkedIn 프로필 열기\")"
+  },
+  {
+    "file": "Sources/DonyClean/FilesView.swift",
+    "line": 38,
+    "source": "}; Spacer(); Button { model.showFinder(group.original.url) } label: { DonyIcon(\"arrow.up.forward.square\") }.buttonStyle(.plain)"
+  },
+  {
+    "file": "Sources/DonyClean/FilesView.swift",
+    "line": 46,
+    "source": "SelectionBar(selected: selected) {"
+  },
+  {
+    "file": "Sources/DonyClean/FilesView.swift",
+    "line": 69,
+    "source": "Button(\"폴더 선택\") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/FilesView.swift",
+    "line": 70,
+    "source": "Button(\"검사\") {"
+  },
+  {
+    "file": "Sources/DonyClean/FilesView.swift",
+    "line": 76,
+    "source": "}.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/HistoryView.swift",
+    "line": 16,
+    "source": "Button(\"휴지통 열기\") {"
+  },
+  {
+    "file": "Sources/DonyClean/HistoryView.swift",
+    "line": 18,
+    "source": "}.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/HistoryView.swift",
+    "line": 34,
+    "source": "Button { model.showFinder(URL(fileURLWithPath: trash)) } label: { Text(\"항목 보기\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/HistoryView.swift",
+    "line": 36,
+    "source": "Button {"
+  },
+  {
+    "file": "Sources/DonyClean/LeftoversView.swift",
+    "line": 12,
+    "source": "Spacer(); Button(\"남은 파일 검사\") { model.scanLeftovers() }.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/LeftoversView.swift",
+    "line": 21,
+    "source": "SelectionBar(selected: selected) { model.moveToTrash(selected) }"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 14,
+    "source": "Spacer(); Button(\"나중에\") { model.completeOnboarding() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary).disabled(model.requestingPermissions)"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 26,
+    "source": "Spacer(); Button(\"전체 선택\") { model.connectedTools = Set(AITool.allCases) }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.primary)"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 27,
+    "source": "Button(\"선택 해제\") { model.connectedTools.removeAll() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary)"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 30,
+    "source": "Button(\"다시 감지\") { model.refreshToolConnections() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 33,
+    "source": "Button(\"폴더 선택\") { model.addProjects(tools: model.connectedTools) }.buttonStyle(PrimaryButton()).disabled(model.connectedTools.isEmpty || model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 34,
+    "source": "Button(\"자동으로 찾기\") { model.saveConnectedTools(); model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 43,
+    "source": "HStack { Spacer(); Button(\"권한 설정 시작\") { model.requestSelectedPermissions(notifications: true, paste: true, clipboard: clipboard) }.buttonStyle(QuietButton()).disabled(model.requestingPermissions) }"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 55,
+    "source": "if model.setupStep > 0 { Button(\"이전\") { model.setupStep -= 1 }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 57,
+    "source": "Button(model.setupStep == 3 ? \"시작하기\" : \"다음\") {"
+  },
+  {
+    "file": "Sources/DonyClean/OnboardingView.swift",
+    "line": 66,
+    "source": "}.buttonStyle(PrimaryButton()).disabled(model.busy || model.requestingPermissions)"
+  },
+  {
+    "file": "Sources/DonyClean/OverviewView.swift",
+    "line": 16,
+    "source": "Button { model.scanSmart() } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/OverviewView.swift",
+    "line": 21,
+    "source": "}.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/OverviewView.swift",
+    "line": 33,
+    "source": "Button { model.section = .inspection } label: { Text(\"결과 보기\").frame(width: Theme.actionWidth - 24) }"
+  },
+  {
+    "file": "Sources/DonyClean/OverviewView.swift",
+    "line": 34,
+    "source": ".buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/OverviewView.swift",
+    "line": 42,
+    "source": "Button { model.section = .performance } label: { Text(\"CPU · 메모리 보기\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/OverviewView.swift",
+    "line": 50,
+    "source": "SettingsActionRow(title: \"개발 도구와 로컬 프로젝트\", actionTitle: \"개발 보기\") { model.section = .development }"
+  },
+  {
+    "file": "Sources/DonyClean/PerformanceView.swift",
+    "line": 82,
+    "source": "DonyTextAction(title: \"전체 보기\") { self.toolFilter = nil; selection.removeAll() }"
+  },
+  {
+    "file": "Sources/DonyClean/PerformanceView.swift",
+    "line": 91,
+    "source": "HStack { Text(\"\\(selectedRows.count)개 선택\").font(Theme.font(13, weight: .medium)); Spacer(); Button(\"선택한 앱 종료\") { model.quitSelected(selectedRows.map(\\.process)) }.buttonStyle(PrimaryButton()).disabled(model.busy) }"
+  },
+  {
+    "file": "Sources/DonyClean/PerformanceView.swift",
+    "line": 116,
+    "source": "Button(\"종료\") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/PerformanceView.swift",
+    "line": 117,
+    "source": "DonyIconMenu(title: \"프로세스 작업\") { Button(\"강제 종료…\", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/PerformanceView.swift",
+    "line": 129,
+    "source": "HStack { Spacer(); Button(\"활동 모니터 열기\") { NSWorkspace.shared.open(URL(fileURLWithPath: \"/System/Applications/Utilities/Activity Monitor.app\")) }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/PermissionsView.swift",
+    "line": 15,
+    "source": "Button(\"나중에\") { model.cancelPermissions() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/PermissionsView.swift",
+    "line": 25,
+    "source": "HStack { Spacer(); Button(\"권한 설정 시작\") { model.requestSelectedPermissions(notifications: requestNotifications, paste: requestPaste, clipboard: clipboard) }.buttonStyle(QuietButton()).disabled(model.requestingPermissions) }"
+  },
+  {
+    "file": "Sources/DonyClean/PermissionsView.swift",
+    "line": 39,
+    "source": "Button(\"상태 확인\") { model.refreshAccess(); model.refreshToolConnections() }.buttonStyle(QuietButton()).disabled(model.checkingAccess)"
+  },
+  {
+    "file": "Sources/DonyClean/PermissionsView.swift",
+    "line": 41,
+    "source": "Button(model.restartNeeded ? (model.scanAfterPermissions ? \"재실행하고 검사\" : \"재실행\") : (model.scanAfterPermissions ? \"검사 시작\" : \"완료\")) { model.finishPermissions() }.buttonStyle(PrimaryButton()).disabled(model.checkingAccess || model.busy || model.requestingPermissions)"
+  },
+  {
+    "file": "Sources/DonyClean/PermissionsView.swift",
+    "line": 90,
+    "source": "Button(action: run) { Text(action).frame(width: 104) }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/ProjectCapacityView.swift",
+    "line": 48,
+    "source": "return Button { select(entry.path) } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/RetentionSettings.swift",
+    "line": 23,
+    "source": "SettingsActionRow(title: \"보관 기간 · \\(model.projectRetentionDays)일\", actionTitle: \"설정\", enabled: !model.busy) { shown = true }"
+  },
+  {
+    "file": "Sources/DonyClean/RetentionSettings.swift",
+    "line": 37,
+    "source": "DonyTextAction(title: \"완료\") { dismiss() }"
+  },
+  {
+    "file": "Sources/DonyClean/RetentionSettings.swift",
+    "line": 42,
+    "source": "Button(\"−\") { model.projectRetentionDays -= 1 }.buttonStyle(QuietButton()).disabled(model.projectRetentionDays <= 1)"
+  },
+  {
+    "file": "Sources/DonyClean/RetentionSettings.swift",
+    "line": 47,
+    "source": "Button(\"+\") { model.projectRetentionDays += 1 }.buttonStyle(QuietButton()).disabled(model.projectRetentionDays >= 3650)"
+  },
+  {
+    "file": "Sources/DonyClean/ScanResultsView.swift",
+    "line": 10,
+    "source": "Button(model.smart == nil ? \"검사 시작\" : \"다시 검사\") { model.scanSmart() }.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ScanResultsView.swift",
+    "line": 18,
+    "source": "Button(\"폴더 선택\") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ScanResultsView.swift",
+    "line": 26,
+    "source": "HStack { Spacer(); Button(\"권한 설정\") { model.showPermissions(continueScan: true) }.buttonStyle(QuietButton()) }"
+  },
+  {
+    "file": "Sources/DonyClean/SimilarPhotosView.swift",
+    "line": 33,
+    "source": "Spacer(); Button(\"이 사진 보관\") { model.retainSimilar(match.candidate, in: group) }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/SimilarPhotosView.swift",
+    "line": 34,
+    "source": "Button { model.showFinder(match.candidate.url) } label: { DonyIcon(\"arrow.up.forward.square\") }.buttonStyle(.plain)"
+  },
+  {
+    "file": "Sources/DonyClean/SimilarPhotosView.swift",
+    "line": 39,
+    "source": "SelectionBar(selected: selected) {"
+  },
+  {
+    "file": "Sources/DonyClean/SmartCareView.swift",
+    "line": 26,
+    "source": "Spacer(); Button(\"권한 설정\") { model.showPermissionGuidance() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/SmartCareView.swift",
+    "line": 61,
+    "source": "Button(\"선택 항목 정리\") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)"
+  },
+  {
+    "file": "Sources/DonyClean/SmartCareView.swift",
+    "line": 82,
+    "source": "Button(\"검토\") { open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/SmartCareView.swift",
+    "line": 90,
+    "source": "Button(\"직접 선택\") { open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/SpaceView.swift",
+    "line": 19,
+    "source": "if let root = model.spaceRoot, root.path != model.folder.path { Button(\"상위 폴더\") { model.scanSpace(root.deletingLastPathComponent()) }.buttonStyle(QuietButton()).disabled(model.busy) }"
+  },
+  {
+    "file": "Sources/DonyClean/SpaceView.swift",
+    "line": 20,
+    "source": "Button(\"폴더 선택\") { model.chooseFolder() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/SpaceView.swift",
+    "line": 21,
+    "source": "Button(\"용량 검사\") { model.scanSpace(model.spaceRoot) }.buttonStyle(PrimaryButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/SpaceView.swift",
+    "line": 33,
+    "source": "Button {"
+  },
+  {
+    "file": "Sources/DonyClean/SpaceView.swift",
+    "line": 50,
+    "source": "Button { if entry.candidate.fingerprint.isDirectory { model.scanSpace(entry.candidate.url) } else { model.showFinder(entry.candidate.url) } } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/SpaceView.swift",
+    "line": 64,
+    "source": "SelectionBar(selected: selected) { model.moveToTrash(selected) }"
+  },
+  {
+    "file": "Sources/DonyClean/Theme.swift",
+    "line": 114,
+    "source": "Spacer(); Button(\"중단\") { model.cancel() }.buttonStyle(QuietButton())"
+  },
+  {
+    "file": "Sources/DonyClean/Theme.swift",
+    "line": 209,
+    "source": "Button { model.showFinder(candidate.url) } label: { DonyIcon(\"arrow.up.forward.square\").foregroundStyle(Theme.secondary) }.buttonStyle(.plain).help(\"Finder에서 보기\")"
+  },
+  {
+    "file": "Sources/DonyClean/Theme.swift",
+    "line": 224,
+    "source": "Spacer(); Button(action: action) { DonyLabel(\"휴지통으로 이동\", icon: \"trash\") }.buttonStyle(PrimaryButton()).disabled(selected.isEmpty || model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 19,
+    "source": "DonyTextAction(title: \"보관 설정\") { showSettings = true }.disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 20,
+    "source": "Button(\"도구 검사\") { model.scanToolStorage() }.buttonStyle(PrimaryButton()).disabled(model.busy || tools.isEmpty)"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 24,
+    "source": "SettingsActionRow(title: \"사용하는 도구 선택\", actionTitle: \"연동 설정\") { model.developmentMode = \"연동\" }.panel()"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 28,
+    "source": "SettingsActionRow(title: \"메모리가 바빠요 · 사용 중인 작업을 확인해 주세요\", actionTitle: \"작업 확인\") { model.reviewDevelopmentTasks() }.panel()"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 68,
+    "source": "DonyTextAction(title: \"전체 보기\") { model.developmentToolFilter = nil }"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 71,
+    "source": "Button { model.reviewDevelopmentTasks(focus) } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 73,
+    "source": "}.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 74,
+    "source": "Button { model.reviewToolMemory(focus) } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 76,
+    "source": "}.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 90,
+    "source": "return Button { model.developmentToolFilter = tool } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/ToolCareView.swift",
+    "line": 139,
+    "source": "Button(\"선택한 파일 정리\") { model.cleanToolStorage(selection) }.buttonStyle(PrimaryButton()).disabled(model.busy || !model.toolStorageCurrent)"
+  },
+  {
+    "file": "Sources/DonyClean/ToolSelectionView.swift",
+    "line": 10,
+    "source": "Button {"
+  },
+  {
+    "file": "Sources/DonyClean/ToolsView.swift",
+    "line": 14,
+    "source": "SettingsActionRow(title: \"Time Machine 백업\", actionTitle: \"목록 확인\", enabled: !model.busy) { model.refreshSnapshots() }"
+  },
+  {
+    "file": "Sources/DonyClean/ToolsView.swift",
+    "line": 18,
+    "source": "HStack { Text(\"백업 시점\").font(Theme.font(14)); Spacer(); if !selectedSnapshot.isEmpty { DonyTextAction(title: \"선택 해제\") { selectedSnapshot = \"\" } } }"
+  },
+  {
+    "file": "Sources/DonyClean/ToolsView.swift",
+    "line": 27,
+    "source": "HStack { Text(\"선택한 백업 시점은 영구 제거돼요.\").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer(); Button { model.runMaintenance(.deleteSnapshot(selectedSnapshot)) } label: { Text(\"영구 삭제\").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(!model.localSnapshots.contains(selectedSnapshot) || model.busy) }"
+  },
+  {
+    "file": "Sources/DonyClean/ToolsView.swift",
+    "line": 36,
+    "source": "SettingsActionRow(title: title, actionTitle: title.hasPrefix(\"DNS\") ? \"초기화\" : \"재색인\", enabled: !model.busy) { model.runMaintenance(action) }.help(detail).panel(24)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 41,
+    "source": "Button(action: action) { Text(actionTitle).frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(!enabled)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 53,
+    "source": "DonyTextAction(title: \"추천 선택\") { selection = Set(recommended) }.disabled(recommended.isEmpty)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 55,
+    "source": "DonyTextAction(title: selection.isEmpty ? \"전체 선택\" : \"선택 해제\") {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 68,
+    "source": "Button(action: action) {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 83,
+    "source": "Button { selection = option } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 99,
+    "source": "Button { configuration.isOn.toggle() } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 119,
+    "source": "Button { selection = value } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 133,
+    "source": "Button { configuration.isOn.toggle() } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 149,
+    "source": "Button { selection = option } label: {"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 179,
+    "source": "DonyTextAction(title: \"이전\") { page = max(0, page - 1) }.disabled(page == 0)"
+  },
+  {
+    "file": "Sources/DonyClean/DonyControls.swift",
+    "line": 180,
+    "source": "DonyTextAction(title: \"다음\") { page = min(lastPage, page + 1) }.disabled(page >= lastPage)"
+  },
+  {
+    "file": "Sources/DonyClean/TrashView.swift",
+    "line": 11,
+    "source": "Button(\"내용 검사\") { model.scanTrash() }.buttonStyle(QuietButton()).disabled(model.busy)"
+  },
+  {
+    "file": "Sources/DonyClean/TrashView.swift",
+    "line": 13,
+    "source": "Button(\"휴지통 열기\") { model.showFinder(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(\".Trash\")) }"
+  },
+  {
+    "file": "Sources/DonyClean/TrashView.swift",
+    "line": 15,
+    "source": "Button(\"검사한 항목 영구 삭제\", role: .destructive) { model.emptyInspectedTrash() }.disabled(model.busy || model.trashItems.cancelled || model.trashItems.items.isEmpty)"
+  }
+]

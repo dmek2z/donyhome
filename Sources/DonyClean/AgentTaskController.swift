@@ -45,20 +45,32 @@ import DonyCore
     }
     func isOwned(_ task: AgentTaskGroup) -> Bool { owned.contains { $0.id == task.id } }
     func pause(_ task: AgentTaskGroup) {
+        Task { await pauseAfterReview(task) }
+    }
+    private func pauseAfterReview(_ task: AgentTaskGroup) async {
         guard !busy, !recoveryUnavailable else { return }
-        guard ConfirmationDialog.show(title: "CLI 작업을 일시 정지할까요?", message: "CPU 실행을 멈추도록 요청합니다. RAM은 그대로 유지되며, 잠금과 네트워크 연결도 유지될 수 있습니다. 도니홈이 정지한 프로세스만 재개할 수 있습니다.", action: "일시 정지 요청", destructive: true, paths: paths(task)) else { return }
+        guard await ConfirmationDialog.show(title: "CLI 작업을 일시 정지할까요?", message: "CPU 실행을 멈추도록 요청합니다. RAM은 그대로 유지되며, 잠금과 네트워크 연결도 유지될 수 있습니다. 도니홈이 정지한 프로세스만 재개할 수 있습니다.", action: "일시 정지 요청", destructive: true, paths: paths(task)) else { return }
+        guard !busy else { return }
         let control = control
         perform { try control.pause(task); return "일시 정지 요청됨 · \(task.members.count)개 프로세스. RAM은 유지됩니다." }
     }
     func resume(_ id: String) {
+        Task { await resumeAfterReview(id) }
+    }
+    private func resumeAfterReview(_ id: String) async {
         guard !busy, !recoveryUnavailable, let record = owned.first(where: { $0.id == id }) else { return }
-        guard ConfirmationDialog.show(title: "CLI 작업을 재개할까요?", message: "도니홈의 일시 정지 기록과 현재 프로세스의 시작 정보를 다시 확인합니다. 종료됐거나 PID가 재사용된 프로세스에는 재개 신호를 보내지 않습니다.", action: "재개 요청", destructive: false, paths: [record.tool.title + " · " + record.workingDirectory] + record.members.map { "\($0.name) · PID \($0.pid)" }) else { return }
+        guard await ConfirmationDialog.show(title: "CLI 작업을 재개할까요?", message: "도니홈의 일시 정지 기록과 현재 프로세스의 시작 정보를 다시 확인합니다. 종료됐거나 PID가 재사용된 프로세스에는 재개 신호를 보내지 않습니다.", action: "재개 요청", destructive: false, paths: [record.tool.title + " · " + record.workingDirectory] + record.members.map { "\($0.name) · PID \($0.pid)" }) else { return }
+        guard !busy else { return }
         let control = control
         perform { let count = try control.resume(id: id); return count == 0 ? "기록된 프로세스가 이미 종료되었거나 변경되어 신호를 보내지 않았습니다." : "재개 요청됨 · \(count)개 프로세스" }
     }
     func stop(_ task: AgentTaskGroup) {
+        Task { await stopAfterReview(task) }
+    }
+    private func stopAfterReview(_ task: AgentTaskGroup) async {
         guard !busy, !recoveryUnavailable else { return }
-        guard ConfirmationDialog.show(title: "CLI 작업을 중단할까요?", message: "SIGTERM으로 정상 종료를 요청합니다. 저장되지 않은 작업이나 진행 중인 출력이 사라질 수 있습니다. 종료가 확인됐다는 뜻은 아닙니다. 도니홈이 정지한 프로세스에는 종료 요청 후 재개 신호를 보내 종료를 진행시킵니다.", action: "중단 요청", destructive: true, paths: paths(task)) else { return }
+        guard await ConfirmationDialog.show(title: "CLI 작업을 중단할까요?", message: "SIGTERM으로 정상 종료를 요청합니다. 저장되지 않은 작업이나 진행 중인 출력이 사라질 수 있습니다. 종료가 확인됐다는 뜻은 아닙니다. 도니홈이 정지한 프로세스에는 종료 요청 후 재개 신호를 보내 종료를 진행시킵니다.", action: "중단 요청", destructive: true, paths: paths(task)) else { return }
+        guard !busy else { return }
         let control = control
         perform { let count = try control.stop(task); return "중단 요청됨 · \(count)개 프로세스. 실제 종료 상태는 새로고침 후 확인해 주세요." }
     }

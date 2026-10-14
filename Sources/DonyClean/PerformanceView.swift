@@ -88,7 +88,7 @@ struct PerformanceView: View {
                 SelectionControl(selection: $selection, ids: selectableRows.map(\.id)).disabled(model.busy)
             }
             if !selectedRows.isEmpty {
-                HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)); selection.removeAll() }.buttonStyle(PrimaryButton()).disabled(model.busy) }
+                HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)) }.buttonStyle(PrimaryButton()).disabled(model.busy) }
             }
             if rows.isEmpty {
                 EmptyState(icon: "waveform.path.ecg", title: "표시할 항목이 없어요", subtitle: "")
@@ -113,8 +113,8 @@ struct PerformanceView: View {
                             Text(row.memory >= 0 ? DisplayFormat.bytes(row.memory) : "—").frame(width: 90, alignment: .trailing)
                             HStack(spacing: 5) {
                                 if model.canQuit(row.process) {
-                                    Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.operationBusy)
-                                    DonyIconMenu(title: "프로세스 작업") { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.operationBusy)
+                                    Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.busy)
+                                    DonyIconMenu(title: "프로세스 작업") { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.busy)
                                 } else { DonyIcon("lock").foregroundStyle(Theme.secondary).help("직접 종료할 수 없는 시스템 또는 백그라운드 프로세스") }
                             }.frame(width: 100, alignment: .trailing)
                         }.font(Theme.font(11)).monospacedDigit().frame(height: 56).padding(.horizontal, 18)

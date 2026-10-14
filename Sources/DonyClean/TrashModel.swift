@@ -11,10 +11,14 @@ extension AppModel {
         }
     }
     func emptyInspectedTrash() {
+        Task { await emptyInspectedTrashAfterReview() }
+    }
+    private func emptyInspectedTrashAfterReview() async {
         guard !busy, !trashItems.cancelled, !trashItems.items.isEmpty else { return }
         let captured = trashItems.items
         let message = "\(captured.count)개 · \(DisplayFormat.bytes(trashItems.totalBytes))\n영구 삭제하며 휴지통에서 복원할 수 없습니다. 검사 후 새로 추가됐거나 변경된 항목은 삭제하지 않습니다."
-        guard confirm("검사한 휴지통 항목 영구 삭제", message: message, action: "영구 삭제", destructive: true, paths: captured.map(\.id)) else { return }
+        guard await confirm("검사한 휴지통 항목 영구 삭제", message: message, action: "영구 삭제", destructive: true, paths: captured.map(\.id)) else { return }
+        guard !busy else { return }
         let spaceMeasurement = CleanupSpaceMeasurement()
         operationLabel = "검사한 휴지통 항목을 다시 확인하고 영구 삭제하는 중…"; operationBusy = true
         Task {
