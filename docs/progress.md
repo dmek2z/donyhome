@@ -60,3 +60,4 @@ Final local extension: added current-user Trash manifest inspection and explicit
 2026-10-15 2.3.27: 개발 도구 정리 항상 '확인 불가' 수정 — bridge.c 프로세스 목록 완전성(종료된 PID 건너뜀), OpenFiles(종료 프로세스 건너뜀·신규 프로세스 합침·재시도·Apple 시스템 에이전트 읽기 실패 허용). 실측(533 프로세스): 이전 invComplete=false/openComplete=false/eligible=0 → 이후 true/true/eligible=20. 정리 막대·이유 요약 UI 추가, 렌더링 확인. 테스트 231개.
 2026-10-15 2.3.28: 실행 중인 도구 캐시 정리 옵션(cleanRunningToolFiles, 기본 꺼짐). ToolStorage.scan/validate allowRunningTools, 열린 파일 확인 완전 필수. 안전 테스트 5건 추가(총 232개). 설정 팝업 렌더링 확인.
 2026-10-15 2.3.29: 정리 기준 팝업·정리 막대 설명 문구 간결화.
+2026-10-15 2.3.30: 온보딩 정리 기준 카드에 '실행 중인 도구의 캐시도 정리' 토글 추가(기본 꺼짐). 렌더링 확인.

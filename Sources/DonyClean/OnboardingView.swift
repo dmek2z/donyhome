@@ -151,6 +151,9 @@ struct OnboardingView: View {
                             Text("정리 기준").font(Theme.font(16, weight: .semibold))
                             Text("마지막 작업 후 \(model.projectRetentionDays)일 동안 활동이 없으면 빌드·캐시를 정리 후보로 추천해요. 정리한 파일은 휴지통으로 가요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                             DonyChoices(options: ["3일", "7일", "14일", "30일"], selection: Binding(get: { "\(model.projectRetentionDays)일" }, set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14; model.saveProjectSettings() }))
+                            Divider()
+                            Toggle("실행 중인 도구의 캐시도 정리", isOn: $model.cleanRunningToolFiles).toggleStyle(DonySwitch())
+                            Text("도구가 켜져 있어도 열려 있지 않은 오래된 캐시를 정리해요. 드물게 도구가 잠시 느려질 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                         excludePanel
                     case 0:
