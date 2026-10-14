@@ -5,16 +5,16 @@ import ServiceManagement
 import DonyCore
 
 enum Section: String, CaseIterable, Identifiable {
-    case overview, inspection, cleanup, files, space, performance, battery, development, clipboard, applications, tools, history, dony
+    case overview, inspection, cleanup, files, performance, battery, development, clipboard, applications, tools, history, dony
     var id: String { rawValue }
     var title: String {
-        switch self { case .overview: return "한눈에 보기"; case .inspection: return "전체 검사"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .space: return "폴더 용량"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록"; case .battery: return "배터리 관리"; case .clipboard: return "클립보드"; case .dony: return "도니" }
+        switch self { case .overview: return "한눈에 보기"; case .inspection: return "전체 검사"; case .cleanup: return "캐시·로그"; case .files: return "파일 검사"; case .tools: return "유지보수"; case .performance: return "CPU · 메모리"; case .development: return "개발"; case .applications: return "앱 관리"; case .history: return "정리 기록"; case .battery: return "배터리 관리"; case .clipboard: return "클립보드"; case .dony: return "도니" }
     }
     var iconColor: Color {
         switch self {
         case .overview, .history, .dony: return Color(hex: 0x8f959e)
         case .inspection, .cleanup: return Color(hex: 0x25b79a)
-        case .files, .space: return Color(hex: 0xf5a623)
+        case .files: return Color(hex: 0xf5a623)
         case .performance: return Color(hex: 0x4593fc)
         case .battery: return Theme.success
         case .clipboard: return Theme.primary
@@ -22,7 +22,7 @@ enum Section: String, CaseIterable, Identifiable {
         }
     }
     var icon: String {
-        switch self { case .overview: return "house"; case .inspection: return "checkmark.circle"; case .cleanup: return "sparkles"; case .files: return "folder"; case .space: return "externaldrive"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath"; case .battery: return "battery"; case .clipboard: return "clipboard"; case .dony: return "info.circle" }
+        switch self { case .overview: return "house"; case .inspection: return "checkmark.circle"; case .cleanup: return "sparkles"; case .files: return "folder"; case .tools: return "gearshape"; case .performance: return "waveform.path.ecg"; case .development: return "gearshape.2"; case .applications: return "square.stack.3d.up"; case .history: return "clock.arrow.circlepath"; case .battery: return "battery"; case .clipboard: return "clipboard"; case .dony: return "info.circle" }
     }
 }
 

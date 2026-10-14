@@ -35,3 +35,5 @@ Final local extension: added current-user Trash manifest inspection and explicit
 
 
 2026-10-14 2.3.8: 실측(스왑 8.8/10 GB, ~/.codex 50 GB 중 worktrees 40 GB)에 근거해 StaleWorkspaces를 DeveloperCleanup에 연결. 기존 프로젝트 정리는 관리 도구 worktree를 의도적으로 제외하므로 40 GB가 추천에 나오지 않던 공백을 메움. 읽기 전용 실측: 7개 13.7 GB 추천, 원격에 없는 커밋·변경 있는 작업공간 보호. 테스트 220개 · 디자인 규칙 · 빌드 통과. 화면 캡처 검증은 하지 않음(이 세션에서 GUI 조작 불가).
+
+2026-10-14 2.3.9: 폴더 용량 메뉴를 파일 검사 탭으로 통합(같은 폴더 대상 중복 제거; 전체 검사 결과의 이동 링크도 파일 검사 > 폴더 용량으로 변경). CLIProcessPolicy를 CPU·메모리 화면에 합류(새 패널 없이 기존 종료 버튼·추천 선택 사용). 테스트 221개 · 디자인 규칙 · UI 액션 가드 · 빌드 통과. 탭 전환과 CLI 종료 버튼의 실제 화면 캡처·클릭은 이 세션에서 확인하지 못함.

@@ -20,8 +20,8 @@ struct PerformanceView: View {
     @State private var toolFilter: AITool?
     @State private var selection = Set<String>()
     private var displayedRows: [UsageRow] { Array(rows.prefix(100)) }
-    private var selectableRows: [UsageRow] { displayedRows.filter { model.canQuit($0.process) } }
-    private var selectedRows: [UsageRow] { rows.filter { selection.contains($0.id) && model.canQuit($0.process) } }
+    private var selectableRows: [UsageRow] { displayedRows.filter { model.canQuit($0.process) || model.canTerminateCLI($0.process) } }
+    private var selectedRows: [UsageRow] { rows.filter { selection.contains($0.id) && (model.canQuit($0.process) || model.canTerminateCLI($0.process)) } }
     private var rows: [UsageRow] {
         let processes = model.snapshot.processes
         var output: [UsageRow] = []
@@ -85,10 +85,10 @@ struct PerformanceView: View {
                 Spacer()
                 DonySearchField(placeholder: "이름 검색", text: $search).frame(width: 160)
                 DonyChoices(options: ["메모리순", "CPU순"], selection: Binding(get: { memorySort ? "메모리순" : "CPU순" }, set: { memorySort = $0 == "메모리순" })).frame(width: 170)
-                SelectionControl(selection: $selection, ids: selectableRows.map(\.id)).disabled(model.busy)
+                SelectionControl(selection: $selection, ids: selectableRows.map(\.id), recommended: scope == "내 앱" ? nil : model.cliFindingIDs).disabled(model.busy)
             }
             if !selectedRows.isEmpty {
-                HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)) }.buttonStyle(PrimaryButton()).disabled(model.busy) }
+                HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button(selectedRows.allSatisfy { model.canQuit($0.process) } ? "선택한 앱 종료" : "선택한 항목 종료") { model.quitSelected(selectedRows.map(\.process).filter { model.canQuit($0) }); model.terminateCLI(selectedRows.map(\.process).filter { !model.canQuit($0) }) }.buttonStyle(PrimaryButton()).disabled(model.busy) }
             }
             if rows.isEmpty {
                 EmptyState(icon: "waveform.path.ecg", title: "표시할 항목이 없어요", subtitle: "")
@@ -115,6 +115,8 @@ struct PerformanceView: View {
                                 if model.canQuit(row.process) {
                                     Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.busy)
                                     DonyIconMenu(title: "프로세스 작업") { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.busy)
+                                } else if model.canTerminateCLI(row.process) {
+                                    Button("종료") { model.terminateCLI([row.process]) }.buttonStyle(QuietButton()).disabled(model.busy)
                                 } else { DonyIcon("lock").foregroundStyle(Theme.secondary).help("직접 종료할 수 없는 시스템 또는 백그라운드 프로세스") }
                             }.frame(width: 100, alignment: .trailing)
                         }.font(Theme.font(11)).monospacedDigit().frame(height: 56).padding(.horizontal, 18)

@@ -9,7 +9,7 @@ struct SpaceView: View {
     private let colors: [Color] = [Theme.primary, Color(hex: 0x25b79a), Color(hex: 0x8662ed), Color(hex: 0xf5a623), Color(hex: 0xf45b78)]
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "폴더 용량")
+            FileScanTitle()
             HStack {
                 VStack(alignment: .leading, spacing: 7) {
                     Text((model.spaceRoot ?? model.folder).path).font(Theme.font(13)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)

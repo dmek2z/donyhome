@@ -45,7 +45,7 @@ struct SmartCareView: View {
                     Divider()
                     reviewRow("남은 앱 파일", icon: "square.stack.3d.up", detail: "\(model.leftovers.items.count)개", section: .applications, mode: "남은 앱 파일")
                     Divider()
-                    reviewRow("폴더 용량", icon: "externaldrive", detail: DisplayFormat.bytes(model.spaceMap.totalBytes), section: .space)
+                    reviewRow("폴더 용량", icon: "externaldrive", detail: DisplayFormat.bytes(model.spaceMap.totalBytes), section: .files, mode: "폴더 용량")
                     Divider()
                     reviewRow("휴지통", icon: "trash", detail: "\(model.trashItems.items.count)개 · " + DisplayFormat.bytes(model.trashItems.totalBytes), section: .tools)
                     Divider()

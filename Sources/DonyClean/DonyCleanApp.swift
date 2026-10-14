@@ -118,7 +118,6 @@ struct RootView: View {
                     case .inspection: ScanResultsView()
                     case .cleanup: CleanupView()
                     case .files: FilesView()
-                    case .space: SpaceView()
                     case .tools: ToolsView()
                     case .performance: PerformanceView()
                     case .battery: BatteryManagementView()
