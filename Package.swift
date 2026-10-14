@@ -10,6 +10,7 @@ let package = Package(
         .target(name: "DonySystemBridge", publicHeadersPath: "include"),
         .target(name: "DonyCore", dependencies: ["DonySystemBridge", .product(name: "Fuse", package: "fuse-swift")]),
         .executableTarget(name: "DonyClean", dependencies: ["DonyCore"]),
-        .testTarget(name: "DonyCoreTests", dependencies: ["DonyCore"])
+        .testTarget(name: "DonyCoreTests", dependencies: ["DonyCore"]),
+        .testTarget(name: "DonyCleanTests", dependencies: ["DonyClean"])
     ]
 )

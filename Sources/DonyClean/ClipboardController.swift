@@ -5,12 +5,21 @@ import Vision
 import DonyCore
 
 /// Takes keyboard focus without activating or raising the utility's main window.
-private final class ClipboardPanel: NSPanel {
+final class ClipboardPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    // This utility shares an app with cleanup confirmations. A visible popup
+    // must keep receiving input even while that other window runs modally.
+    override var worksWhenModal: Bool { get { true } set {} }
+    var onClose: (() -> Void)?
+    override func close() { super.close(); onClose?() }
 }
 
 @MainActor final class ClipboardController: ObservableObject {
+    @Published private(set) var currentCopiedItemID: UUID?
+    @Published private(set) var quickSettingsShown = false
+    private var copiedChangeCount: Int?
+    private var shortcutRecorder: (id: UUID, cancel: () -> Void)?
     @Published private(set) var items: [ClipboardItem] = []
     @Published var preferences: ClipboardPreferences { didSet { savePreferences(); if oldValue.hotkeyEnabled != preferences.hotkeyEnabled || oldValue.hotkeyKeyCode != preferences.hotkeyKeyCode || oldValue.hotkeyModifiers != preferences.hotkeyModifiers { registerHotkey() } } }
     @Published var query = ""
@@ -29,6 +38,7 @@ private final class ClipboardPanel: NSPanel {
     private var hotkey: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private var panel: NSPanel?
+    private var quickSettingsPanel: ClipboardPanel?
     private var sourceApp: NSRunningApplication?
     private var activationObserver: NSObjectProtocol?
     private var pendingPaste: Task<Void, Never>?
@@ -41,11 +51,14 @@ private final class ClipboardPanel: NSPanel {
     private var stackRequiresExplicitNext = false
     private var suppressStackUntil = Date.distantPast
     var visibleItems: [ClipboardItem] { ClipboardHistory.search(ClipboardHistory.sorted(items, by: preferences.sort, pinsAtBottom: preferences.pinsAtBottom), query: query, mode: preferences.search) }
+    var quickItems: [ClipboardItem] {
+        ClipboardHistory.search(ClipboardHistory.sorted(items, by: .lastCopiedAt, pinsAtBottom: preferences.pinsAtBottom), query: query, mode: preferences.search)
+    }
     var pinnedItems: [ClipboardItem] { ClipboardHistory.sorted(items, by: preferences.sort, pinsAtBottom: preferences.pinsAtBottom).filter(\.pinned) }
     var accessibilityAllowed: Bool { AXIsProcessTrusted() }
     var needsRecovery: Bool { !storeWritable }
-    init(pasteboard: NSPasteboard = .general, storeURL: URL? = nil, defaults: UserDefaults = .standard) {
-        self.pasteboard = pasteboard; self.defaults = defaults
+    init(pasteboard: NSPasteboard = .general, storeURL: URL? = nil, defaults: UserDefaults = .standard, popup: ClipboardPanel? = nil) {
+        self.pasteboard = pasteboard; self.defaults = defaults; self.panel = popup
         captureSession = ClipboardCaptureSession(pasteboard: pasteboard, application: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("donyhome/Clipboard", isDirectory: true)
         store = ClipboardStore(url: storeURL ?? directory.appendingPathComponent("history.json"))
@@ -60,6 +73,9 @@ private final class ClipboardPanel: NSPanel {
             let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             MainActor.assumeIsolated {
                 guard let self else { return }
+                if self.captureSession.hasPendingChange {
+                    self.dismissPopup(); self.currentCopiedItemID = nil; self.copiedChangeCount = nil
+                }
                 var capturePreferences = self.preferences
                 if self.ignoreNextCopy, self.captureSession.hasPendingChange { capturePreferences.paused = true; self.ignoreNextCopy = false }
                 if let item = self.captureSession.applicationDidActivate(app?.bundleIdentifier, preferences: capturePreferences) { self.accept(item) }
@@ -70,13 +86,14 @@ private final class ClipboardPanel: NSPanel {
         registerHotkey()
     }
     func stop() {
+        cancelShortcutRecording()
         if preferences.behavior?.clearOnQuit == true { clear(includePinned: true) }
         if preferences.behavior?.clearSystemOnQuit == true { pasteboard.clearContents() }
         timer?.invalidate(); timer = nil
         if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }; activationObserver = nil
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil
         if let handler { RemoveEventHandler(handler) }; handler = nil
-        pendingPaste?.cancel(); if let stackMonitor { NSEvent.removeMonitor(stackMonitor) }; stackMonitor = nil; panel?.close()
+        pendingPaste?.cancel(); if let stackMonitor { NSEvent.removeMonitor(stackMonitor) }; stackMonitor = nil; panel?.close(); quickSettingsPanel?.close()
         if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }; outsideClickMonitor = nil
     }
     private func rememberSource(_ app: NSRunningApplication?) {
@@ -85,13 +102,19 @@ private final class ClipboardPanel: NSPanel {
     }
     func poll() {
         guard captureSession.hasPendingChange else { return }
+        currentCopiedItemID = nil; copiedChangeCount = nil
+        dismissPopup()
         if ignoreNextCopy { ignoreNextCopy = false; captureSession.synchronize(); return }
         guard let item = captureSession.poll(preferences: preferences) else { return }
         accept(item)
     }
     private func accept(_ item: ClipboardItem) {
+        dismissPopup()
         clearStack()
-        items = ClipboardHistory.adding(item, to: items, limit: preferences.limit); persist(); recognizeImage(item)
+        items = ClipboardHistory.adding(item, to: items, limit: preferences.limit)
+        currentCopiedItemID = items.first { $0.representations == item.representations }?.id
+        copiedChangeCount = pasteboard.changeCount
+        persist(); recognizeImage(item)
     }
     func setPinned(_ item: ClipboardItem) { guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }; items[index].pinned.toggle()
         if items[index].pinned {
@@ -139,22 +162,73 @@ private final class ClipboardPanel: NSPanel {
     }
     func edit(_ item: ClipboardItem, text: String) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        items[index].representations = [[ClipboardRepresentation(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))]]; persist()
+        items[index].representations = [[ClipboardRepresentation(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))]]
+        if currentCopiedItemID == item.id { currentCopiedItemID = nil; copiedChangeCount = nil }
+        persist()
     }
     func renamePin(_ item: ClipboardItem, title: String) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index].customTitle = title; persist()
     }
+    func isCurrentCopy(_ item: ClipboardItem) -> Bool {
+        item.id == currentCopiedItemID && copiedChangeCount == pasteboard.changeCount
+    }
+    @discardableResult func copyShortcut(_ character: String) -> Bool {
+        let candidates = quickItems.filter { !$0.pinned }
+        guard let number = Int(character), (1...9).contains(number), candidates.indices.contains(number - 1) else { return false }
+        return copy(candidates[number - 1])
+    }
+    func dismissPopup() { panel?.orderOut(nil) }
+    func handlesPopupEvent(_ event: NSEvent) -> Bool {
+        guard let panel, panel.isVisible, panel.attachedSheet == nil else { return false }
+        return event.window === panel || (event.window == nil && panel.isKeyWindow)
+    }
+    func registerShortcutRecorder(id: UUID, cancel: @escaping () -> Void) {
+        cancelShortcutRecording()
+        shortcutRecorder = (id, cancel)
+    }
+    func unregisterShortcutRecorder(id: UUID) {
+        if shortcutRecorder?.id == id { shortcutRecorder = nil }
+    }
+    func cancelShortcutRecording() {
+        let callback = shortcutRecorder?.cancel
+        shortcutRecorder = nil
+        callback?()
+    }
+    func makeQuickSettingsPanel() -> ClipboardPanel {
+        let window = ClipboardPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.settingsWidth, height: Theme.settingsHeight), styleMask: [.titled, .closable, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
+        window.title = "클립보드 설정"; window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true
+        window.isReleasedWhenClosed = false; window.level = .floating; window.isFloatingPanel = true
+        window.hidesOnDeactivate = false; window.appearance = NSAppearance(named: .aqua)
+        window.onClose = { [weak self, weak window] in
+            self?.cancelShortcutRecording(); self?.quickSettingsShown = false
+            window?.contentView = nil
+            self?.quickSettingsPanel = nil
+        }
+        window.contentView = NSHostingView(rootView: ClipboardSettingsView(controller: self, closeAction: { [weak window] in window?.close() })
+            .padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight)
+            .font(Theme.font(14)).background(Theme.canvas).preferredColorScheme(.light))
+        return window
+    }
+    func showQuickSettings() {
+        if quickSettingsPanel == nil { quickSettingsPanel = makeQuickSettingsPanel() }
+        quickSettingsShown = true
+        panel?.orderOut(nil)
+        quickSettingsPanel?.center()
+        quickSettingsPanel?.orderFrontRegardless(); quickSettingsPanel?.makeKey()
+    }
     func selectItem(_ item: ClipboardItem, flags: NSEvent.ModifierFlags = []) {
         switch ClipboardSelection.action(behavior: preferences.behavior, command: flags.contains(.command), option: flags.contains(.option), shift: flags.contains(.shift)) {
         case .paste(let plainText): paste(item, plainText: plainText)
-        case .copy: _ = copy(item); panel?.orderOut(nil)
+        case .copy: _ = copy(item)
         }
     }
     @discardableResult func copy(_ item: ClipboardItem, plainText: Bool = false) -> Bool {
-        guard ClipboardCapture.write(item, to: pasteboard, plainText: plainText) else { status = "클립보드에 복사하지 못했어요."; return false }
+        guard ClipboardCapture.write(item, to: pasteboard, plainText: plainText) else { currentCopiedItemID = nil; copiedChangeCount = nil; status = "클립보드에 복사하지 못했어요."; return false }
         captureSession.synchronize()
+        currentCopiedItemID = item.id; copiedChangeCount = pasteboard.changeCount
         if let index = items.firstIndex(where: { $0.id == item.id }) { items[index].lastCopiedAt = Date(); items[index].numberOfCopies += 1; persist() }
+        dismissPopup()
         status = plainText ? "일반 텍스트로 복사했어요." : "복사했어요."
         if let app = sourceApp, app.bundleURL?.lastPathComponent == "Chrome Remote Desktop.app" || app.localizedName?.contains("NetBeans") == true {
             NSApp.activate(ignoringOtherApps: true); NSApp.hide(nil)
@@ -238,6 +312,7 @@ private final class ClipboardPanel: NSPanel {
         popupGeneration += 1
         if panel == nil {
             let window = ClipboardPanel(contentRect: NSRect(x: 0, y: 0, width: 600, height: 620), styleMask: [.nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
+            window.isFloatingPanel = true
             window.title = "클립보드"; window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             window.backgroundColor = .clear; window.isOpaque = false; window.hasShadow = true; window.hidesOnDeactivate = false
             window.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }).preferredColorScheme(.light))
@@ -250,13 +325,13 @@ private final class ClipboardPanel: NSPanel {
             let point = NSEvent.mouseLocation
             guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main else { status = "목록을 표시할 화면을 찾지 못했어요."; return }
             let bounds = screen.visibleFrame
-            let contentHeight = visibleItems.prefix(30).reduce(CGFloat(0)) { $0 + ($1.imageData == nil ? Theme.quickRowHeight : CGFloat(preferences.appearance?.imageHeight ?? 40) + 8) }
+            let contentHeight = quickItems.prefix(30).reduce(CGFloat(0)) { $0 + ($1.imageData == nil ? Theme.quickRowHeight : CGFloat(preferences.appearance?.imageHeight ?? 40) + 8) }
             let size = ClipboardPopupLayout.size(availableWidth: bounds.width, availableHeight: bounds.height, contentHeight: contentHeight)
             panel.setContentSize(NSSize(width: size.width, height: size.height))
             if preferences.appearance?.popupPosition == "중앙" { panel.setFrameOrigin(NSPoint(x: bounds.midX - panel.frame.width / 2, y: bounds.midY - panel.frame.height / 2)) }
             else { panel.setFrameOrigin(NSPoint(x: min(max(bounds.minX, point.x), bounds.maxX - panel.frame.width), y: min(max(bounds.minY, point.y - panel.frame.height), bounds.maxY - panel.frame.height))) }
         }
-        panel?.makeKeyAndOrderFront(nil)
+        panel?.orderFrontRegardless(); panel?.makeKey()
     }
     private func registerHotkey() {
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil

@@ -101,6 +101,7 @@ struct ClipboardItemRow: View {
 }
 struct ClipboardSettingsView: View {
     @ObservedObject var controller: ClipboardController
+    var closeAction: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     private func listBinding(_ keyPath: WritableKeyPath<ClipboardPreferences, [String]>) -> Binding<String> {
         Binding(get: { controller.preferences[keyPath: keyPath].joined(separator: "\n") }, set: { controller.preferences[keyPath: keyPath] = $0.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } })
@@ -129,8 +130,17 @@ struct ClipboardSettingsView: View {
         VStack(alignment: .leading, spacing: 10) { Text(title).font(Theme.font(14, weight: .medium)); DonyChoices(options: options, selection: selection) }
     }
     var body: some View {
+        Group {
+            if let item = choosingPin { pinKeySheet(item) }
+            else if let item = pinEditing {
+                VStack(spacing: 16) {
+                    Text("고정 텍스트 편집").font(Theme.font(20, weight: .bold))
+                    TextEditor(text: $pinText).frame(height: 220)
+                    HStack { Spacer(); Button("취소") { pinEditing = nil }.buttonStyle(QuietButton()); Button("저장") { controller.edit(item, text: pinText); pinEditing = nil }.buttonStyle(PrimaryButton()) }
+                }.padding(24).frame(width: 520)
+            } else {
         VStack(alignment: .leading, spacing: 18) {
-            HStack { Text("클립보드 설정").font(Theme.font(22, weight: .bold)); Spacer(); Button("완료") { dismiss() }.buttonStyle(QuietButton()) }
+            HStack { Text("클립보드 설정").font(Theme.font(22, weight: .bold)); Spacer(); Button("완료") { if let closeAction { closeAction() } else { dismiss() } }.buttonStyle(QuietButton()) }
             DonyTabs(options: ["일반", "보관", "모양", "고정", "제외", "고급"], selection: $category)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -197,12 +207,11 @@ struct ClipboardSettingsView: View {
                     }
                 }.font(Theme.font(14)).frame(maxWidth: .infinity, alignment: .leading).panel(20).padding(.bottom, 12)
             }
-        }.font(Theme.font(14)).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
-        .sheet(item: $choosingPin) { pinKeySheet($0) }
-        .sheet(item: $pinEditing) { item in
-            VStack(spacing: 16) { Text("고정 텍스트 편집").font(Theme.font(20, weight: .bold)); TextEditor(text: $pinText).frame(height: 220); HStack { Spacer(); Button("취소") { pinEditing = nil }.buttonStyle(QuietButton()); Button("저장") { controller.edit(item, text: pinText); pinEditing = nil }.buttonStyle(PrimaryButton()) } }.padding(24).frame(width: 520)
         }
+            }
+        }.font(Theme.font(14)).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
     }
+
     @State private var pinEditing: ClipboardItem?
     @State private var pinText = ""
     private func addExcludedApp() {
@@ -218,7 +227,6 @@ struct ClipboardQuickView: View {
     @State private var selected = 0
     @FocusState private var searchFocused: Bool
     @State private var monitor: Any?
-    @State private var showSettings = false
     @State private var hovered: UUID?
     @State private var preview: ClipboardItem?
     var body: some View {
@@ -228,19 +236,20 @@ struct ClipboardQuickView: View {
             ScrollViewReader { reader in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if controller.visibleItems.isEmpty { Text(controller.query.isEmpty ? "아직 복사 기록이 없어요" : "검색 결과가 없어요").font(Theme.font(13)).foregroundStyle(Theme.secondary).frame(maxWidth: .infinity, minHeight: 40) }
-                        ForEach(Array(controller.visibleItems.enumerated()), id: \.element.id) { index, item in
+                        if controller.quickItems.isEmpty { Text(controller.query.isEmpty ? "아직 복사 기록이 없어요" : "검색 결과가 없어요").font(Theme.font(13)).foregroundStyle(Theme.secondary).frame(maxWidth: .infinity, minHeight: 40) }
+                        ForEach(Array(controller.quickItems.enumerated()), id: \.element.id) { index, item in
                             Button { controller.selectItem(item, flags: NSApp.currentEvent?.modifierFlags ?? []) } label: {
                                 HStack(spacing: 12) {
+                                    if controller.isCurrentCopy(item) { DonyIcon("checkmark", size: 12).foregroundStyle(Theme.success).accessibilityLabel("현재 클립보드") }
                                     if controller.pasteStack.contains(item.id) { DonyIcon("checkmark", size: 12).foregroundStyle(Theme.primary) }
                                     if item.pinned { DonyIcon("pin.fill", size: 12).foregroundStyle(Theme.primary) }
                                     if let data = item.imageData, let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFit().frame(width: CGFloat(controller.preferences.appearance?.imageHeight ?? 40), height: CGFloat(controller.preferences.appearance?.imageHeight ?? 40)) }
                                     if controller.preferences.appearance?.showAppIcons == true, let id = item.application, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) { Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 20, height: 20) }
                                     Text(displayTitle(item.title)).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
                                     if let letter = item.pinLetter, item.pinned { Text("⌘" + letter.uppercased()).font(Theme.font(11)).foregroundStyle(Theme.secondary) }
-                                    else if let numericIndex = controller.visibleItems.filter({ !$0.pinned }).firstIndex(where: { $0.id == item.id }), numericIndex < 9 { Text("⌘\(numericIndex + 1)").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
+                                    else if let numericIndex = controller.quickItems.filter({ !$0.pinned }).firstIndex(where: { $0.id == item.id }), numericIndex < 9 { Text("⌘\(numericIndex + 1)").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
                                 }.font(Theme.font(13)).padding(.horizontal, 12).frame(height: item.imageData == nil ? Theme.quickRowHeight : CGFloat(controller.preferences.appearance?.imageHeight ?? 40) + 8).background(selected == index ? Theme.blueWash : .white).clipShape(RoundedRectangle(cornerRadius: 10))
-                            }.buttonStyle(.plain).id(index).onHover { active in if active { selected = index; hovered = item.id } else if hovered == item.id { hovered = nil; preview = nil } }
+                            }.buttonStyle(.plain).accessibilityValue(controller.isCurrentCopy(item) ? "현재 클립보드" : "").id(index).onHover { active in if active { selected = index; hovered = item.id } else if hovered == item.id { hovered = nil; preview = nil } }
                         }
                     }
                 }.onChange(of: selected) { _, value in reader.scrollTo(value) }
@@ -248,14 +257,13 @@ struct ClipboardQuickView: View {
             if !controller.status.isEmpty { Text(controller.status).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(2) }
             if controller.preferences.appearance?.showFooter != false {
                 Divider()
-                HStack { Button("설정") { showSettings = true }.buttonStyle(QuietButton()); Spacer(); Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary); DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } } }
+                HStack { Button("설정") { controller.showQuickSettings() }.buttonStyle(QuietButton()); Spacer(); Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary); DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } } }
             }
         }.padding(22).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 20)).foregroundStyle(Theme.ink)
         .onChange(of: controller.popupGeneration) { _, _ in selected = 0; searchFocused = true; hovered = nil; preview = nil }
-        .sheet(isPresented: $showSettings) { ClipboardSettingsView(controller: controller).padding(24).frame(width: Theme.settingsWidth, height: Theme.settingsHeight).background(Theme.canvas).preferredColorScheme(.light) }
         .task(id: hovered) {
             preview = nil
-            guard let id = hovered, !showSettings else { return }
+            guard let id = hovered, !controller.quickSettingsShown else { return }
             try? await Task.sleep(for: .milliseconds(controller.preferences.appearance?.previewDelay ?? 1500))
             guard !Task.isCancelled, hovered == id else { return }
             preview = controller.items.first { $0.id == id }
@@ -263,7 +271,7 @@ struct ClipboardQuickView: View {
         .popover(item: $preview) { item in
             ScrollView { if let data = item.imageData, let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFit() } else { Text(item.text ?? item.title).font(Theme.font(13)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }.padding(16).frame(width: 360, height: 240)
         }
-        .onChange(of: showSettings) { _, shown in if shown { hovered = nil; preview = nil } }
+        .onChange(of: controller.quickSettingsShown) { _, shown in if shown { hovered = nil; preview = nil } }
         .onChange(of: controller.query) { _, _ in selected = 0; hovered = nil; preview = nil }
         .onAppear { searchFocused = true; if monitor == nil { monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in handle(event) ? nil : event } } }
         .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
@@ -282,10 +290,10 @@ struct ClipboardQuickView: View {
         return value.replacingOccurrences(of: "\t", with: "⇥").replacingOccurrences(of: "\n", with: "↵").replacingOccurrences(of: " ", with: "·")
     }
     private func handle(_ event: NSEvent) -> Bool {
-        guard NSApp.keyWindow?.title == "클립보드" else { return false }
+        guard controller.handlesPopupEvent(event) else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let values = controller.visibleItems
-        if flags.contains(.command), event.charactersIgnoringModifiers == "," { showSettings = true; return true }
+        let values = controller.quickItems
+        if flags.contains(.command), (event.keyCode == 43 || event.charactersIgnoringModifiers == ",") { controller.showQuickSettings(); return true }
         if event.keyCode == 53 { dismiss(); return true }
         if event.keyCode == 125 { selected = min(max(0, values.count - 1), selected + 1); return true }
         if event.keyCode == 126 { selected = max(0, selected - 1); return true }
@@ -300,7 +308,7 @@ struct ClipboardQuickView: View {
         let numericItems = values.filter { !$0.pinned }
         if let character = event.charactersIgnoringModifiers, let number = Int(character), (1...9).contains(number), number <= numericItems.count {
             if flags.contains(.option) { controller.selectItem(numericItems[number - 1], flags: flags); return true }
-            if flags.contains(.command) { controller.copy(numericItems[number - 1]); dismiss(); return true }
+            if flags.contains(.command) { _ = controller.copyShortcut(character); return true }
         }
         if flags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "a" { controller.selectStack(values); return true }
         if flags.contains(.option), event.charactersIgnoringModifiers?.lowercased() == "r" { controller.reverseStack(); return true }
@@ -315,13 +323,16 @@ struct ClipboardQuickView: View {
 struct ClipboardShortcutRecorder: View {
     @ObservedObject var controller: ClipboardController
     var kind = "열기"
+    @State private var recorderID = UUID()
+    @State private var recorderWindow: Int?
     @State private var recording = false
     @State private var monitor: Any?
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsActionRow(title: kind == "열기" ? "빠른 창 단축키" : kind + " 단축키", actionTitle: recording ? "입력 중" : shortcutName) { beginRecording() }
             if recording { Text("조합키를 누르세요 · Esc 취소").font(Theme.font(12)).foregroundStyle(Theme.secondary) }
-        }.onDisappear { endRecording() }
+        }.background(ClipboardRecorderWindow { recorderWindow = $0 })
+            .onDisappear { endRecording() }
     }
     private var shortcutName: String {
         let shortcut = kind == "고정" ? (controller.preferences.pinShortcut ?? ClipboardKeyShortcut(keyCode: 35, modifiers: UInt32(optionKey))) : kind == "삭제" ? (controller.preferences.deleteShortcut ?? ClipboardKeyShortcut(keyCode: 51, modifiers: UInt32(optionKey))) : ClipboardKeyShortcut(keyCode: controller.preferences.hotkeyKeyCode, modifiers: controller.preferences.hotkeyModifiers)
@@ -330,7 +341,9 @@ struct ClipboardShortcutRecorder: View {
     }
     private func beginRecording() {
         endRecording(); recording = true
+        controller.registerShortcutRecorder(id: recorderID, cancel: { endRecording() })
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard let window = event.window, window.isVisible, window.windowNumber == recorderWindow else { return event }
             if event.keyCode == 53 { endRecording(); return nil }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             guard !flags.intersection([.command, .option, .control]).isEmpty else { return nil }
@@ -346,5 +359,26 @@ struct ClipboardShortcutRecorder: View {
             endRecording(); return nil
         }
     }
-    private func endRecording() { recording = false; if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
+    private func endRecording() {
+        recording = false
+        if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
+        controller.unregisterShortcutRecorder(id: recorderID)
+    }
+}
+
+
+private struct ClipboardRecorderWindow: NSViewRepresentable {
+    let onChange: (Int?) -> Void
+    func makeNSView(context: Context) -> ClipboardRecorderWindowView {
+        let view = ClipboardRecorderWindowView(); view.onChange = onChange; return view
+    }
+    func updateNSView(_ view: ClipboardRecorderWindowView, context: Context) { view.onChange = onChange }
+}
+private final class ClipboardRecorderWindowView: NSView {
+    var onChange: ((Int?) -> Void)?
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        let number = window?.windowNumber
+        DispatchQueue.main.async { [weak self] in self?.onChange?(number) }
+    }
 }
