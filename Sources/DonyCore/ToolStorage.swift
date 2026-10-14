@@ -12,6 +12,7 @@ public struct ToolStorageResult: Sendable {
     public var issues: [ScanIssue] = []
     public var recognizedTools: Set<AITool> = []
     public var cancelled = false
+    public var incompleteTools = Set<AITool>()
     public var totalBytes: Int64 { items.reduce(0) { $0 + $1.candidate.bytes } }
     public var eligible: [ToolStorageItem] { cancelled ? [] : items.filter(\.isEligible) }
     public init() {}
@@ -79,11 +80,13 @@ public enum ToolStorage {
               try FileSafety.canonicalRoot(root).path == root.path,
               try !containsProject(root) else { throw DonyError.unsafePath }
     }
-    private static func eligible(_ candidate: FileCandidate, owners: Set<AITool>, running: Set<AITool>, days: Int, now: Date) -> Bool {
-        owners.isDisjoint(with: running) && (1...3650).contains(days) &&
+    private static func eligible(_ candidate: FileCandidate, owners: Set<AITool>, running: Set<AITool>, days: Int, now: Date, openFiles: OpenFileSnapshot? = nil) -> Bool {
+        let active = !owners.isDisjoint(with: running)
+        let closedLog = candidate.kind == .log && openFiles?.complete == true && openFiles?.contains(candidate) == false
+        return (!active || closedLog) && openFiles?.contains(candidate) != true && (1...3650).contains(days) &&
             Double(candidate.fingerprint.seconds) + Double(candidate.fingerprint.nanoseconds) / 1e9 <= now.addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970
     }
-    public static func scan(tools: Set<AITool>, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), progress: Scanner.Progress? = nil) -> ToolStorageResult {
+    public static func scan(tools: Set<AITool>, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), progress: Scanner.Progress? = nil, openFiles: OpenFileSnapshot? = nil, limit: Int = 1_000_000, timeout: TimeInterval = 120) -> ToolStorageResult {
         var result = ToolStorageResult()
         var seen = Set<String>(); var visited = 0
         do {
@@ -95,20 +98,21 @@ public enum ToolStorage {
                     guard try FileSafety.metadataIfPresent(location.root) != nil else { continue }
                     try checkRoot(location.root)
                     result.recognizedTools.formUnion(location.owners.intersection(tools))
-                    try ProjectFileWalker.walk(root: location.root, token: token, shouldDescend: {
+                    try ProjectFileWalker.walk(root: location.root, token: token, limit: limit, timeout: timeout, shouldDescend: {
                         !protected($0, root: location.root) && (try? containsProject($0)) == false
                     }) { url, fingerprint in
                         visited += 1
                         if visited.isMultiple(of: 250) { progress?(visited, location.owners.map(\.title).sorted().joined(separator: " · ")) }
                         guard fingerprint.isRegular, !protected(url, root: location.root), seen.insert(url.path).inserted else { return }
-                        if location.kind == .log && !["log", "txt", "out"].contains(url.pathExtension.lowercased()) { return }
+                        if location.kind == .log && !["log", "txt", "out"].contains(url.pathExtension.lowercased()) && !CacheScopes.isLog(url) { return }
                         let candidate = try FileCandidate.capture(url: url, root: location.root, kind: location.kind, token: token)
-                        let allowed = eligible(candidate, owners: location.owners, running: runningTools, days: days, now: now)
-                        let reason = !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 종료 후 다시 검사" : allowed ? "\(days)일 이상 지난 캐시·로그" : "최근 변경 · 보관"
+                        let allowed = eligible(candidate, owners: location.owners, running: runningTools, days: days, now: now, openFiles: openFiles)
+                        let reason = allowed ? "\(days)일 이상 지난 캐시·로그" : openFiles?.contains(candidate) == true ? "열린 파일 · 보관" : !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 보관" : "최근 변경 · 보관"
                         result.items.append(ToolStorageItem(candidate: candidate, owners: location.owners, isEligible: allowed, reason: reason))
                     }
                 } catch {
                     if token.isCancelled { throw DonyError.cancelled }
+                    result.incompleteTools.formUnion(location.owners.intersection(tools))
                     if result.issues.count < 100 { result.issues.append(ScanIssue(path: location.root.path, error: error)) }
                 }
             }
@@ -120,7 +124,7 @@ public enum ToolStorage {
         result.items.sort { $0.candidate.bytes > $1.candidate.bytes }
         return result
     }
-    public static func validate(_ item: ToolStorageItem, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date()) throws {
+    public static func validate(_ item: ToolStorageItem, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), openFiles: OpenFileSnapshot? = nil) throws {
         try token.check()
         let base = try FileSafety.canonicalRoot(home)
         guard item.isEligible, let location = locations(home: base).first(where: { $0.root.path == item.candidate.root.path }),
@@ -133,8 +137,7 @@ public enum ToolStorage {
             guard FileSafety.isWithin(parent, root: location.root), try !containsProject(parent) else { throw DonyError.unsafePath }
             parent.deleteLastPathComponent()
         }
-        guard item.owners.isDisjoint(with: runningTools) else { throw DonyError.protectedProcess }
-        guard eligible(item.candidate, owners: item.owners, running: runningTools, days: days, now: now) else { throw DonyError.changed }
+        guard eligible(item.candidate, owners: item.owners, running: runningTools, days: days, now: now, openFiles: openFiles) else { throw DonyError.changed }
         try FileSafety.validate(item.candidate, token: token)
     }
 }

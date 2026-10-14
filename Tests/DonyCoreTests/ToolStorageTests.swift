@@ -108,4 +108,25 @@ import Testing
         #expect(DevelopmentPressurePolicy.shouldReview(pressure: .warning, duration: 30, sinceLastReview: 600))
         #expect(!DevelopmentPressurePolicy.shouldReview(pressure: .critical, duration: 100, sinceLastReview: 599))
     }
+    @Test func closedOldLogsCanBeReviewedWhileActiveCachesRemainProtected() throws {
+        try file("Library/Caches/Codex/old")
+        try file("Library/Logs/com.openai.codex/old.log")
+        let closed = OpenFileSnapshot(paths: [], complete: true)
+        let result = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: closed)
+        #expect(result.eligible.map { $0.candidate.name } == ["old.log"])
+        #expect(ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: OpenFileSnapshot(paths: [], complete: false)).eligible.isEmpty)
+        let item = try #require(result.eligible.first)
+        #expect(throws: (any Error).self) {
+            try ToolStorage.validate(item, home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: OpenFileSnapshot(paths: [item.id], complete: true))
+        }
+        #expect(ToolStorage.scan(tools: [.codex], home: home, runningTools: [], days: 14, token: ScanToken(), now: now, openFiles: OpenFileSnapshot(paths: [], identities: [item.candidate.fingerprint.identity], complete: true)).eligible.allSatisfy { $0.id != item.id })
+    }
+    @Test func toolTraversalLimitMarksPartialMeasuredResults() throws {
+        for i in 0..<10 { try file("Library/Caches/Cursor/\(i)") }
+        let result = ToolStorage.scan(tools: [.cursor], home: home, runningTools: [], days: 14, token: ScanToken(), now: now, limit: 3)
+        #expect(result.incompleteTools.contains(.cursor))
+        #expect(!result.issues.isEmpty)
+        #expect(result.items.count < 10)
+    }
+
 }

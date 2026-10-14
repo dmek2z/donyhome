@@ -24,7 +24,7 @@ public struct CleanupPolicy: Sendable {
             let top = String(normalized.dropFirst(base.count + 1)).split(separator: "/").first.map(String.init) ?? ""
             let aliases = (CacheScopes.namedOwners[top] ?? []).union([top])
             if let owner = runningBundleIDs.sorted().first(where: { running in aliases.contains { alias in
-                running.lowercased() == alias.lowercased() || running.lowercased().hasPrefix(alias.lowercased() + ".")
+                running.lowercased() == alias.lowercased() || running.lowercased().hasPrefix(alias.lowercased() + ".") || alias.lowercased().hasPrefix(running.lowercased() + ".")
             } }) { return owner }
         }
         return nil
@@ -39,6 +39,12 @@ public struct CleanupPolicy: Sendable {
         let owner = CacheScopes.owner(of: candidate.url, home: home) ?? ""
         if candidate.kind == .cache && !Self.cacheOwners.contains(owner) && !CacheScopes.isKnown(root: candidate.url, home: home) { return CleanupDecision(false, "확인되지 않은 캐시 · 직접 선택") }
         try FileSafety.validate(candidate, token: token)
+        var parent = candidate.fingerprint.isDirectory ? candidate.url : candidate.url.deletingLastPathComponent()
+        while parent.path == candidate.root.path || FileSafety.isWithin(parent, root: candidate.root) {
+            if CacheScopes.containsProject(parent) { return CleanupDecision(false, "프로젝트 원본 · 보관") }
+            if parent.path == candidate.root.path { break }
+            parent.deleteLastPathComponent()
+        }
         let retention = days ?? (candidate.kind == .cache ? 14 : 30)
         guard (1...3650).contains(retention), !CacheScopes.isProtected(candidate.url) else { return CleanupDecision(false, "보호된 경로 또는 잘못된 보관 기간") }
         let days = Double(retention)

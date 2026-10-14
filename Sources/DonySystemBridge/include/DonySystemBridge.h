@@ -22,4 +22,6 @@ int dc_read_processes(DCProcess *output, int capacity);
 int dc_process_matches(int32_t pid, uint32_t uid, uint64_t start_seconds, uint64_t start_microseconds);
 int dc_process_cwd(int32_t pid, char *output, int capacity);
 int dc_process_arguments(int32_t pid, char *output, int capacity);
+// NUL-delimited path/identity records; negative means incomplete/unavailable.
+int dc_process_open_files(int32_t pid, char *output, int capacity);
 #endif

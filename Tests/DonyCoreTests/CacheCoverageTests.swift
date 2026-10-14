@@ -99,4 +99,19 @@ import Testing
         #expect(throws: (any Error).self) { try DeveloperCleanup.validate(item, home: home, runningTools: [], now: now, days: 60) }
     }
 
+    @Test func cacheScopeBecomingAProjectInvalidatesTheOldPlan() throws {
+        let old = try file("Library/Caches/Aside/old", days: 20)
+        let candidate = try #require(scan().files.items.first)
+        try file("Library/Caches/Aside/package.json", days: 0)
+        #expect(!(try CleanupPolicy(home: home, days: 14).reason(for: candidate, now: now, runningBundleIDs: []).isRecommended))
+        #expect(scan().files.items.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: old.path))
+    }
+    @Test func inventoriesStandaloneLogFilesAndKeepsCloudOfflineData() throws {
+        let log = try file("Library/Logs/old.log", days: 40)
+        try file("Library/Caches/Google/DriveFS/offline.data", days: 40)
+        let result = scan()
+        #expect(result.files.items.map(\.id) == [log.path])
+    }
+
 }

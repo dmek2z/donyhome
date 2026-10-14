@@ -8,6 +8,39 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
+
+int dc_process_open_files(int32_t pid, char *output, int capacity) {
+    struct proc_bsdinfo before, after;
+    if (!output || capacity < 1 || proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &before, sizeof(before)) != sizeof(before) || before.pbi_uid != getuid()) return -1;
+    int required = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, NULL, 0);
+    if (required <= 0 || required > 65536 * (int)sizeof(struct proc_fdinfo)) return -1;
+    int allocated = required + 64 * (int)sizeof(struct proc_fdinfo);
+    struct proc_fdinfo *fds = malloc((size_t)allocated);
+    if (!fds) return -1;
+    int bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, allocated);
+    if (bytes <= 0 || bytes >= allocated || bytes % (int)sizeof(struct proc_fdinfo)) { free(fds); return -1; }
+    int used = 0;
+    for (int i = 0; i < bytes / (int)sizeof(struct proc_fdinfo); i++) {
+        if (fds[i].proc_fdtype != PROX_FDTYPE_VNODE) continue;
+        struct vnode_fdinfowithpath info;
+        if (proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDVNODEPATHINFO, &info, sizeof(info)) != sizeof(info)) { free(fds); return -1; }
+        size_t length = strnlen(info.pvip.vip_path, sizeof(info.pvip.vip_path));
+        if (length == sizeof(info.pvip.vip_path)) { free(fds); return -1; }
+        if (length && info.pvip.vip_path[0] == '/') {
+            if ((size_t)(capacity - used) < length + 2) { free(fds); return -1; }
+            output[used++] = 'p'; memcpy(output + used, info.pvip.vip_path, length + 1); used += (int)length + 1;
+        }
+        char identity[64];
+        int n = snprintf(identity, sizeof(identity), "i%llu:%llu", (unsigned long long)info.pvip.vip_vi.vi_stat.vst_dev, (unsigned long long)info.pvip.vip_vi.vi_stat.vst_ino);
+        if (n < 1 || n >= (int)sizeof(identity) || capacity - used < n + 1) { free(fds); return -1; }
+        memcpy(output + used, identity, (size_t)n + 1); used += n + 1;
+    }
+    free(fds);
+    if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &after, sizeof(after)) != sizeof(after) ||
+        before.pbi_uid != after.pbi_uid || before.pbi_start_tvsec != after.pbi_start_tvsec || before.pbi_start_tvusec != after.pbi_start_tvusec) return -1;
+    return used;
+}
 
 int dc_process_cwd(int32_t pid, char *output, int capacity) {
     struct proc_vnodepathinfo info;

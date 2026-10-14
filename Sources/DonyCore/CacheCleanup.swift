@@ -52,8 +52,18 @@ public enum CacheCleanup {
             if token.isCancelled { break }
             var group = CacheInventoryGroup(root: root, kind: kind)
             do {
-                guard root.lastPathComponent != "com.apple.Music", try FileSafety.fingerprint(root).isDirectory,
-                      try FileSafety.canonicalRoot(root).path == root.path else { throw DonyError.unsafePath }
+                let stamp = try FileSafety.fingerprint(root)
+                if stamp.isRegular {
+                    group.files = 1; group.bytes = max(0, stamp.size)
+                    if identities.insert(stamp.identity).inserted {
+                        let candidate = try FileCandidate.capture(url: root, root: root.deletingLastPathComponent(), kind: kind, token: token)
+                        let decision = try CleanupPolicy(home: base, days: days).reason(for: candidate, now: now, runningBundleIDs: runningOwners, token: token)
+                        if decision.isRecommended { result.files.items.append(candidate); result.decisions[candidate.id] = decision; group.recommendedBytes = candidate.bytes }
+                    } else { group.bytes = 0 }
+                    result.groups.append(group); continue
+                }
+                guard root.lastPathComponent != "com.apple.Music", stamp.isDirectory,
+                      try FileSafety.canonicalRoot(root).path == root.path, !CacheScopes.containsProject(root) else { throw DonyError.unsafePath }
                 let policy = CleanupPolicy(home: base, days: days)
                 let known = kind == .log || CacheScopes.isKnown(root: root, home: base)
                 let running = policy.runningOwner(of: root.appendingPathComponent("_"), runningBundleIDs: runningOwners) != nil
@@ -107,7 +117,7 @@ enum CacheScopes {
     static let protectedNames: Set<String> = Set(ProjectCleanup.markers.map { $0.lowercased() }).union([
         "auth.json", "credentials.json", "tokens.json", "settings.json", "config.json", "config.toml",
         "agents.md", "claude.md", "gemini.md", "memory.md", "sessions", "archived_sessions", "worktrees",
-        "cookies", "history", "login data", "web data", "local storage", "session storage", "indexeddb", "checkouts"
+        "cookies", "history", "login data", "web data", "local storage", "session storage", "indexeddb", "checkouts", "drivefs"
     ])
     static func isProtected(_ url: URL) -> Bool {
         url.pathComponents.contains { part in
