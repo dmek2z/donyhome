@@ -62,3 +62,4 @@ Final local extension: added current-user Trash manifest inspection and explicit
 2026-10-15 2.3.29: 정리 기준 팝업·정리 막대 설명 문구 간결화.
 2026-10-15 2.3.30: 온보딩 정리 기준 카드에 '실행 중인 도구의 캐시도 정리' 토글 추가(기본 꺼짐). 렌더링 확인.
 2026-10-15 2.3.31: 정리 내역 압축 보존(HistoryStore.compact), 정리 기록 묶음 표시, 메모리·저장 공간 사용 비율 표시.
+2026-10-15 2.3.32: 개요 CPU·메모리·저장 공간 수치 경고 시 빨간색, 메모리 압박 문구 제거.

@@ -42,9 +42,9 @@ struct OverviewView: View {
                     Button { model.section = .performance } label: { Text("CPU · 메모리 보기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())
                 }
                 HStack(alignment: .top, spacing: 20) {
-                    resource("CPU 사용량", value: DisplayFormat.percent(model.snapshot.cpuPercent), detail: "전체 코어", icon: "cpu")
-                    resource("메모리 사용량", value: model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—", suffix: model.snapshot.memoryPercent.map { "(\(Int($0.rounded()))% 사용 중)" }, detail: "전체 \(DisplayFormat.bytes(model.snapshot.memoryTotal)) · 메모리 압박 " + model.snapshot.pressure.label, icon: "memorychip", color: model.pressureColor)
-                    resource("남은 저장 공간", value: model.snapshot.diskAvailable.map(DisplayFormat.bytes) ?? "—", suffix: diskFreeSuffix, detail: "전체 " + (model.snapshot.diskTotal.map(DisplayFormat.bytes) ?? "—"), icon: "externaldrive")
+                    resource("CPU 사용량", value: DisplayFormat.percent(model.snapshot.cpuPercent), detail: "전체 코어", icon: "cpu", alert: (model.snapshot.cpuPercent ?? 0) >= 85)
+                    resource("메모리 사용량", value: model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—", suffix: model.snapshot.memoryPercent.map { "(\(Int($0.rounded()))% 사용 중)" }, detail: "전체 \(DisplayFormat.bytes(model.snapshot.memoryTotal))", icon: "memorychip", color: model.pressureColor, alert: model.snapshot.pressure == .warning || model.snapshot.pressure == .critical)
+                    resource("남은 저장 공간", value: model.snapshot.diskAvailable.map(DisplayFormat.bytes) ?? "—", suffix: diskFreeSuffix, detail: "전체 " + (model.snapshot.diskTotal.map(DisplayFormat.bytes) ?? "—"), icon: "externaldrive", alert: model.storageAssessment.needsAttention)
                 }
                 Divider()
                 SettingsActionRow(title: "개발 도구와 로컬 프로젝트", actionTitle: "개발 보기") { model.section = .development }
@@ -55,15 +55,15 @@ struct OverviewView: View {
         guard let free = model.snapshot.diskAvailable, let total = model.snapshot.diskTotal, total > 0 else { return nil }
         return "(\(Int((Double(free) / Double(total) * 100).rounded()))% 남음)"
     }
-    private func resource(_ title: String, value: String, suffix: String? = nil, detail: String, icon: String, color: Color = Theme.primary) -> some View {
+    private func resource(_ title: String, value: String, suffix: String? = nil, detail: String, icon: String, color: Color = Theme.primary, alert: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
                 DonyIcon(icon, size: 15).foregroundStyle(color)
                 Text(title).font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.secondary)
             }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(value).font(Theme.font(21, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
-                if let suffix { Text(suffix).font(Theme.font(12)).foregroundStyle(Theme.secondary).lineLimit(1) }
+                Text(value).font(Theme.font(21, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8).foregroundStyle(alert ? Theme.red : Theme.ink)
+                if let suffix { Text(suffix).font(Theme.font(12)).foregroundStyle(alert ? Theme.red : Theme.secondary).lineLimit(1) }
             }
             Text(detail).font(Theme.font(12)).foregroundStyle(Theme.secondary).lineLimit(2)
         }.frame(maxWidth: .infinity, alignment: .leading)
