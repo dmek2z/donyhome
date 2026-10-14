@@ -35,7 +35,7 @@ extension AppModel {
         Task { await cleanToolStorageAfterReview(ids) }
     }
     private func cleanToolStorageAfterReview(_ ids: Set<String>) async {
-        guard !busy, toolStorageCurrent else { banner = "도구 또는 보관 기간이 바뀌었어요. 다시 검사해 주세요."; return }
+        guard !busy, toolStorageCurrent else { banner = "도구 또는 정리 기준이 바뀌었어요. 다시 검사해 주세요."; return }
         let items = toolStorage.eligible.filter { ids.contains($0.id) }
         guard !items.isEmpty, items.count == ids.count else { return }
         let bytes = items.reduce(0) { $0 + $1.candidate.bytes }

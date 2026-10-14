@@ -567,7 +567,7 @@
   {
     "file": "Sources/DonyClean/DonyProfileView.swift",
     "line": 21,
-    "source": "}.buttonStyle(QuietButton()).help(\"김동훈의 LinkedIn 프로필 열기\")"
+    "source": "}.buttonStyle(QuietButton()).help(\"Dony의 LinkedIn 프로필 열기\")"
   },
   {
     "file": "Sources/DonyClean/FilesView.swift",

@@ -16,7 +16,7 @@ struct ToolCareView: View {
             HStack(spacing: 16) {
                 Text("도구별 사용량").font(Theme.font(17, weight: .semibold))
                 Spacer()
-                DonyTextAction(title: "보관 설정") { showSettings = true }.disabled(model.busy)
+                DonyTextAction(title: "정리 기준") { showSettings = true }.disabled(model.busy)
                 Button("도구 검사") { model.scanToolStorage() }.buttonStyle(PrimaryButton()).disabled(model.busy || tools.isEmpty)
             }
             if tools.isEmpty {
@@ -58,12 +58,13 @@ struct ToolCareView: View {
             HStack(spacing: 20) {
                 metric("확인된 캐시·로그", value: model.toolStorageDate == nil ? "검사 전" : (model.toolStorage.incompleteTools.isEmpty ? "" : "≥ ") + DisplayFormat.bytes(items.reduce(0) { $0 + $1.candidate.bytes }))
                 metric("정리 가능한 파일", value: model.toolStorageCurrent ? DisplayFormat.bytes(eligible.reduce(0) { $0 + $1.candidate.bytes }) : "다시 검사")
-                metric("보관", value: DisplayFormat.bytes(items.filter { !$0.isEligible }.reduce(0) { $0 + $1.candidate.bytes }))
+                metric("정리 제외", value: DisplayFormat.bytes(items.filter { !$0.isEligible }.reduce(0) { $0 + $1.candidate.bytes }))
                 metric("실행 중 메모리", value: DisplayFormat.bytes(memoryBytes))
                     .help("프로세스 합산값 · 공유 영역이 중복될 수 있어요. 파일 정리와 일시 정지는 RAM을 비우지 않아요.")
             }
             HStack {
                 if let focus {
+                    ToolIcon(tool: focus, size: 22)
                     Text(focus.title).font(Theme.font(13, weight: .semibold))
                     DonyTextAction(title: "전체 보기") { model.developmentToolFilter = nil }
                 }
@@ -89,6 +90,7 @@ struct ToolCareView: View {
         let cpu = usage?.processes.compactMap(\.cpuPercent) ?? []
         return Button { model.developmentToolFilter = tool } label: {
             HStack(spacing: 12) {
+                ToolIcon(tool: tool, size: 34)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tool.title).font(Theme.font(14, weight: .semibold)).lineLimit(1)
                     Text(usage.map { "실행 중 · \($0.processes.count)개 프로세스" } ?? model.toolStatuses[tool] ?? "연동 확인 필요")
@@ -106,6 +108,7 @@ struct ToolCareView: View {
     private var filePanel: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
+                if let focus { ToolIcon(tool: focus, size: 26) }
                 Text((focus?.title ?? "전체 도구") + " · 정리 대상").font(Theme.font(17, weight: .semibold))
                 Spacer()
                 if !eligible.isEmpty {
@@ -121,6 +124,7 @@ struct ToolCareView: View {
                         HStack(spacing: 12) {
                             Toggle("선택 " + item.candidate.name, isOn: Binding(get: { selection.contains(item.id) }, set: { if $0 { selection.insert(item.id) } else { selection.remove(item.id) } }))
                                 .toggleStyle(DonyCheckbox()).labelsHidden().disabled(model.busy || !model.toolStorageCurrent || !item.isEligible)
+                            if let owner = item.owners.sorted(by: { $0.title < $1.title }).first { ToolIcon(tool: owner, size: 24).help(item.owners.map(\.title).sorted().joined(separator: " · ")) }
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.candidate.name).font(Theme.font(13, weight: .medium)).lineLimit(1).help(item.id)
                                 Text(item.owners.map(\.title).sorted().joined(separator: " · ") + " · " + item.reason).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1)

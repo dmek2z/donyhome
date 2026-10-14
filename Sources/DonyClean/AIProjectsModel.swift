@@ -8,7 +8,7 @@ extension AppModel {
         for app in NSWorkspace.shared.runningApplications where !app.isTerminated {
             guard let path = app.bundleURL?.path else { continue }
             if app.bundleIdentifier == "com.openai.codex" { mapping[path] = .codex }
-            else if app.bundleIdentifier == "com.openai.chat" { mapping[path] = .chatGPT }
+            else if app.bundleIdentifier == "com.openai.chat" { mapping[path] = .codex }
             else if let tool = AITool.allCases.first(where: { $0.title.lowercased() == app.localizedName?.lowercased() }) { mapping[path] = tool }
         }
         return mapping
@@ -66,7 +66,6 @@ extension AppModel {
                 let count = Set((result.0.projects + result.1.projects + result.2).filter { $0.tool == tool }.map(\.path)).count
                 let status: String
                 if let runtime = result.1.statuses[tool] { status = runtime + " · \(count)개 프로젝트" }
-                else if tool == .chatGPT { status = "폴더 연결만 · 클라우드 대화 미지원" }
                 else if [.codex, .claude, .cursor].contains(tool) { status = count > 0 ? "로컬 작업 이력 · \(count)개 프로젝트" : "읽을 수 있는 로컬 이력 없음" }
                 else { status = count > 0 ? "실행 경로 · \(count)개 프로젝트" : "폴더 연결 필요" }
                 toolStatuses[tool] = status
@@ -84,7 +83,7 @@ extension AppModel {
         if let data = try? JSONEncoder().encode(linkedProjects) { UserDefaults.standard.set(data, forKey: "linkedProjects") }
     }
     func scanAIProjects() {
-        guard let (token, epoch) = begin("AI 프로젝트 보관 기간 검사") else { return }
+        guard let (token, epoch) = begin("AI 프로젝트 검사") else { return }
         let selected = selectedProjects; let allLinks = linkedProjects; let days = projectRetentionDays; let scope = projectCleanupScope; let requireRemote = projectRequireRemoteBackup
         let processes = snapshot.processes; let tools = Set(aiUsage.map(\.tool)); let report = progress(epoch)
         let retained = duplicateOriginals.values.map { $0.url.path } + similarOriginals.map { $0.url.path } + [Bundle.main.bundleURL.path]

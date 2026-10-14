@@ -10,8 +10,9 @@ extension AppModel {
         if storageNoticeGate.update(storageAssessment, now: Date(), enabled: storageAlertsEnabled) {
             UserDefaults.standard.set(storageNoticeGate.lastNotice, forKey: "lastStorageNotice")
             if notifyEnabled {
-                let content = UNMutableNotificationContent(); content.title = "도니홈 · 저장 공간 부족"
-                content.body = "남은 공간 " + (snapshot.diskAvailable.map(DisplayFormat.bytes) ?? "확인 필요") + " · 홈에서 정리 추천을 확인하세요."
+                let content = UNMutableNotificationContent()
+                let message = NoticeCopy.storage(storageAssessment.health, availableText: snapshot.diskAvailable.map(DisplayFormat.bytes) ?? "확인 필요", variant: Int.random(in: 0..<2))
+                content.title = message.title; content.body = message.body
                 UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "storage-care", content: content, trigger: nil))
             }
         }

@@ -13,7 +13,7 @@ cp Resources/Info.plist "$dony_bundle/Contents/Info.plist"
 cp Resources/DonyLogo.png "$dony_bundle/Contents/Resources/DonyLogo.png"
 cp Resources/Fonts/* "$dony_bundle/Contents/Resources/Fonts/"
 cp Resources/Icons/*.pdf Resources/Icons/LICENSE "$dony_bundle/Contents/Resources/Icons/"
-for dony_resource_folder in Battery Clipboard; do
+for dony_resource_folder in Battery Clipboard ToolIcons; do
     if [[ -d "Resources/$dony_resource_folder" ]]; then
         ditto "Resources/$dony_resource_folder" "$dony_bundle/Contents/Resources/$dony_resource_folder"
     fi

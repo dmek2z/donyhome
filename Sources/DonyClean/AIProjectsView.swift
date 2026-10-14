@@ -74,12 +74,13 @@ struct AIProjectsView: View {
             ToolSelectionView(selection: $projectTools).disabled(model.busy)
             ForEach(AITool.allCases.filter { model.connectedTools.contains($0) }) { tool in
                 HStack(spacing: 12) {
+                    ToolIcon(tool: tool, size: 34)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(tool.title).font(Theme.font(14, weight: .semibold))
                         Text(model.toolStatuses[tool] ?? "아직 검사하지 않음").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }
                     Spacer()
-                    Text(tool == .chatGPT ? "폴더 연결" : [.codex, .claude, .cursor].contains(tool) ? "로컬 작업 이력" : [.orca, .herdr, .cmux, .tmux].contains(tool) ? "로컬 CLI" : "실행 경로").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    Text([.codex, .claude, .cursor].contains(tool) ? "로컬 작업 이력" : [.orca, .herdr, .cmux, .tmux].contains(tool) ? "로컬 CLI" : "실행 경로").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 }.frame(minHeight: 56)
                 Divider()
             }
@@ -112,7 +113,7 @@ struct AIProjectsView: View {
             Divider()
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    settingLabel("보관 기간")
+                    settingLabel("정리 기준 · 안 쓴 기간")
                     Spacer()
                     Button("−") { model.projectRetentionDays = max(1, model.projectRetentionDays - 1) }.buttonStyle(QuietButton()).disabled(model.busy || model.projectRetentionDays == 1)
                     HStack(spacing: 6) {
@@ -257,8 +258,8 @@ struct AIProjectsView: View {
         if !entry.issues.isEmpty { return "일부 파일을 확인하지 못했어요. 권한·동기화 상태를 확인하고 다시 검사해 주세요." }
         guard let date = entry.lastActivity, date != .distantPast else { return "최근 활동을 확인하지 못했어요. 정리 대상 확인에서 파일 상태를 다시 검사해 주세요." }
         let cutoff = Date().addingTimeInterval(-Double(model.projectRetentionDays) * 86400)
-        if date > cutoff { return "보관 기간 \(model.projectRetentionDays)일 안에 활동했어요. 현재 정리 범위는 \(model.projectCleanupScope.title)이에요." }
-        return "보관 기간 \(model.projectRetentionDays)일보다 오래된 활동이에요. 정리 대상 확인에서 실행 중인 도구·파일 상태" + (model.projectCleanupScope == .wholeProject && model.projectRequireRemoteBackup ? "·원격 보관" : "") + "을 다시 확인해야 해요."
+        if date > cutoff { return "최근 \(model.projectRetentionDays)일 안에 활동해서 정리 추천에서 빼요. 현재 정리 범위는 \(model.projectCleanupScope.title)이에요." }
+        return "\(model.projectRetentionDays)일 넘게 활동이 없어요. 정리 대상 확인에서 실행 중인 도구·파일 상태" + (model.projectCleanupScope == .wholeProject && model.projectRequireRemoteBackup ? "·원격 보관" : "") + "을 다시 확인해야 해요."
     }
     private func selectProjects(_ enabled: Bool) {
         let paths = Set(projects.map(\.path))

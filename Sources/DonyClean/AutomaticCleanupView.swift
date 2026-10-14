@@ -5,7 +5,7 @@ struct AutomaticCleanupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SettingsActionRow(title: "자동 정리", actionTitle: "지금 정리", enabled: !model.busy) { model.runAutomaticCleanup() }
-            Text("보관 기간 \(model.projectRetentionDays)일").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+            Text("정리 기준 · \(model.projectRetentionDays)일 이상 안 쓴 항목").font(Theme.font(12)).foregroundStyle(Theme.secondary)
             Toggle("하루 한 번 자동 정리", isOn: Binding(get: { model.automaticCleanupEnabled }, set: { model.setAutomaticCleanup($0) })).toggleStyle(DonySwitch())
             if let summary = model.automaticCleanupSummary { Text(summary).font(Theme.font(12, weight: .medium)) }
             if let date = model.lastAutomaticCleanup {

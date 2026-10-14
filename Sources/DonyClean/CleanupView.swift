@@ -20,7 +20,7 @@ struct CacheCleanupView: View {
             HStack {
                 PageHeader(title: "캐시·로그")
                 Spacer()
-                DonyTextAction(title: "보관 설정") { showSettings = true }.disabled(model.busy)
+                DonyTextAction(title: "정리 기준") { showSettings = true }.disabled(model.busy)
                 Button("검사") { model.scanCleanup() }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }
             if model.cleanupDate == nil {
@@ -29,7 +29,7 @@ struct CacheCleanupView: View {
                 HStack(spacing: 20) {
                     metric("발견", value: (model.cleanupIncomplete ? "≥ " : "") + DisplayFormat.bytes(measured))
                     metric("추천", value: DisplayFormat.bytes(recommended))
-                    metric("보관", value: DisplayFormat.bytes(max(0, measured - recommended)))
+                    metric("정리 제외", value: DisplayFormat.bytes(max(0, measured - recommended)))
                 }.panel()
                 if model.cleanup.cancelled { Chip(text: "중단됨 · 일부 결과", color: Theme.amber) }
                 DonyTabs(options: ["전체", "캐시", "로그"], selection: $filter)

@@ -10,7 +10,7 @@ struct DonyProfileView: View {
                         .resizable().interpolation(.none).frame(width: 56, height: 56)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("김동훈 · Dony").font(Theme.font(22, weight: .bold))
+                        Text("Dony").font(Theme.font(22, weight: .bold))
                         Text("빠르게 만들고, 써보면서 더 나은 답을 찾아요.")
                             .font(Theme.font(14)).foregroundStyle(Theme.secondary)
                     }
@@ -18,7 +18,7 @@ struct DonyProfileView: View {
                     Link(destination: URL(string: "https://www.linkedin.com/in/donghun-kim94/")!) {
                         HStack(spacing: 7) { DonyIcon("linkedin", size: 18); Text("LinkedIn") }
                             .frame(width: Theme.actionWidth - 24)
-                    }.buttonStyle(QuietButton()).help("김동훈의 LinkedIn 프로필 열기")
+                    }.buttonStyle(QuietButton()).help("Dony의 LinkedIn 프로필 열기")
                 }
                 VStack(alignment: .leading, spacing: 14) {
                     Text("안녕하세요, 도니예요.").font(Theme.font(16, weight: .semibold))

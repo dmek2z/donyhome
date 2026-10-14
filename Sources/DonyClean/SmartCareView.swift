@@ -61,7 +61,7 @@ struct SmartCareView: View {
                 }.padding(.top, 8)
                 DisclosureGroup("추천 기준") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("보관 기간 \(model.projectRetentionDays)일 · 개별 파일 재확인 · 원본 보관\n작업공간: 활동 없음 · 커밋하지 않은 변경 없음 · 모든 커밋이 원격에 있음 · 사용 중인 프로세스 없음").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                        Text("\(model.projectRetentionDays)일 이상 안 쓴 항목 · 개별 파일 재확인 · 원본 보관\n작업공간: 활동 없음 · 커밋하지 않은 변경 없음 · 모든 커밋이 원격에 있음 · 사용 중인 프로세스 없음").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                         if !model.excludedRecommendations.isEmpty {
                             HStack(spacing: 12) {
                                 Text("추천에서 뺀 항목 \(model.excludedRecommendations.count)개").font(Theme.font(12, weight: .medium))

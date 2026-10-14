@@ -46,7 +46,7 @@ public struct CleanupPolicy: Sendable {
             parent.deleteLastPathComponent()
         }
         let retention = days ?? (candidate.kind == .cache ? 14 : 30)
-        guard (1...3650).contains(retention), !CacheScopes.isProtected(candidate.url) else { return CleanupDecision(false, "보호된 경로 또는 잘못된 보관 기간") }
+        guard (1...3650).contains(retention), !CacheScopes.isProtected(candidate.url) else { return CleanupDecision(false, "보호된 경로 또는 잘못된 정리 기준") }
         let days = Double(retention)
         let cutoff = now.addingTimeInterval(-days * 86400).timeIntervalSince1970
         func acceptable(_ url: URL) throws -> Bool {

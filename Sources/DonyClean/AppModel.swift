@@ -129,7 +129,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var notifyEnabled = UserDefaults.standard.bool(forKey: "overloadNotifications")
     @Published var preferencesShown = false
     @Published var onboardingShown = FirstLaunchSetup.shouldShow()
-    @Published var connectedTools = Set((UserDefaults.standard.stringArray(forKey: "connectedTools") ?? AITool.allCases.map(\.rawValue)).compactMap(AITool.init(rawValue:)))
+    @Published var connectedTools = Set((UserDefaults.standard.stringArray(forKey: "connectedTools") ?? AITool.allCases.map(\.rawValue)).compactMap(AITool.init(rawValue:)).map(\.canonical))
     @Published var toolStatuses: [AITool: String] = [:]
     @Published var notificationStatus = "확인 중"
     @Published var setupStep = 0
@@ -148,7 +148,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var projectRequireRemoteBackup = UserDefaults.standard.object(forKey: "projectRequireRemoteBackup") as? Bool ?? true
     var projectScanRequiresRemoteBackup = true
     @Published var projectSource = UserDefaults.standard.string(forKey: "projectSource") ?? "모두"
-    @Published var linkedProjects = (UserDefaults.standard.data(forKey: "linkedProjects").flatMap { try? JSONDecoder().decode([LinkedProject].self, from: $0) }) ?? []
+    @Published var linkedProjects = AppModel.canonicalProjects((UserDefaults.standard.data(forKey: "linkedProjects").flatMap { try? JSONDecoder().decode([LinkedProject].self, from: $0) }) ?? [])
     @Published var projectScan = ScanResult()
     @Published var projectScanDate: Date?
     @Published var projectSummary: String?
@@ -224,8 +224,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         guard cpuAlert || memoryAlert else { return }
         lastNotice = now
         let content = UNMutableNotificationContent()
-        content.title = "도니홈 · " + (memoryAlert ? "메모리가 바빠요" : "CPU가 바빠요")
-        content.body = "과부하가 30초 이상 이어지고 있습니다. CPU · 메모리 화면에서 사용량 높은 앱을 확인해 주세요."
+        let message = NoticeCopy.overload(cpuAlert && memoryAlert ? .both : memoryAlert ? .memory : .cpu, variant: Int.random(in: 0..<2))
+        content.title = message.title; content.body = message.body
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
@@ -291,6 +291,12 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     }
     func cancel() { token?.cancel(); activity?.detail = "중단하는 중…" }
 
+    /// 예전에 따로 저장된 ChatGPT 항목을 Codex로 합치고 같은 프로젝트의 중복을 제거한다.
+    static func canonicalProjects(_ projects: [LinkedProject]) -> [LinkedProject] {
+        var seen = Set<String>()
+        return projects.map { LinkedProject(tool: $0.tool.canonical, path: $0.path, lastActivity: $0.lastActivity, enabled: $0.enabled, discovered: $0.discovered) }
+            .filter { seen.insert($0.id).inserted }
+    }
     var similarOriginals: [FileCandidate] { similar.groups.map(\.original) }
     var recommendedCleanup: [FileCandidate] { recommendedPlan(includeCleanup: true, includeDuplicates: false, includeDeveloper: false, includeWorkspaces: false).items }
     var recommendedDeveloper: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: false, includeDeveloper: true).items }

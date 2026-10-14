@@ -25,13 +25,14 @@ public enum ToolStorage {
     }
     private static func locations(home: URL) -> [Location] {
         let bundleIDs: [AITool: [String]] = [
-            .chatGPT: ["com.openai.chat"], .codex: ["com.openai.codex"],
+            .codex: ["com.openai.codex", "com.openai.chat"],
             .claude: ["com.anthropic.claudefordesktop", "com.anthropic.claude"],
             .cursor: ["com.todesktop.230313mzl4w4u92"], .vscode: ["com.microsoft.VSCode"],
             .windsurf: ["com.exafunction.windsurf"], .terminal: ["com.apple.Terminal", "com.googlecode.iterm2"]
         ]
         var result: [String: Location] = [:]
-        func add(_ path: String, owners: Set<AITool>, kind: CandidateKind) {
+        func add(_ path: String, owners rawOwners: Set<AITool>, kind: CandidateKind) {
+            let owners = Set(rawOwners.map(\.canonical))
             let root = home.appendingPathComponent(path)
             if var existing = result[root.path] {
                 existing.owners.formUnion(owners); result[root.path] = existing

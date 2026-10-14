@@ -12,7 +12,7 @@ import Foundation
         #expect(AITool.identify(process("codex", path: "/usr/local/bin/codex")) == .codex)
         #expect(AITool.identify(process("hermes", path: "/usr/local/bin/hermes")) == .hermes)
         #expect(AITool.identify(process("Orca", path: "/Applications/Orca.app/Contents/MacOS/Orca")) == .orca)
-        #expect(AITool.identify(process("ChatGPT", path: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT")) == .chatGPT)
+        #expect(AITool.identify(process("ChatGPT", path: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT")) == .codex)
         #expect(AITool.identify(process("cursor-helper-unrelated", path: "/tmp/cursor-helper-unrelated")) == nil)
         #expect(AITool.identify(process("node", path: "/usr/local/bin/node")) == nil)
     }
@@ -35,5 +35,9 @@ import Foundation
         #expect(usage.count == 1)
         #expect(usage.first?.tool == .codex)
         #expect(usage.first?.bytes == 200)
+    }
+    @Test func chatGPTFoldsIntoCodex() {
+        #expect(AITool.chatGPT.canonical == .codex && AITool.codex.canonical == .codex)
+        #expect(!AITool.selectable.contains(.chatGPT))
     }
 }

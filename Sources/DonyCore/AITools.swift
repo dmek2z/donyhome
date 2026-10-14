@@ -3,6 +3,9 @@ import Foundation
 public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
     case chatGPT, codex, claude, hermes, orca, cursor, herdr, cmux, tmux, terminal, opencode, gemini, aider, copilot, vscode, windsurf, other
     public var id: String { rawValue }
+    /// ChatGPT 앱과 Codex는 같은 OpenAI 도구라 하나로 다룬다. `chatGPT` 값은 저장된 설정을 읽기 위해서만 남긴다.
+    public var canonical: AITool { self == .chatGPT ? .codex : self }
+    public static var selectable: [AITool] { allCases.filter { $0 != .chatGPT } }
     public var title: String {
         switch self {
         case .chatGPT: return "ChatGPT"; case .codex: return "Codex"; case .claude: return "Claude"; case .hermes: return "Hermes"; case .orca: return "Orca"; case .cursor: return "Cursor"
@@ -11,7 +14,7 @@ public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
     }
     public var executableNames: [String] {
         switch self {
-        case .chatGPT: return []; case .cursor: return ["cursor", "cursor-agent"]; case .claude: return ["claude", "claude-code"]
+        case .chatGPT: return []; case .codex: return ["codex", "ChatGPT"]; case .cursor: return ["cursor", "cursor-agent"]; case .claude: return ["claude", "claude-code"]
         case .terminal: return ["Terminal", "iTerm", "iTerm2", "Warp", "Ghostty", "WezTerm", "Alacritty", "kitty"]
         case .vscode: return ["code", "Code", "Visual Studio Code"]; case .other: return []
         default: return [rawValue]
@@ -34,6 +37,9 @@ public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
         return allCases.first { tool in tool != .terminal && tool != .other && tool.executableNames.map { $0.lowercased() }.contains(scriptName) }
     }
     public static func identify(_ process: ProcessReading, applicationTools: [String: AITool] = [:]) -> Self? {
+        rawIdentify(process, applicationTools: applicationTools)?.canonical
+    }
+    private static func rawIdentify(_ process: ProcessReading, applicationTools: [String: AITool]) -> Self? {
         if let hint = process.toolHint.flatMap(Self.init(rawValue:)) { return hint }
         if let application = applicationTools.keys.sorted(by: { $0.count > $1.count }).first(where: { process.path.hasPrefix($0 + "/") }) { return applicationTools[application] }
         let path = process.path.lowercased(); let name = process.name.lowercased()

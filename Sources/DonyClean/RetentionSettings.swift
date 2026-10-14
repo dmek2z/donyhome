@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DonyCore
 
 extension AppModel {
@@ -20,7 +21,7 @@ struct RetentionSettingsRow: View {
     @EnvironmentObject var model: AppModel
     @State private var shown = false
     var body: some View {
-        SettingsActionRow(title: "보관 기간 · \(model.projectRetentionDays)일", actionTitle: "설정", enabled: !model.busy) { shown = true }
+        SettingsActionRow(title: "정리 기준 · \(model.projectRetentionDays)일 이상 안 쓴 항목", actionTitle: "변경", enabled: !model.busy) { shown = true }
             .help("캐시·로그·개발 캐시·도구·프로젝트 추천에 공통 적용")
             .sheet(isPresented: $shown) { RetentionSettingsSheet() }
     }
@@ -30,26 +31,31 @@ struct RetentionSettingsSheet: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack {
-                Text("보관 기간").font(Theme.font(20, weight: .semibold))
-                Spacer()
-                DonyTextAction(title: "완료") { dismiss() }
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("정리 기준").font(Theme.font(22, weight: .bold))
+                Text("얼마나 안 쓴 항목부터 정리를 추천할까요?").font(Theme.font(14)).foregroundStyle(Theme.secondary)
             }
-            HStack {
-                Text("공통 추천 기준").font(Theme.font(14, weight: .medium))
-                Spacer()
-                Button("−") { model.projectRetentionDays -= 1 }.buttonStyle(QuietButton()).disabled(model.projectRetentionDays <= 1)
-                TextField("일", value: $model.projectRetentionDays, format: .number)
-                    .textFieldStyle(.plain).font(Theme.font(18, weight: .semibold)).multilineTextAlignment(.center)
-                    .frame(width: 64, height: Theme.controlHeight).background(.white).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
-                Text("일").font(Theme.font(14))
-                Button("+") { model.projectRetentionDays += 1 }.buttonStyle(QuietButton()).disabled(model.projectRetentionDays >= 3650)
-            }.disabled(model.busy)
-            DonyChoices(options: ["1일", "3일", "7일", "14일", "30일", "90일"], selection: Binding(
-                get: { "\(model.projectRetentionDays)일" },
-                set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14 }
-            )).disabled(model.busy)
-        }.padding(24).frame(width: 520).foregroundStyle(Theme.body).background(Theme.canvas).preferredColorScheme(.light)
+            VStack(spacing: 18) {
+                HStack(spacing: 20) {
+                    Button { model.projectRetentionDays -= 1 } label: { Text("−").frame(width: 24) }.buttonStyle(QuietButton()).disabled(model.projectRetentionDays <= 1)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        TextField("일", value: $model.projectRetentionDays, format: .number)
+                            .textFieldStyle(.plain).font(Theme.font(44, weight: .bold)).multilineTextAlignment(.center).frame(width: 110)
+                        Text("일 이상 안 쓴 항목").font(Theme.font(16, weight: .medium)).foregroundStyle(Theme.secondary)
+                    }
+                    Button { model.projectRetentionDays += 1 } label: { Text("+").frame(width: 24) }.buttonStyle(QuietButton()).disabled(model.projectRetentionDays >= 3650)
+                }.frame(maxWidth: .infinity)
+                DonyChoices(options: ["3일", "7일", "14일", "30일", "90일"], selection: Binding(
+                    get: { "\(model.projectRetentionDays)일" },
+                    set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14 }
+                ))
+            }.disabled(model.busy).padding(24).frame(maxWidth: .infinity).background(.white).clipShape(RoundedRectangle(cornerRadius: 20))
+            Text("캐시 · 로그 · 개발 캐시 · 프로젝트에 모두 적용돼요. 이 기간 안에 쓴 항목은 정리 추천에서 빼요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack { Spacer(); Button("완료") { dismiss() }.buttonStyle(PrimaryButton()) }
+        }
+        // 열리자마자 숫자 입력칸이 선택된 상태가 되지 않게 한다.
+        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { NSApp.keyWindow?.makeFirstResponder(nil) } }
+        .padding(28).frame(width: 480).foregroundStyle(Theme.body).background(Theme.canvas).preferredColorScheme(.light)
     }
 }

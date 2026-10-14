@@ -42,6 +42,11 @@ import DonyCore
             model.onboardingShown = true; model.setupStep = Int(state.dropFirst("onboarding".count)) ?? 0
             model.connectedTools = [.codex, .claude, .terminal]
             model.linkedProjects = ["donyhome", "blog", "agent-skills"].map { LinkedProject(tool: .codex, path: directory.appendingPathComponent($0).path, discovered: true) }
+        } else if state == "development" {
+            model.connectedTools = [.codex, .claude, .cursor, .hermes, .tmux, .terminal]
+            model.section = .development; model.developmentMode = "도구 정리"
+        } else if state == "retention" {
+            model.section = .development
         } else if state == "outcome" {
             let moved = make("old-cache.bin", kind: .cache, bytes: 120_000, in: "Caches")
             let trashed = ActionRecord(kind: "휴지통 이동", sourcePath: moved.id, trashPath: NSHomeDirectory() + "/.Trash/does-not-matter", bytes: 120_000, success: true, message: "")
@@ -54,7 +59,9 @@ import DonyCore
         let clipboard = ClipboardController(pasteboard: NSPasteboard(name: .init("donyhome-review-" + UUID().uuidString)), storeURL: directory.appendingPathComponent("clipboard.json"))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1130, height: 900), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "도니홈 화면 검토 · 임시 데이터"; window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light))
+        window.contentView = state == "retention"
+            ? NSHostingView(rootView: RetentionSettingsSheet().environmentObject(model).font(Theme.font(14)).preferredColorScheme(.light))
+            : NSHostingView(rootView: RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light))
         window.center(); window.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
         if let snapshot = Bundle.main.object(forInfoDictionaryKey: "DonyFixtureSnapshot") as? String {

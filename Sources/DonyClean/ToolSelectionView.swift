@@ -5,7 +5,7 @@ import DonyCore
 struct ToolSelectionView: View {
     @Binding var selection: Set<AITool>
     var statuses: [AITool: String] = [:]
-    var tools: [AITool] = AITool.allCases
+    var tools: [AITool] = AITool.selectable
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), spacing: 8)], spacing: 8) {
             ForEach(tools) { tool in
@@ -31,7 +31,7 @@ struct ToolSelectionView: View {
     }
 }
 
-/// 설치된 앱의 실제 아이콘을 보여준다. CLI만 있는 도구는 이니셜 배지로 대신한다.
+/// 도구 아이콘: 설치된 앱 아이콘 → 내장 공식 아이콘 → 이니셜 배지 순서로 보여준다.
 struct ToolIcon: View {
     let tool: AITool
     var size: CGFloat = 28
@@ -42,13 +42,15 @@ struct ToolIcon: View {
         let names = ([tool.title] + tool.executableNames).filter { !$0.isEmpty }
         let roots = ["/Applications/", home.appendingPathComponent("Applications").path + "/", "/System/Applications/", "/System/Applications/Utilities/"]
         let path = names.lazy.flatMap { name in roots.map { $0 + name + ".app" } }.first { FileManager.default.fileExists(atPath: $0) }
-        let icon = path.map { NSWorkspace.shared.icon(forFile: $0) }
+        // 설치된 앱의 아이콘을 우선하고, 없으면 앱에 포함한 공식 프로젝트 아이콘을 쓴다.
+        let bundled = Bundle.main.url(forResource: tool.rawValue, withExtension: "png", subdirectory: "ToolIcons").flatMap { NSImage(contentsOf: $0) }
+        let icon = path.map { NSWorkspace.shared.icon(forFile: $0) } ?? bundled
         cache[tool] = icon
         return icon
     }
     var body: some View {
         if let icon = Self.appIcon(tool) {
-            Image(nsImage: icon).resizable().interpolation(.high).frame(width: size, height: size)
+            Image(nsImage: icon).resizable().interpolation(.high).frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         } else {
             Text(String(tool.title.prefix(1)).uppercased()).font(Theme.font(size * 0.45, weight: .bold)).foregroundStyle(Theme.secondary)
                 .frame(width: size, height: size).background(Theme.controlFill).clipShape(RoundedRectangle(cornerRadius: size * 0.25))

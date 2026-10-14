@@ -16,7 +16,7 @@ struct OnboardingView: View {
     private let totalPermissions = 6
     private var detectedTools: [AITool] {
         let running = Set(model.aiUsage.map(\.tool))
-        return AITool.allCases.filter { $0 != .other && (running.contains($0) || DevelopmentRuntime.installed($0)) }
+        return AITool.selectable.filter { $0 != .other && (running.contains($0) || DevelopmentRuntime.installed($0)) }
     }
     @State private var toolsPreselected = false
     private func projectCount(_ tool: AITool) -> Int { Set(model.linkedProjects.filter { $0.tool == tool }.map(\.path)).count }
@@ -39,7 +39,7 @@ struct OnboardingView: View {
             Text((running ? "사용 중" : "설치됨") + (model.connectedTools.contains(tool) && count > 0 ? " · 프로젝트 \(count)개" : "")).font(Theme.font(12)).foregroundStyle(running ? Theme.success : Theme.secondary)
         }.frame(height: 52)
     }
-    private var otherTools: [AITool] { AITool.allCases.filter { !detectedTools.contains($0) } }
+    private var otherTools: [AITool] { AITool.selectable.filter { !detectedTools.contains($0) } }
     private var projectPaths: [String] { Array(Set(model.linkedProjects.map(\.path))).sorted() }
     private func projectEnabled(_ path: String) -> Binding<Bool> {
         Binding(get: { model.linkedProjects.contains { $0.path == path && $0.enabled } }, set: { enabled in

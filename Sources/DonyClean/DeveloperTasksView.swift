@@ -17,7 +17,7 @@ struct DeveloperTasksView: View {
             DonyFilterChips(options: ["전체"] + AITool.allCases.filter { model.connectedTools.contains($0) }.map(\.title), selection: Binding(
                 get: { model.developmentToolFilter?.title ?? "전체" },
                 set: { value in model.developmentToolFilter = AITool.allCases.first { $0.title == value } }
-            )).disabled(controller.busy)
+            ), icons: Dictionary(uniqueKeysWithValues: AITool.allCases.map { ($0.title, $0) })).disabled(controller.busy)
             if let message = controller.message {
                 HStack(spacing: 12) {
                     DonyIcon("info.circle", size: 18).foregroundStyle(Theme.primary)
@@ -51,7 +51,7 @@ struct DeveloperTasksView: View {
     }
     private func taskRow(_ task: AgentTaskGroup) -> some View {
         HStack(spacing: 14) {
-            DonyIcon("terminal", size: 19).foregroundStyle(Theme.primary).frame(width: 24)
+            ToolIcon(tool: task.tool, size: 32)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(task.tool.title).font(Theme.font(14, weight: .semibold))
@@ -71,7 +71,8 @@ struct DeveloperTasksView: View {
         }.padding(.horizontal, 20).frame(height: Theme.listRowHeight)
     }
     private func recoveryRow(_ record: OwnedAgentTask) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
+            ToolIcon(tool: record.tool, size: 32)
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.tool.title + " · " + "\(record.members.count)개 기록").font(Theme.font(14, weight: .semibold))
                 Text(record.workingDirectory).font(Theme.font(12)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(record.workingDirectory)

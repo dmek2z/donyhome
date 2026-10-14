@@ -1,4 +1,5 @@
 import SwiftUI
+import DonyCore
 
 struct DonyIconMenu<Content: View>: View {
     let title: String
@@ -76,14 +77,19 @@ struct DonyTextAction: View {
 struct DonyFilterChips: View {
     let options: [String]
     @Binding var selection: String
+    /// 옵션 이름에 해당하는 도구가 있으면 칩 앞에 도구 로고를 보여준다.
+    var icons: [String: AITool] = [:]
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(options, id: \.self) { option in
                     Button { selection = option } label: {
-                        Text(option).font(Theme.font(13, weight: .medium)).lineLimit(1)
+                        HStack(spacing: 8) {
+                            if let tool = icons[option] { ToolIcon(tool: tool, size: 20) }
+                            Text(option).font(Theme.font(13, weight: .medium)).lineLimit(1)
+                        }
                             .foregroundStyle(selection == option ? Theme.primary : Theme.secondary)
-                            .padding(.horizontal, 14).frame(height: Theme.controlHeight)
+                            .padding(.leading, icons[option] == nil ? 14 : 10).padding(.trailing, 14).frame(height: Theme.controlHeight)
                             .background(selection == option ? Theme.blueWash : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
                     }.buttonStyle(.plain).accessibilityAddTraits(selection == option ? .isSelected : [])
