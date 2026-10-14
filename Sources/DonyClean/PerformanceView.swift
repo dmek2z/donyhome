@@ -74,11 +74,12 @@ struct PerformanceView: View {
                     Text("전체 시스템 · 요청 3초 후").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 }.panel(16)
             }
+            DonyChoices(options: ["내 앱", "내 프로세스", "전체 프로세스"], selection: $scope)
+                .onChange(of: scope) { _, _ in selection.removeAll() }
             HStack(spacing: 12) {
-                DonyMenuButton(title: toolFilter?.title ?? (scope == "내 앱" ? "실행 중인 앱" : scope), width: Theme.filterWidth) {
-                    Button("실행 중인 앱 · 필터 해제") { scope = "내 앱"; toolFilter = nil; selection.removeAll() }
-                    Button("내 프로세스") { scope = "내 프로세스"; selection.removeAll() }
-                    Button("전체 프로세스") { scope = "전체 프로세스"; selection.removeAll() }
+                if let toolFilter {
+                    Text(toolFilter.title).font(Theme.font(13, weight: .semibold))
+                    DonyTextAction(title: "전체 보기") { self.toolFilter = nil; selection.removeAll() }
                 }
                 Text("\(rows.count)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                 Spacer()
@@ -90,7 +91,7 @@ struct PerformanceView: View {
                 HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)); selection.removeAll() }.buttonStyle(PrimaryButton()).disabled(model.busy) }
             }
             if rows.isEmpty {
-                EmptyState(icon: "waveform.path.ecg", title: "표시할 항목이 없어요", subtitle: "검색 조건을 바꾸거나 다음 시스템 측정을 기다려 주세요.")
+                EmptyState(icon: "waveform.path.ecg", title: "표시할 항목이 없어요", subtitle: "")
             } else {
                 LazyVStack(spacing: 0) {
                     HStack {
@@ -120,7 +121,7 @@ struct PerformanceView: View {
                         Divider().padding(.leading, 56)
                     }
                 }.panel(0)
-                if rows.count > 100 { Text("상위 100개를 표시합니다. 검색으로 특정 프로세스를 찾을 수 있어요.").font(Theme.font(10)).foregroundStyle(Theme.secondary) }
+                if rows.count > 100 { Text("100 / \(rows.count)개 표시").font(Theme.font(10)).foregroundStyle(Theme.secondary) }
             }
             DisclosureGroup("시스템 상세 정보") {
                 HStack { Text("스왑 " + (model.snapshot.swapUsed.map(DisplayFormat.bytes) ?? "—")); Spacer(); Text("압축 메모리 " + (model.snapshot.memoryCompressed.map(DisplayFormat.bytes) ?? "—")) }.font(Theme.font(12)).padding(.vertical, 12)

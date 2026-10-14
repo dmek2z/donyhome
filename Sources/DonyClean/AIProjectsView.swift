@@ -107,7 +107,6 @@ struct AIProjectsView: View {
                     Button("폴더 연결") { model.addProjects(tools: projectTools) }.buttonStyle(QuietButton()).disabled(model.busy || projectTools.isEmpty)
                     if model.projectSource != "직접 등록" { Button("작업 이력에서 찾기") { model.discoverProjects() }.buttonStyle(QuietButton()).disabled(model.busy) }
                 }
-                if model.projectSource != "직접 등록" { Text("작업 이력 · 실행 중인 터미널 프로젝트").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
                 }.padding(.top, 12)
             }.font(Theme.font(14, weight: .medium)).tint(Theme.secondary)
             Divider()
@@ -133,8 +132,6 @@ struct AIProjectsView: View {
                     if !model.projectRequireRemoteBackup { Text("원격에 없는 로컬 코드·파일도 함께 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.amber) }
                 }
             }
-            Divider()
-            Text("프로젝트 정리는 직접 검토 후 실행해요. 메모리 사용 작업은 작업 탭에서 확인해 주세요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading).panel()
     }
     private var projectPaths: [String] { Array(Set(projects.map(\.path))).sorted() }
@@ -145,9 +142,8 @@ struct AIProjectsView: View {
                 Text("프로젝트 파일").font(Theme.font(18, weight: .semibold))
                 Text("\(projectPaths.count)개").font(Theme.font(14)).foregroundStyle(Theme.secondary)
                 Spacer()
-                DonyMenuButton(title: "선택", width: Theme.filterWidth) {
-                    Button("전체 선택") { selectProjects(true) }
-                    Button("선택 해제") { selectProjects(false) }
+                DonyTextAction(title: projects.contains { $0.enabled } ? "선택 해제" : "전체 선택") {
+                    selectProjects(!projects.contains { $0.enabled })
                 }.disabled(model.busy || projects.isEmpty)
                 Button("정리 대상 확인") { model.scanAIProjects() }.buttonStyle(QuietButton()).disabled(model.busy || model.selectedProjects.isEmpty)
             }

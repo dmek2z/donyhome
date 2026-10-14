@@ -4,6 +4,7 @@ import DonyCore
 struct ToolCareView: View {
     @EnvironmentObject var model: AppModel
     @State private var selection = Set<String>()
+    @State private var showSettings = false
     private var tools: [AITool] { AITool.allCases.filter { model.connectedTools.contains($0) } }
     private var focus: AITool? { model.developmentToolFilter }
     private var items: [ToolStorageItem] { model.toolStorage.items.filter { focus == nil || $0.owners.contains(focus!) } }
@@ -12,8 +13,9 @@ struct ToolCareView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 16) {
-                Text("도구가 쓰는 공간·메모리").font(Theme.font(17, weight: .semibold))
+                Text("도구별 사용량").font(Theme.font(17, weight: .semibold))
                 Spacer()
+                DonyTextAction(title: "보관 설정") { showSettings = true }.disabled(model.busy)
                 Button("도구 검사") { model.scanToolStorage() }.buttonStyle(PrimaryButton()).disabled(model.busy || tools.isEmpty)
             }
             if tools.isEmpty {
@@ -48,6 +50,19 @@ struct ToolCareView: View {
             if let focus, !model.connectedTools.contains(focus) { model.developmentToolFilter = nil }
         }
         .onChange(of: model.projectRetentionDays) { _, _ in selection.removeAll() }
+        .sheet(isPresented: $showSettings) {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack {
+                    Text("캐시·로그 보관").font(Theme.font(20, weight: .semibold))
+                    Spacer()
+                    DonyTextAction(title: "완료") { showSettings = false }
+                }
+                DonyChoices(options: ["1일", "3일", "7일", "14일", "30일", "90일"], selection: Binding(
+                    get: { "\(model.projectRetentionDays)일" },
+                    set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14 }
+                )).disabled(model.busy)
+            }.padding(24).frame(width: 520).background(Theme.canvas)
+        }
     }
     private var summary: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -55,27 +70,21 @@ struct ToolCareView: View {
                 metric("캐시·로그", value: model.toolStorageDate == nil ? "검사 전" : DisplayFormat.bytes(items.reduce(0) { $0 + $1.candidate.bytes }))
                 metric("정리 가능한 파일", value: model.toolStorageCurrent ? DisplayFormat.bytes(eligible.reduce(0) { $0 + $1.candidate.bytes }) : "다시 검사")
                 metric("실행 중 메모리", value: DisplayFormat.bytes(memoryBytes))
+                    .help("프로세스 합산값 · 공유 영역이 중복될 수 있어요. 파일 정리와 일시 정지는 RAM을 비우지 않아요.")
             }
             HStack {
-                DonyMenuButton(title: focus?.title ?? "모든 도구", width: Theme.filterWidth) {
-                    Button("모든 도구") { model.developmentToolFilter = nil }
-                    ForEach(tools) { tool in Button(tool.title) { model.developmentToolFilter = tool } }
-                }.disabled(model.busy)
-                DonyMenuButton(title: "\(model.projectRetentionDays)일 보관") {
-                    ForEach([1, 3, 7, 14, 30, 90], id: \.self) { days in
-                        Button("\(days)일") { model.projectRetentionDays = days }
-                    }
-                }.disabled(model.busy)
+                if let focus {
+                    Text(focus.title).font(Theme.font(13, weight: .semibold))
+                    DonyTextAction(title: "전체 보기") { model.developmentToolFilter = nil }
+                }
                 Spacer()
-                DonyMenuButton(title: "자원 관리") {
-                    Button("CLI 작업 확인") { model.reviewDevelopmentTasks(focus) }
-                    Button("앱 메모리·종료 확인") { model.reviewToolMemory(focus) }
-                    Button("프로젝트 생성물 확인") { model.developmentMode = "프로젝트" }
-                    Button("연동 설정") { model.developmentMode = "연동" }
-                }.disabled(model.busy)
+                Button { model.reviewDevelopmentTasks(focus) } label: {
+                    Text("작업 확인").frame(width: Theme.actionWidth - 24)
+                }.buttonStyle(QuietButton()).disabled(model.busy)
+                Button { model.reviewToolMemory(focus) } label: {
+                    Text("메모리 확인").frame(width: Theme.actionWidth - 24)
+                }.buttonStyle(QuietButton()).disabled(model.busy)
             }
-            Text("메모리는 프로세스 합산값으로 공유 영역이 중복될 수 있어요. 파일 정리와 작업 일시 정지는 RAM 확보로 계산하지 않아요.")
-                .font(Theme.font(11)).foregroundStyle(Theme.secondary)
         }.panel()
     }
     private func metric(_ title: String, value: String) -> some View {
@@ -109,12 +118,13 @@ struct ToolCareView: View {
             HStack {
                 Text((focus?.title ?? "전체 도구") + " · 정리 대상").font(Theme.font(17, weight: .semibold))
                 Spacer()
-                SelectionControl(selection: $selection, ids: eligible.map(\.id)).disabled(model.busy || !model.toolStorageCurrent)
+                if !eligible.isEmpty {
+                    SelectionControl(selection: $selection, ids: eligible.map(\.id)).disabled(model.busy || !model.toolStorageCurrent)
+                }
             }
-            Text("\(model.projectRetentionDays)일 이상 지난 파일만 선택할 수 있어요. 사용 중인 도구는 제외해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
             if model.toolStorage.cancelled { Text("검사 중단 · 다시 검사해 주세요").font(Theme.font(12)).foregroundStyle(Theme.amber) }
             else if items.isEmpty {
-                Text(model.toolStorageDate == nil ? "도구 검사로 캐시·로그 경로를 확인해 주세요." : "확인된 정리 대상이 없어요. 경로 미확인 도구는 프로젝트 폴더를 연결해 생성물을 확인할 수 있어요.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
+                Text(model.toolStorageDate == nil ? "검사 전" : "정리 대상 없음").font(Theme.font(13)).foregroundStyle(Theme.secondary)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(items.prefix(100))) { item in
@@ -130,7 +140,7 @@ struct ToolCareView: View {
                         Divider()
                     }
                 }
-                if items.count > 100 { Text("상위 100개 표시 · 전체 선택에는 모든 정리 가능 항목이 포함돼요.").font(Theme.font(11)).foregroundStyle(Theme.secondary) }
+                if items.count > 100 { Text("100 / \(items.count)개 표시").font(Theme.font(11)).foregroundStyle(Theme.secondary).help("전체 선택은 표시되지 않은 정리 가능 항목도 포함해요.") }
             }
             if !selection.isEmpty {
                 HStack {

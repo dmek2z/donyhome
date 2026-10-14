@@ -72,11 +72,48 @@ struct SelectionControl: View {
     let ids: [String]
     var recommended: [String]? = nil
     var body: some View {
-        DonyMenuButton(title: selection.isEmpty ? "선택" : "\(selection.count)개 선택", width: Theme.filterWidth) {
-            Button("전체 선택") { selection = Set(ids) }
-            if let recommended { Button("추천 항목 선택") { selection = Set(recommended) } }
-            Button("선택 해제") { selection.removeAll() }
-        }
+        HStack(spacing: 12) {
+            if let recommended {
+                DonyTextAction(title: "추천 선택") { selection = Set(recommended) }.disabled(recommended.isEmpty)
+            }
+            DonyTextAction(title: selection.isEmpty ? "전체 선택" : "선택 해제") {
+                if selection.isEmpty { selection = Set(ids) } else { selection.removeAll() }
+            }.disabled(ids.isEmpty && selection.isEmpty)
+        }.fixedSize()
+    }
+}
+
+/// Secondary actions stay visible and share a 42pt hit area without menu chrome.
+struct DonyTextAction: View {
+    let title: String
+    let action: () -> Void
+    @Environment(\.isEnabled) private var enabled
+    var body: some View {
+        Button(action: action) {
+            Text(title).font(Theme.font(13, weight: .medium))
+                .foregroundStyle(enabled ? Theme.primary : Theme.secondary.opacity(0.55))
+                .padding(.horizontal, 4).frame(height: Theme.controlHeight).contentShape(Rectangle())
+        }.buttonStyle(.plain)
+    }
+}
+
+struct DonyFilterChips: View {
+    let options: [String]
+    @Binding var selection: String
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(options, id: \.self) { option in
+                    Button { selection = option } label: {
+                        Text(option).font(Theme.font(13, weight: .medium)).lineLimit(1)
+                            .foregroundStyle(selection == option ? Theme.primary : Theme.secondary)
+                            .padding(.horizontal, 14).frame(height: Theme.controlHeight)
+                            .background(selection == option ? Theme.blueWash : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+                    }.buttonStyle(.plain).accessibilityAddTraits(selection == option ? .isSelected : [])
+                }
+            }
+        }.frame(height: Theme.controlHeight)
     }
 }
 

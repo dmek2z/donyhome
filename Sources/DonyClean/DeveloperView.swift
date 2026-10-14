@@ -24,7 +24,6 @@ struct DeveloperView: View {
                 }.panel(0)
                 SelectionBar(selected: selected) { model.moveToTrash(selected) }
             }
-            Text("Xcode Archives와 프로젝트 원본은 유지해요. 사용 중인 개발 도구의 캐시는 정리에서 제외해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
             IssuesView(issues: model.developer.issues)
         }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }
     }

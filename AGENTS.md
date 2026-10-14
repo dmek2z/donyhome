@@ -7,6 +7,8 @@
 UI를 새로 만들거나 수정할 때 [.agents/skills/donyhome-design/SKILL.md](.agents/skills/donyhome-design/SKILL.md)와 [docs/design-system.md](docs/design-system.md)를 먼저 읽고 적용한다.
 
 - `Theme.swift` / `DonyControls.swift`의 공통 토큰과 컴포넌트를 사용한다.
+- 주요 화면에 글자 드롭다운 버튼·기능 소개·버튼 재설명을 새로 넣지 않는다. 선택은 행·칩·분할 선택·직접 버튼, 설정은 설정창으로 표현한다. 실제 오류·제외 사유·삭제 확인은 유지한다.
+- 전역 스킬이 없는 Mac은 `zsh scripts/install-design-skill.sh`로 저장소의 독립 스킬을 설치한다. 앱 설치만으로 스킬이 적용된다고 가정하지 않는다.
 - 공통 컴포넌트 변경은 모든 사용처를 점검한다. 화면 단위 임시 스타일로 규격을 우회하지 않는다.
 - `python3 scripts/check-design-rules.py` 및 `zsh scripts/build-app.sh`를 실행한다. 화면 변경은 네이티브 앱에서 실제 정렬·클릭 범위·메뉴 상태를 확인한다.
 - 디자인 문서와 코드가 달라지면 같은 변경에서 함께 수정한다. 새 예외는 이유와 적용 범위를 적는다.
