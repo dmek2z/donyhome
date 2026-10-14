@@ -68,7 +68,7 @@ import DonyCore
         app.activate(ignoringOtherApps: true)
         if let snapshot = Bundle.main.object(forInfoDictionaryKey: "DonyFixtureSnapshot") as? String {
             // 화면 녹화 권한 없이 창(시트 포함)의 내용을 PNG로 저장하고 종료한다.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
                 let view = (window.attachedSheet ?? window).contentView!
                 if let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
                     view.cacheDisplay(in: view.bounds, to: rep)
