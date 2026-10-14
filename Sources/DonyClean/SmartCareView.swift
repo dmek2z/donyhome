@@ -25,13 +25,13 @@ struct SmartCareView: View {
                 }
                 Text("정리할 항목 선택").font(Theme.font(15, weight: .semibold))
                 VStack(spacing: 0) {
-                    recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $model.cleanCaches, section: .cleanup, mode: "캐시 · 로그", review: model.recommendedCleanup.map(\.id))
+                    recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $model.cleanCaches, section: .cleanup, mode: "캐시 · 로그", reason: "30일 이상 지난 로그와 14일 이상 변경 없는 앱 캐시 · 실행 중인 앱 제외", review: model.recommendedCleanup.map(\.id))
                     Divider()
-                    recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $model.cleanCopies, section: .files, mode: "중복 파일", review: model.recommendedDuplicateCopies.map(\.id))
+                    recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $model.cleanCopies, section: .files, mode: "중복 파일", reason: "내용이 같은 사본만 · 원본 한 개는 남겨요", review: model.recommendedDuplicateCopies.map(\.id))
                     Divider()
                     recommendedRow("방치된 작업공간", icon: "folder", detail: "\(model.recommendedWorkspaces.count)개 · " + DisplayFormat.bytes(model.recommendedWorkspaces.reduce(0) { $0 + $1.bytes }), selected: $model.cleanWorkspaces, section: .development, mode: "캐시", reason: "\(model.projectRetentionDays)일 이상 활동 없음 · 변경·미푸시 없음 · 휴지통에서 복원 가능", review: model.recommendedWorkspaces.map(\.id))
                     Divider()
-                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloperCaches.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloperCaches.reduce(0) { $0 + $1.bytes }), selected: $model.cleanDeveloper, section: .development, mode: "캐시", review: model.recommendedDeveloperCaches.map(\.id))
+                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloperCaches.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloperCaches.reduce(0) { $0 + $1.bytes }), selected: $model.cleanDeveloper, section: .development, mode: "캐시", reason: "\(model.projectRetentionDays)일 이상 변경 없고 관련 도구가 종료된 재생성 가능 캐시", review: model.recommendedDeveloperCaches.map(\.id))
                     Divider()
                 }.font(Theme.font(13))
                 DisclosureGroup("직접 확인할 항목") {
