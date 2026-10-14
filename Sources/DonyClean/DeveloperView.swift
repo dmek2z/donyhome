@@ -5,6 +5,11 @@ struct DeveloperView: View {
     @EnvironmentObject var model: AppModel
     @State private var page = 0
     @State private var selection = Set<String>()
+    /// 추천 항목을 먼저 보여준다(안정 정렬).
+    private var orderedItems: [FileCandidate] {
+        let recommended = Set(model.recommendedDeveloper.map(\.id))
+        return model.developer.items.filter { recommended.contains($0.id) } + model.developer.items.filter { !recommended.contains($0.id) }
+    }
     private var selected: [FileCandidate] { model.developer.items.filter { selection.contains($0.id) } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -18,7 +23,7 @@ struct DeveloperView: View {
             else {
                 HStack { Text("\(model.developer.items.count)개 항목").font(Theme.font(13)); Spacer(); SelectionControl(selection: $selection, ids: model.developer.items.map(\.id), recommended: model.recommendedDeveloper.map(\.id)).disabled(model.busy || model.developer.cancelled) }
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(model.developer.items.dropFirst(page * 100).prefix(100))) { item in
+                    ForEach(Array(orderedItems.dropFirst(page * 100).prefix(100))) { item in
                         CandidateRow(candidate: item, selection: $selection, subtitle: DeveloperCleanup.label(item) + " · " + (model.developer.decisions[item.id]?.reason ?? "직접 확인"))
                         Divider().padding(.leading, 58)
                     }
@@ -27,6 +32,6 @@ struct DeveloperView: View {
                 SelectionBar(selected: selected) { model.moveToTrash(selected) }
             }
             IssuesView(issues: model.developer.issues)
-        }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll(); page = 0 }
+        }.onAppear { if !model.reviewSelection.isEmpty { selection = Set(model.reviewSelection); model.reviewSelection = []; page = 0 } }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll(); page = 0 }
     }
 }

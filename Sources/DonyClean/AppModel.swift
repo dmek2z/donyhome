@@ -32,6 +32,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
 @MainActor final class AppModel: ObservableObject {
     @Published var cleanupMode = "캐시 · 로그"
     @Published var developmentMode = "도구 정리"
+    /// 전체 검사의 「검토」에서 넘어온 추천 항목. 개발 캐시 화면이 열릴 때 한 번 선택해 준다.
+    @Published var reviewSelection: [String] = []
     @Published var developmentToolFilter: AITool?
     @Published var performanceTool: AITool?
     @Published var toolStorage = ToolStorageResult()
@@ -279,9 +281,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func cancel() { token?.cancel(); activity?.detail = "중단하는 중…" }
 
     var similarOriginals: [FileCandidate] { similar.groups.map(\.original) }
-    var recommendedCleanup: [FileCandidate] { recommendedPlan(includeCleanup: true, includeDuplicates: false, includeDeveloper: false).items }
+    var recommendedCleanup: [FileCandidate] { recommendedPlan(includeCleanup: true, includeDuplicates: false, includeDeveloper: false, includeWorkspaces: false).items }
     var recommendedDeveloper: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: false, includeDeveloper: true).items }
-    var recommendedDuplicateCopies: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: true, includeDeveloper: false).items }
+    var recommendedDeveloperCaches: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: false, includeDeveloper: true, includeWorkspaces: false).items }
+    var recommendedWorkspaces: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: false, includeDeveloper: false, includeWorkspaces: true).items }
+    var recommendedDuplicateCopies: [FileCandidate] { recommendedPlan(includeCleanup: false, includeDuplicates: true, includeDeveloper: false, includeWorkspaces: false).items }
     var duplicateCopies: [FileCandidate] { duplicates.groups.flatMap(\.copies) }
     var duplicateOriginals: [String: FileCandidate] {
         Dictionary(uniqueKeysWithValues: duplicates.groups.flatMap { group in group.copies.map { ($0.id, group.original) } })
@@ -344,17 +348,17 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             section = .inspection
         }
     }
-    func recommendedPlan(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true) -> RecommendedPlan {
-        let key = (includeCleanup ? 1 : 0) | (includeDuplicates ? 2 : 0) | (includeDeveloper ? 4 : 0)
+    func recommendedPlan(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true, includeWorkspaces: Bool = true) -> RecommendedPlan {
+        let key = (includeCleanup ? 1 : 0) | (includeDuplicates ? 2 : 0) | (includeDeveloper ? 4 : 0) | (includeWorkspaces ? 8 : 0)
         if let cached = recommendationCache[key] { return cached }
-        let raw = (includeCleanup ? cleanup.items.filter { cleanupDecisions[$0.id]?.isRecommended == true } : []) + (includeDeveloper ? developer.recommended : [])
+        let raw = (includeCleanup ? cleanup.items.filter { cleanupDecisions[$0.id]?.isRecommended == true } : []) + developer.recommended.filter { StaleWorkspaces.isWorkspace($0) ? includeWorkspaces : includeDeveloper }
         let plan = RecommendedActions.plan(cleanup: raw, duplicates: duplicates.groups, includeCopies: includeDuplicates, preserving: similarOriginals)
         recommendationCache[key] = plan
         return plan
     }
-    func runRecommended(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true) {
+    func runRecommended(includeCleanup: Bool, includeDuplicates: Bool, includeDeveloper: Bool = true, includeWorkspaces: Bool = true) {
         guard let smart, !smart.cancelled else { return }
-        let plan = recommendedPlan(includeCleanup: includeCleanup, includeDuplicates: includeDuplicates, includeDeveloper: includeDeveloper)
+        let plan = recommendedPlan(includeCleanup: includeCleanup, includeDuplicates: includeDuplicates, includeDeveloper: includeDeveloper, includeWorkspaces: includeWorkspaces)
         moveToTrash(plan.items, originals: plan.originals, recommendedOnly: true)
     }
     func scanCleanup() {

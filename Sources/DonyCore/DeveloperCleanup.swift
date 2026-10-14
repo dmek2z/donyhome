@@ -19,7 +19,7 @@ public enum DeveloperCleanup {
         ("Library/Caches/pnpm", ["pnpm", "pnpx", "node"])
     ]
     public static func label(_ item: FileCandidate) -> String {
-        if StaleWorkspaces.isWorkspace(item) { return "방치된 작업공간 · " + item.url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent + " · " + item.name }
+        if StaleWorkspaces.isWorkspace(item) { return "작업공간" }
         if item.id.contains("/Xcode/DerivedData/") { return "Xcode · " + item.url.deletingLastPathComponent().lastPathComponent + " · " + item.name }
         if item.id.contains("/.npm/_cacache") { return "npm 다운로드 캐시" }
         return item.name + " 다운로드 캐시"

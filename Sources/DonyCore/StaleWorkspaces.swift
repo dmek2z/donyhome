@@ -173,7 +173,7 @@ public enum StaleWorkspaces {
                     result.items.append(item)
                     do {
                         try requireSafe(item.url, active: active, now: now, requireOld: true, days: days, token: token)
-                        result.decisions[item.id] = CleanupDecision(true, "\(days)일 이상 방치 · 변경·미푸시 없음 · 휴지통에서 복원 가능")
+                        result.decisions[item.id] = CleanupDecision(true, "\(days)일 이상 활동 없음 · 변경·미푸시 없음")
                     } catch { if token.isCancelled { result.cancelled = true; return result }; result.decisions[item.id] = CleanupDecision(false, error.localizedDescription) }
                 } catch {
                     if token.isCancelled { result.cancelled = true; return result }

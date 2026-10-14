@@ -6,7 +6,8 @@ struct SmartCareView: View {
     @State private var cleanCaches = true
     @State private var cleanCopies = true
     @State private var cleanDeveloper = true
-    private var plan: RecommendedPlan { model.recommendedPlan(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper) }
+    @State private var cleanWorkspaces = true
+    private var plan: RecommendedPlan { model.recommendedPlan(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper, includeWorkspaces: cleanWorkspaces) }
     private var selectedCount: Int { plan.items.count }
     private var selectedBytes: Int64 { plan.bytes }
     var body: some View {
@@ -32,7 +33,9 @@ struct SmartCareView: View {
                     Divider()
                     recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $cleanCopies, section: .files, mode: "중복 파일")
                     Divider()
-                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloper.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloper.reduce(0) { $0 + $1.bytes }), selected: $cleanDeveloper, section: .development, mode: "캐시")
+                    recommendedRow("방치된 작업공간", icon: "folder", detail: "\(model.recommendedWorkspaces.count)개 · " + DisplayFormat.bytes(model.recommendedWorkspaces.reduce(0) { $0 + $1.bytes }), selected: $cleanWorkspaces, section: .development, mode: "캐시", reason: "\(model.projectRetentionDays)일 이상 활동 없음 · 변경·미푸시 없음 · 휴지통에서 복원 가능", review: model.recommendedWorkspaces.map(\.id))
+                    Divider()
+                    recommendedRow("개발 캐시", icon: "gearshape", detail: "\(model.recommendedDeveloperCaches.count)개 · " + DisplayFormat.bytes(model.recommendedDeveloperCaches.reduce(0) { $0 + $1.bytes }), selected: $cleanDeveloper, section: .development, mode: "캐시", review: model.recommendedDeveloperCaches.map(\.id))
                     Divider()
                 }.font(Theme.font(13))
                 DisclosureGroup("직접 확인할 항목") {
@@ -58,10 +61,10 @@ struct SmartCareView: View {
                         Text("선택 항목은 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }
                     Spacer()
-                    Button("선택 항목 정리") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
+                    Button("선택 항목 정리") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper, includeWorkspaces: cleanWorkspaces) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
                 }.padding(.top, 8)
                 DisclosureGroup("추천 기준") {
-                    Text("보관 기간 \(model.projectRetentionDays)일 · 개별 파일 재확인 · 원본 보관").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
+                    Text("보관 기간 \(model.projectRetentionDays)일 · 개별 파일 재확인 · 원본 보관\n작업공간: 활동 없음 · 커밋하지 않은 변경 없음 · 모든 커밋이 원격에 있음 · 사용 중인 프로세스 없음").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
                 }.font(Theme.font(12)).tint(Theme.secondary)
                 IssuesView(issues: smart.issues)
             }
@@ -73,13 +76,17 @@ struct SmartCareView: View {
         }
         model.section = section
     }
-    private func recommendedRow(_ title: String, icon: String, detail: String, selected: Binding<Bool>, section: Section, mode: String? = nil) -> some View {
+    private func recommendedRow(_ title: String, icon: String, detail: String, selected: Binding<Bool>, section: Section, mode: String? = nil, reason: String? = nil, review: [String] = []) -> some View {
         HStack(spacing: 12) {
             Toggle(title, isOn: selected).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel(title).disabled(model.busy || detail.hasPrefix("0개"))
             DonyIcon(icon).foregroundStyle(section.iconColor)
-            Text(title).font(Theme.font(14, weight: .medium)); Spacer()
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(Theme.font(14, weight: .medium))
+                if let reason, !detail.hasPrefix("0개") { Text(reason).font(Theme.font(11)).foregroundStyle(Theme.secondary) }
+            }
+            Spacer()
             Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)
-            Button("검토") { open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy)
+            Button("검토") { model.reviewSelection = review; open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy)
         }.padding(.vertical, 10)
     }
     private func reviewRow(_ title: String, icon: String, detail: String, section: Section, mode: String? = nil) -> some View {
