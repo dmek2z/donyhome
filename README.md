@@ -134,4 +134,4 @@ UI는 공통 토큰(`Theme.swift`)과 `Dony` 접두사 컴포넌트(`DonyControl
 
 포함·참고한 외부 구성요소(Maccy, battery, fuse-swift, smcFanControl, Pretendard, Fredoka, Phosphor Icons)의 라이선스와 도구 로고 관련 안내는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 정리했습니다. `smc`는 GPL-2.0인 **별도 프로그램**이고 도니홈 자체는 MIT입니다. 도구 로고와 이름은 각 소유자의 상표이며 도니홈은 해당 회사와 제휴 관계가 없습니다.
 
-만든 사람: [Dony](https://github.com/dmek2z) · winking116@gmail.com
+만든 사람: [Dony](https://github.com/dmek2z)
