@@ -14,6 +14,8 @@ extension AppModel {
 
     @discardableResult
     func refreshAccess() -> Task<Void, Never> {
+        // 화면 검토용 픽스처는 보호된 폴더를 읽지 않아 권한 창이 뜨지 않는다.
+        if Bundle.main.object(forInfoDictionaryKey: "DonyReviewFixture") != nil { return Task {} }
         if let task = permissionAccessTask { return task }; checkingAccess = true
         let home = FileManager.default.homeDirectoryForCurrentUser
         let folder = folder

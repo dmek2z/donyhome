@@ -5,7 +5,7 @@ import DonyCore
 struct OnboardingView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var clipboard: ClipboardController
-    private let titles = ["Mac 권한 허용", "개발 도구 연결", "프로젝트 연결", "준비 완료"]
+    private let titles = ["Mac 권한 허용", "개발 도구 탐색", "프로젝트 동기화", "준비 완료"]
     private let permissionFolders = ["Downloads", "Desktop", "Documents"]
     private var home: URL { FileManager.default.homeDirectoryForCurrentUser }
     /// 온보딩에서 확인하는 권한 6개의 허용 현황.
@@ -17,6 +17,27 @@ struct OnboardingView: View {
     private var detectedTools: [AITool] {
         let running = Set(model.aiUsage.map(\.tool))
         return AITool.allCases.filter { $0 != .other && (running.contains($0) || DevelopmentRuntime.installed($0)) }
+    }
+    @State private var toolsPreselected = false
+    private func projectCount(_ tool: AITool) -> Int { Set(model.linkedProjects.filter { $0.tool == tool }.map(\.path)).count }
+    /// 이 Mac에서 쓰는 개발 도구를 찾고 연동 대상으로 선택한 뒤 도구별 프로젝트를 탐색한다.
+    private func scanTools() {
+        model.refreshToolConnections()
+        if Bundle.main.object(forInfoDictionaryKey: "DonyReviewFixture") != nil { return }
+        if !toolsPreselected { toolsPreselected = true; model.connectedTools = Set(detectedTools) }
+        model.saveConnectedTools()
+        if !model.busy { model.discoverProjects(includeInventory: false) }
+    }
+    private func toolRow(_ tool: AITool) -> some View {
+        let running = model.aiUsage.contains { $0.tool == tool }
+        let count = projectCount(tool)
+        return HStack(spacing: 12) {
+            Toggle("연동 " + tool.title, isOn: Binding(get: { model.connectedTools.contains(tool) }, set: { if $0 { model.connectedTools.insert(tool) } else { model.connectedTools.remove(tool) } })).toggleStyle(DonyCheckbox()).labelsHidden()
+            ToolIcon(tool: tool, size: 30)
+            Text(tool.title).font(Theme.font(14, weight: .medium))
+            Spacer()
+            Text((running ? "사용 중" : "설치됨") + (model.connectedTools.contains(tool) && count > 0 ? " · 프로젝트 \(count)개" : "")).font(Theme.font(12)).foregroundStyle(running ? Theme.success : Theme.secondary)
+        }.frame(height: 52)
     }
     private var otherTools: [AITool] { AITool.allCases.filter { !detectedTools.contains($0) } }
     private var projectPaths: [String] { Array(Set(model.linkedProjects.map(\.path))).sorted() }
@@ -41,28 +62,48 @@ struct OnboardingView: View {
                     Text(titles[model.setupStep]).font(Theme.font(24, weight: .bold))
                     switch model.setupStep {
                     case 1:
-                        Text(detectedTools.isEmpty ? "이 Mac에서 개발 도구를 찾지 못했어요. 아래에서 직접 고를 수 있어요." : "이 Mac에서 찾은 개발 도구 \(detectedTools.count)개를 연결해요. 연결한 도구의 작업 이력과 캐시를 개발 화면에서 정리해요.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
-                        if !detectedTools.isEmpty { ToolSelectionView(selection: $model.connectedTools, statuses: model.toolStatuses, tools: detectedTools) }
-                        DisclosureGroup("다른 도구 직접 선택 \(otherTools.count)개") {
-                            ToolSelectionView(selection: $model.connectedTools, statuses: model.toolStatuses, tools: otherTools).padding(.top, 12)
-                        }.font(Theme.font(13, weight: .medium)).tint(Theme.secondary)
-                        HStack {
-                            Text("\(model.connectedTools.count)개 연결").font(Theme.font(14, weight: .semibold))
+                        HStack(spacing: 10) {
+                            if model.busy { ProgressView().controlSize(.small) }
+                            Text(model.busy ? "개발 도구를 탐색하고 있어요…" : detectedTools.isEmpty ? "이 Mac에서 사용 중인 개발 도구를 찾지 못했어요. 아래에서 직접 고를 수 있어요." : "사용 중인 개발 도구 \(detectedTools.count)개를 찾았어요").font(Theme.font(14, weight: .semibold))
                             Spacer()
-                            DonyTextAction(title: "다시 감지") { model.refreshToolConnections() }
+                            DonyTextAction(title: "다시 탐색") { scanTools() }.disabled(model.busy)
                         }
-                    case 2:
-                        HStack {
-                            Text(model.busy ? "작업 이력과 실행 중인 도구에서 프로젝트를 찾는 중…" : "\(projectPaths.count)개 프로젝트를 찾았어요. 정리할 프로젝트만 켜 두세요.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
-                            Spacer()
-                            Button("폴더 추가") { model.addProjects(tools: model.connectedTools) }.buttonStyle(QuietButton()).disabled(model.connectedTools.isEmpty || model.busy)
-                            Button("다시 찾기") { model.saveConnectedTools(); model.discoverProjects(includeInventory: false) }.buttonStyle(QuietButton()).disabled(model.busy)
-                        }
-                        if projectPaths.isEmpty {
-                            Text(model.busy ? "" : "찾은 프로젝트가 없어요. 폴더 추가로 직접 연결하거나 나중에 개발 화면에서 연결할 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                        } else {
+                        if !detectedTools.isEmpty {
                             VStack(spacing: 0) {
+                                ForEach(detectedTools) { tool in
+                                    toolRow(tool)
+                                    if tool != detectedTools.last { Divider() }
+                                }
+                            }.padding(.horizontal, 20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
+                        }
+                        DisclosureGroup("목록에 없는 도구 직접 선택 \(otherTools.count)개") {
+                            ToolSelectionView(selection: $model.connectedTools, statuses: [:], tools: otherTools).padding(.top, 12)
+                        }.font(Theme.font(13, weight: .medium)).tint(Theme.secondary)
+                    case 2:
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 10) {
+                                if model.busy { ProgressView().controlSize(.small) }
+                                Text(model.busy ? "연동한 도구의 프로젝트를 불러오는 중…" : "프로젝트 \(projectPaths.count)개를 자동으로 동기화해요").font(Theme.font(16, weight: .semibold))
+                            }
+                            Text("연동한 도구에서 쓰는 프로젝트를 모두 가져오고, 새 프로젝트도 자동으로 추가돼요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                            ForEach(model.connectedTools.sorted { $0.title < $1.title }.filter { projectCount($0) > 0 }) { tool in
+                                HStack { Text(tool.title).font(Theme.font(13, weight: .medium)); Spacer(); Text("\(projectCount(tool))개").font(Theme.font(13)).foregroundStyle(Theme.secondary) }
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("정리 기준").font(Theme.font(16, weight: .semibold))
+                            Text("마지막 작업 후 \(model.projectRetentionDays)일 동안 활동이 없으면 빌드·캐시를 정리 후보로 추천해요. 정리한 파일은 휴지통으로 가요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                            DonyChoices(options: ["3일", "7일", "14일", "30일"], selection: Binding(get: { "\(model.projectRetentionDays)일" }, set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14; model.saveProjectSettings() }))
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
+                        DisclosureGroup("정리에서 제외할 프로젝트 직접 선택") {
+                            VStack(alignment: .leading, spacing: 0) {
+                                HStack {
+                                    Text("체크 해제한 프로젝트는 정리하지 않아요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                                    Spacer()
+                                    Button("폴더 추가") { model.addProjects(tools: model.connectedTools) }.buttonStyle(QuietButton()).disabled(model.connectedTools.isEmpty || model.busy)
+                                }.padding(.vertical, 12)
                                 ForEach(projectPaths, id: \.self) { path in
+                                    Divider()
                                     HStack(spacing: 12) {
                                         Toggle("정리 대상 " + URL(fileURLWithPath: path).lastPathComponent, isOn: projectEnabled(path)).toggleStyle(DonyCheckbox()).labelsHidden()
                                         VStack(alignment: .leading, spacing: 4) {
@@ -70,14 +111,10 @@ struct OnboardingView: View {
                                             Text(path).font(Theme.font(10)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(path)
                                         }
                                         Spacer()
-                                        Text(Array(Set(model.linkedProjects.filter { $0.path == path }.map { $0.tool.title })).sorted().joined(separator: " · ")).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1)
                                     }.frame(height: Theme.listRowHeight)
-                                    Divider()
                                 }
-                            }.panel(20)
-                        }
-                        HStack { Text("보관 기간").font(Theme.font(14)); Spacer(); Text("\(model.projectRetentionDays)일").font(Theme.font(16, weight: .semibold)) }
-                        DonyChoices(options: ["1일", "2일", "3일", "7일", "14일", "30일"], selection: Binding(get: { "\(model.projectRetentionDays)일" }, set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14; model.saveProjectSettings() }))
+                            }
+                        }.font(Theme.font(13, weight: .medium)).tint(Theme.secondary)
                     case 0:
                         HStack {
                             Text("권한 \(totalPermissions)개 중 \(allowedPermissions)개 허용됨").font(Theme.font(14, weight: .semibold)).foregroundStyle(allowedPermissions == totalPermissions ? Theme.success : Theme.body)
@@ -92,9 +129,9 @@ struct OnboardingView: View {
                         VStack(spacing: 0) {
                             summaryRow("Mac 권한", "\(allowedPermissions) / \(totalPermissions) 허용", done: allowedPermissions == totalPermissions)
                             Divider()
-                            summaryRow("개발 도구", "\(model.connectedTools.count)개 연결", done: !model.connectedTools.isEmpty)
+                            summaryRow("개발 도구", "\(model.connectedTools.count)개 연동", done: !model.connectedTools.isEmpty)
                             Divider()
-                            summaryRow("프로젝트", "\(Set(model.linkedProjects.filter(\.enabled).map(\.path)).count)개 정리 대상", done: !model.linkedProjects.isEmpty)
+                            summaryRow("프로젝트", "\(Set(model.linkedProjects.filter(\.enabled).map(\.path)).count)개 자동 동기화", done: !model.linkedProjects.isEmpty)
                         }.panel(20)
                         Text("캐릭터").font(Theme.font(14, weight: .semibold))
                         DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
@@ -105,7 +142,7 @@ struct OnboardingView: View {
             HStack {
                 if model.setupStep > 0 { Button("이전") { model.setupStep -= 1 }.buttonStyle(QuietButton()) }
                 Spacer(); Text("\(model.setupStep + 1) / 4").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                Button(model.setupStep == 3 ? "시작하기" : "다음") {
+                Button(model.setupStep == 3 ? "시작하기" : model.setupStep == 1 ? "\(model.connectedTools.count)개 도구 연동" : "다음") {
                     model.saveConnectedTools()
                     if model.setupStep < 3 {
                         if model.setupStep == 0 {
@@ -118,14 +155,15 @@ struct OnboardingView: View {
             }.padding(24)
         }.frame(width: 700, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
             .onAppear {
-                model.refreshToolConnections()
+                if model.setupStep == 1 { scanTools() } else { model.refreshToolConnections() }
                 if Bundle.main.object(forInfoDictionaryKey: "DonyReviewFixture") == nil, FirstLaunchSetup.claimPermissionRequests() { model.requestSelectedPermissions(notifications: true, paste: true, clipboard: clipboard) }
                 else { model.refreshAccess() }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refreshAccess(); model.refreshToolConnections() }
             .onChange(of: model.setupStep) { _, value in
                 if value == 0 { model.refreshToolConnections(); model.refreshAccess() }
-                if value == 2, !model.busy { model.saveConnectedTools(); model.discoverProjects(includeInventory: false) }
+                if value == 1 { scanTools() }
+                if value == 2, !model.busy { model.projectSource = "모두"; model.saveProjectSettings(); model.saveConnectedTools(); model.discoverProjects(includeInventory: false) }
             }
             .onChange(of: model.notifyEnabled) { _, _ in model.refreshToolConnections() }
     }
