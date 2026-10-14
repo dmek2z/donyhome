@@ -11,8 +11,9 @@ struct AIProjectsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "개발")
-            DonyTabs(options: ["프로젝트", "작업", "연동", "캐시"], selection: $model.developmentMode)
-            if tab == "연동" {
+            DonyTabs(options: ["도구 정리", "작업", "연동", "프로젝트", "캐시"], selection: $model.developmentMode)
+            if tab == "도구 정리" { ToolCareView() }
+            else if tab == "연동" {
                 integrationPanel
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
@@ -45,12 +46,18 @@ struct AIProjectsView: View {
                 IssuesView(issues: model.connectionIssues.filter { issue in !model.projectScan.issues.contains { $0.id == issue.id } } + model.projectScan.issues)
             }
         }
-        .onAppear { model.refreshToolConnections(); projectTools = model.connectedTools; if model.connectionCheckedAt == nil && !model.busy { model.discoverProjects(includeInventory: false) } }
+        .onAppear {
+            model.refreshToolConnections(); projectTools = model.connectedTools
+            if !model.busy {
+                if tab == "도구 정리", model.toolStorageDate == nil { model.scanToolStorage() }
+                else if tab != "도구 정리", model.connectionCheckedAt == nil { model.discoverProjects(includeInventory: false) }
+            }
+        }
         .onChange(of: projectTools) { _, value in model.connectedTools = value; model.saveConnectedTools() }
         .onChange(of: model.projectRetentionDays) { _, _ in model.saveProjectSettings() }
-        .onChange(of: model.projectRequireRemoteBackup) { _, _ in model.setProjectAutomation(false); model.saveProjectSettings() }
+        .onChange(of: model.projectRequireRemoteBackup) { _, _ in model.saveProjectSettings() }
         .onChange(of: model.projectSource) { _, _ in model.saveProjectSettings() }
-        .onChange(of: model.projectCleanupScope) { _, _ in model.setProjectAutomation(false); model.saveProjectSettings() }
+        .onChange(of: model.projectCleanupScope) { _, _ in model.saveProjectSettings() }
     }
     private var integrationPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -127,7 +134,7 @@ struct AIProjectsView: View {
                 }
             }
             Divider()
-            Toggle("메모리 압박 30초 지속 시 자동 정리", isOn: Binding(get: { model.projectCleanupEnabled }, set: { model.setProjectAutomation($0) })).toggleStyle(DonySwitch()).disabled(model.busy)
+            Text("프로젝트 정리는 직접 검토 후 실행해요. 메모리 사용 작업은 작업 탭에서 확인해 주세요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading).panel()
     }
     private var projectPaths: [String] { Array(Set(projects.map(\.path))).sorted() }

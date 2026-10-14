@@ -4,6 +4,7 @@ import DonyCore
 struct DeveloperTasksView: View {
     @EnvironmentObject var model: AppModel
     @StateObject private var controller = AgentTaskController.shared
+    private var visibleTasks: [AgentTaskGroup] { controller.tasks.filter { model.developmentToolFilter == nil || $0.tool == model.developmentToolFilter } }
     private var recoveredOnly: [OwnedAgentTask] { controller.owned.filter { record in !controller.tasks.contains { $0.id == record.id } } }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -13,6 +14,10 @@ struct DeveloperTasksView: View {
                     Text("도구와 작업 폴더를 확인한 CLI 프로세스만 표시합니다.").font(Theme.font(13)).foregroundStyle(Theme.secondary)
                 }
                 Spacer(minLength: 12)
+                DonyMenuButton(title: model.developmentToolFilter?.title ?? "모든 도구", width: Theme.filterWidth) {
+                    Button("모든 도구") { model.developmentToolFilter = nil }
+                    ForEach(AITool.allCases.filter { model.connectedTools.contains($0) }) { tool in Button(tool.title) { model.developmentToolFilter = tool } }
+                }.disabled(controller.busy)
                 Button { controller.update(model.snapshot) } label: { Text("새로고침").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(controller.busy)
             }
             if let message = controller.message {
@@ -22,13 +27,13 @@ struct DeveloperTasksView: View {
                     if controller.busy { ProgressView().controlSize(.small) }
                 }.frame(maxWidth: .infinity, alignment: .leading).panel(16)
             }
-            if controller.tasks.isEmpty {
+            if visibleTasks.isEmpty {
                 EmptyState(icon: "terminal", title: "제어할 수 있는 CLI 작업이 없습니다", subtitle: "Codex · Claude · Hermes · OpenCode · Gemini · Aider · Copilot · cursor-agent의 작업 폴더와 프로세스를 확인하면 여기에 표시됩니다.")
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(controller.tasks.enumerated()), id: \.element.id) { index, task in
+                    ForEach(Array(visibleTasks.enumerated()), id: \.element.id) { index, task in
                         taskRow(task)
-                        if index < controller.tasks.count - 1 { Divider().padding(.leading, 20) }
+                        if index < visibleTasks.count - 1 { Divider().padding(.leading, 20) }
                     }
                 }.panel(0)
             }

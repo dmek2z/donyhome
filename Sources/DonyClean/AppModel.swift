@@ -31,7 +31,15 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
 
 @MainActor final class AppModel: ObservableObject {
     @Published var cleanupMode = "캐시 · 로그"
-    @Published var developmentMode = "프로젝트"
+    @Published var developmentMode = "도구 정리"
+    @Published var developmentToolFilter: AITool?
+    @Published var performanceTool: AITool?
+    @Published var toolStorage = ToolStorageResult()
+    @Published var toolStorageDate: Date?
+    @Published var developmentPressureReview = false
+    var toolStorageTools: Set<AITool> = []
+    var toolStorageDays = 14
+    private var lastDevelopmentReview: Date?
     @Published var filesMode = "큰 파일"
     @Published var applicationsMode = "설치 앱"
     @Published var blockedPaths: [String] = []
@@ -113,7 +121,6 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var automaticCleanupSummary: String?
     @Published var characterMode = CharacterMode(rawValue: UserDefaults.standard.string(forKey: "characterMode") ?? "") ?? .color
     let menuAnimator = CodingCharacterAnimator(mode: CharacterMode(rawValue: UserDefaults.standard.string(forKey: "characterMode") ?? "") ?? .color)
-    @Published var projectCleanupEnabled = UserDefaults.standard.bool(forKey: "projectCleanupEnabled")
     @Published var projectInventory: [ProjectInventoryEntry] = []
     @Published var connectionCheckedAt: Date?
     @Published var connectionIssues: [ScanIssue] = []
@@ -126,7 +133,6 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var projectScan = ScanResult()
     @Published var projectScanDate: Date?
     @Published var projectSummary: String?
-    @Published var lastProjectPressureAttempt = UserDefaults.standard.object(forKey: "lastProjectPressureAttempt") as? Date
     var projectScanLinks: [LinkedProject] = []
     var projectScanDays = 14
     var projectScanScope: ProjectCleanupScope = .generated
@@ -148,6 +154,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     }
 
     init() {
+        // Retire legacy disk cleanup triggered by memory pressure.
+        UserDefaults.standard.set(false, forKey: "projectCleanupEnabled")
         if let path = UserDefaults.standard.string(forKey: "scanFolder") {
             let saved = URL(fileURLWithPath: path)
             if FileSafety.allowedRoot(saved, kind: .large) { folder = saved }
@@ -174,13 +182,13 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             if let memory = value.memoryPercent { memoryHistory = Array((memoryHistory + [memory]).suffix(60)) }
             checkOverload(value)
             updateStorageCare(value)
-            if resumedScanChecked, projectCleanupEnabled, value.pressure == .warning || value.pressure == .critical,
-               memoryHighSince.map({ Date().timeIntervalSince($0) >= 30 }) == true,
-               lastProjectPressureAttempt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true, !busy, !permissionsShown {
-                lastProjectPressureAttempt = Date()
-                UserDefaults.standard.set(lastProjectPressureAttempt, forKey: "lastProjectPressureAttempt")
-                scanAIProjects(runAutomatically: true)
+            if !aiUsage.isEmpty, DevelopmentPressurePolicy.shouldReview(
+                pressure: value.pressure,
+                duration: memoryHighSince.map { Date().timeIntervalSince($0) } ?? 0,
+                sinceLastReview: lastDevelopmentReview.map { Date().timeIntervalSince($0) } ?? .infinity) {
+                lastDevelopmentReview = Date(); developmentPressureReview = true
             }
+            if value.pressure == .normal { developmentPressureReview = false }
             if resumedScanChecked, AutomaticCleanup.isDue(enabled: automaticCleanupEnabled, lastAttempt: lastAutomaticCleanup) && !busy && !permissionsShown { runAutomaticCleanup() }
         }
     }

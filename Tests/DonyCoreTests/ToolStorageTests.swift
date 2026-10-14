@@ -89,6 +89,19 @@ import Testing
         #expect(result.cancelled)
         #expect(result.eligible.isEmpty)
     }
+    @Test func protectsCredentialsWithCaseVariations() throws {
+        try file("Library/Caches/Cursor/AUTH.JSON")
+        try file("Library/Caches/Cursor/Agents.md")
+        #expect(scan([.cursor]).items.isEmpty)
+    }
+    @Test func validatesOnlyTheInspectedFileWhenNewCacheArrives() throws {
+        let old = try file("Library/Caches/Cursor/old")
+        let item = try #require(scan([.cursor]).eligible.first)
+        let new = try file("Library/Caches/Cursor/new", days: 0)
+        try ToolStorage.validate(item, home: home, runningTools: [], days: 14, token: ScanToken(), now: now)
+        #expect(item.candidate.url.lastPathComponent == old.lastPathComponent)
+        #expect(FileManager.default.fileExists(atPath: new.path))
+    }
     @Test func sustainedPressureRequestsTaskReviewWithCooldown() {
         #expect(!DevelopmentPressurePolicy.shouldReview(pressure: .normal, duration: 100, sinceLastReview: 1000))
         #expect(!DevelopmentPressurePolicy.shouldReview(pressure: .warning, duration: 29, sinceLastReview: 1000))

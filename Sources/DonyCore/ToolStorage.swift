@@ -62,7 +62,7 @@ public enum ToolStorage {
         return relative.split(separator: "/").contains { part in
             let name = String(part)
             let lower = name.lowercased()
-            return protectedNames.contains(name) || lower.contains("credential") ||
+            return protectedNames.contains(where: { $0.lowercased() == lower }) || lower.contains("credential") ||
                 lower.hasPrefix("auth.") || lower.hasSuffix(".jsonl") ||
                 lower.contains(".sqlite") || lower.hasSuffix(".db") || lower.hasSuffix(".vscdb") ||
                 lower.hasSuffix(".db-wal") || lower.hasSuffix(".db-shm")

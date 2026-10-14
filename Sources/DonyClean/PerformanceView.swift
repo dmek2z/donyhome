@@ -123,6 +123,8 @@ struct PerformanceView: View {
                 Text("앱 메모리 합산에는 공유 메모리가 중복될 수 있어요").font(Theme.font(11)).foregroundStyle(Theme.secondary)
                 HStack { Spacer(); Button("활동 모니터 열기") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")) }.buttonStyle(QuietButton()) }
             }.font(Theme.font(12)).tint(Theme.secondary).panel(20)
+        }.onAppear {
+            if let tool = model.performanceTool { search = tool.title; model.performanceTool = nil }
         }
     }
 }

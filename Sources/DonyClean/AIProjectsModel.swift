@@ -28,15 +28,6 @@ extension AppModel {
         if let data = try? JSONEncoder().encode(linkedProjects) { UserDefaults.standard.set(data, forKey: "linkedProjects") }
         projectScan = ScanResult(); projectScanDate = nil
     }
-    func setProjectAutomation(_ enabled: Bool) {
-        if enabled {
-            guard !selectedProjects.isEmpty else { banner = "먼저 자동 정리할 프로젝트를 연결하고 선택해 주세요."; return }
-            let description = "메모리 압박이 30초 이상 지속되면 \(projectRetentionDays)일 이상 업데이트되지 않은 선택 프로젝트의 \(projectCleanupScope.title)를 휴지통으로 옮깁니다.\n프로젝트 전체에는 소스 코드와 설정이 포함됩니다. RAM 사용량은 실행 중인 앱을 종료해야 줄어들 수 있습니다.\n휴지통은 자동으로 비우지 않습니다."
-            guard confirm("메모리 압박 시 프로젝트 자동 정리", message: description, action: "자동 정리 켜기", destructive: projectCleanupScope != .generated, paths: selectedProjects.map(\.path)) else { return }
-        }
-        projectCleanupEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: "projectCleanupEnabled")
-    }
     func addProject(tool: AITool) { addProjects(tools: [tool]) }
     func addProjects(tools: Set<AITool>) {
         guard !busy, !tools.isEmpty else { return }
@@ -89,7 +80,7 @@ extension AppModel {
         }
         if let data = try? JSONEncoder().encode(linkedProjects) { UserDefaults.standard.set(data, forKey: "linkedProjects") }
     }
-    func scanAIProjects(runAutomatically: Bool = false) {
+    func scanAIProjects() {
         guard let (token, epoch) = begin("AI 프로젝트 보관 기간 검사") else { return }
         let selected = selectedProjects; let allLinks = linkedProjects; let days = projectRetentionDays; let scope = projectCleanupScope; let requireRemote = projectRequireRemoteBackup
         let processes = snapshot.processes; let tools = Set(aiUsage.map(\.tool)); let report = progress(epoch)
@@ -125,19 +116,17 @@ extension AppModel {
             projectScan = output.0; projectScanLinks = output.1; projectScanDays = days; projectScanScope = scope; projectScanRequiresRemoteBackup = requireRemote; projectScanDate = Date()
             projectSummary = "\(projectScan.items.count)개 정리 후보 · " + DisplayFormat.bytes(projectScan.totalBytes)
             finish(projectScan.cancelled, issues: projectScan.issues)
-            if runAutomatically && !projectScan.cancelled && (snapshot.pressure == .warning || snapshot.pressure == .critical) { runProjectCleanup(automatic: true) }
         }
     }
-    func runProjectCleanup(automatic: Bool = false) {
+    func runProjectCleanup() {
         guard !busy, !projectScan.cancelled, !projectScan.items.isEmpty, projectScanDate != nil else { return }
-        if automatic && !projectCleanupEnabled { return }
         let enabledIDs = Set(selectedProjects.map(\.id))
         guard projectScanScope == projectCleanupScope, projectScanDays == projectRetentionDays, projectScanRequiresRemoteBackup == projectRequireRemoteBackup,
               projectScanLinks.allSatisfy({ enabledIDs.contains($0.id) }) else {
             banner = "정리 대상 또는 설정이 바뀌었어요. 다시 검사해 주세요."; return
         }
         let items = projectScan.items; let links = projectScanLinks; let allLinks = linkedProjects; let days = projectScanDays; let scope = projectScanScope; let requireRemote = projectScanRequiresRemoteBackup
-        if !automatic && !confirm("AI 프로젝트 정리", message: (scope == .wholeProject && !requireRemote ? "원격 저장 여부와 관계없이 로컬 코드·파일을 정리합니다.\n" : "") + "\(days)일 이상 업데이트되지 않은 \(items.count)개 항목의 \(scope.title)를 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id)) { return }
+        if !confirm("AI 프로젝트 정리", message: (scope == .wholeProject && !requireRemote ? "원격 저장 여부와 관계없이 로컬 코드·파일을 정리합니다.\n" : "") + "\(days)일 이상 업데이트되지 않은 \(items.count)개 항목의 \(scope.title)를 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.", action: "휴지통으로 이동", destructive: true, paths: items.map(\.id)) { return }
         let spaceMeasurement = CleanupSpaceMeasurement()
         operationBusy = true; operationLabel = "프로젝트 상태를 다시 확인하고 이동하는 중…"
         Task {
