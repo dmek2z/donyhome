@@ -1,29 +1,5 @@
 import SwiftUI
 
-/// Native menu behavior with a deterministic label and full control hit area.
-struct DonyMenuButton<Content: View>: View {
-    let title: String
-    var width: CGFloat = Theme.actionWidth
-    @ViewBuilder let content: () -> Content
-    @Environment(\.isEnabled) private var enabled
-    var body: some View {
-        // macOS turns images inside a Menu label into native menu images and
-        // can ignore SwiftUI sizing/rotation. Keep the native label text-only;
-        // draw the deterministic decoration outside that conversion boundary.
-        Menu(content: content) { Text(title) }
-            .menuStyle(.button).buttonStyle(MenuHitAreaStyle(width: width, height: Theme.controlHeight)).menuIndicator(.hidden)
-            .frame(width: width, height: Theme.controlHeight)
-            .overlay {
-                Text(title).font(Theme.font(14, weight: .medium)).lineLimit(1)
-                    .padding(.horizontal, 28).frame(width: width, height: Theme.controlHeight)
-                    .overlay(alignment: .trailing) { DonyIcon("chevron.right", size: 10).rotationEffect(.degrees(90)).padding(.trailing, 12) }
-                    .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55))
-                    .background(Theme.controlFill).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
-                    .allowsHitTesting(false).accessibilityHidden(true)
-            }.contentShape(Rectangle()).fixedSize().accessibilityLabel(title)
-    }
-}
-
 struct DonyIconMenu<Content: View>: View {
     let title: String
     var size: CGFloat = 32

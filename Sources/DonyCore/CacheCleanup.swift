@@ -8,8 +8,11 @@ public struct CacheInventoryGroup: Identifiable, Sendable {
     public var recommendedBytes: Int64 = 0
     public var files = 0
     public var incomplete = false
+    public var status = ""
     public var protectedBytes: Int64 { max(0, bytes - recommendedBytes) }
-    public var title: String { root.lastPathComponent }
+    public var title: String {
+        root.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent == "Application Support" ? root.deletingLastPathComponent().lastPathComponent + " · " + root.lastPathComponent : root.lastPathComponent
+    }
 }
 
 public struct CacheCleanupResult: Sendable {
@@ -58,6 +61,7 @@ public enum CacheCleanup {
                     if identities.insert(stamp.identity).inserted {
                         let candidate = try FileCandidate.capture(url: root, root: root.deletingLastPathComponent(), kind: kind, token: token)
                         let decision = try CleanupPolicy(home: base, days: days).reason(for: candidate, now: now, runningBundleIDs: runningOwners, token: token)
+                        group.status = decision.reason
                         if decision.isRecommended { result.files.items.append(candidate); result.decisions[candidate.id] = decision; group.recommendedBytes = candidate.bytes }
                     } else { group.bytes = 0 }
                     result.groups.append(group); continue
@@ -67,6 +71,7 @@ public enum CacheCleanup {
                 let policy = CleanupPolicy(home: base, days: days)
                 let known = kind == .log || CacheScopes.isKnown(root: root, home: base)
                 let running = policy.runningOwner(of: root.appendingPathComponent("_"), runningBundleIDs: runningOwners) != nil
+                group.status = running ? "사용 중 · 보관" : !known ? "경로 미확인 · 보관" : "\(days)일 기준"
                 let cutoff = now.addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970
                 try ProjectFileWalker.walk(root: root, token: token, limit: limit, timeout: timeout, shouldDescend: { directory in
                     if CacheScopes.isProtected(directory) || CacheScopes.containsProject(directory) {
@@ -88,7 +93,7 @@ public enum CacheCleanup {
                     group.recommendedBytes += candidate.bytes
                 }
             } catch {
-                group.incomplete = true
+                group.incomplete = true; group.status = "일부 결과 · 확인 필요"
                 if !token.isCancelled && result.files.issues.count < 100 { result.files.issues.append(ScanIssue(path: root.path, error: error)) }
             }
             result.groups.append(group)

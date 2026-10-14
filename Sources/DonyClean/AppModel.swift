@@ -64,6 +64,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var operationLabel = "작업 처리 중…"
     @Published var scanEpoch = UUID()
     @Published var cleanup = ScanResult()
+    @Published var cleanupInventory: [CacheInventoryGroup] = []
     @Published var cleanupDecisions: [String: CleanupDecision] = [:]
     @Published var smartScanPhase: SmartScanPhase?
     @Published var smart: SmartScanResult?
@@ -124,7 +125,9 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var projectInventory: [ProjectInventoryEntry] = []
     @Published var connectionCheckedAt: Date?
     @Published var connectionIssues: [ScanIssue] = []
-    @Published var projectRetentionDays = max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14))
+    @Published var projectRetentionDays = max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14)) {
+        didSet { if oldValue != projectRetentionDays { retentionChanged() } }
+    }
     @Published var projectCleanupScope = ProjectCleanupScope(rawValue: UserDefaults.standard.string(forKey: "projectCleanupScope") ?? "") ?? .generated
     @Published var projectRequireRemoteBackup = UserDefaults.standard.object(forKey: "projectRequireRemoteBackup") as? Bool ?? true
     var projectScanRequiresRemoteBackup = true
@@ -296,11 +299,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         lastAutomaticCleanup = Date()
         UserDefaults.standard.set(lastAutomaticCleanup, forKey: "lastAutomaticCleanup")
         automaticCleanupSummary = "오래된 캐시 · 로그를 확인하는 중…"
-        let running = runningCleanupOwners; let report = progress(epoch)
+        let running = runningCleanupOwners; let report = progress(epoch); let days = projectRetentionDays
         Task {
-            let result = await Task.detached(priority: .utility) { AutomaticCleanup.scan(runningOwners: running, token: token, progress: report) }.value
+            let result = await Task.detached(priority: .utility) { AutomaticCleanup.scan(runningOwners: running, token: token, progress: report, days: days) }.value
             finish(result.cancelled, issues: result.issues)
-            if result.cancelled { automaticCleanupSummary = "중단됨 · 파일을 이동하지 않았습니다."; return }
+            if days != projectRetentionDays || result.cancelled { automaticCleanupSummary = "중단됨 · 파일을 이동하지 않았습니다."; return }
             let plan = RecommendedActions.plan(cleanup: result.items, duplicates: duplicates.groups, includeCopies: false, preserving: similarOriginals)
             guard !plan.items.isEmpty else {
                 automaticCleanupSummary = "자동 정리 기준을 통과한 파일이 없습니다." + (result.issues.isEmpty ? "" : " 확인하지 못한 항목 \(result.issues.count)개.")
@@ -320,11 +323,12 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         section = .inspection
         smart = nil; smartDate = nil; smartScanPhase = nil
         let phase: @Sendable (SmartScanPhase) -> Void = { [weak self] value in Task { @MainActor in guard let self, self.scanEpoch == epoch else { return }; self.smartScanPhase = value } }
-        let folder = folder; let running = runningBundleIDs; let report = progress(epoch)
+        let folder = folder; let running = runningCleanupOwners; let report = progress(epoch); let days = projectRetentionDays
         Task {
-            let result = await Task.detached(priority: .utility) { SmartScanner.scan(folder: folder, runningBundleIDs: running, token: token, phase: phase, progress: report) }.value
+            let result = await Task.detached(priority: .utility) { SmartScanner.scan(folder: folder, runningBundleIDs: running, token: token, days: days, phase: phase, progress: report) }.value
+            guard days == projectRetentionDays else { finish(true, issues: []); return }
             smart = result; smartDate = Date(); smartFolder = folder
-            cleanup = result.cleanup; cleanupDecisions = result.decisions; cleanupDate = smartDate
+            cleanup = result.cleanup; cleanupInventory = result.cacheGroups; cleanupDecisions = result.decisions; cleanupDate = smartDate
             largeFiles = result.largeFiles; filesDate = smartDate; duplicates = result.duplicates; duplicateDate = smartDate
             applications = result.applications; inventoryDate = smartDate
             developer = result.developer; developerDate = smartDate
@@ -348,22 +352,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     func scanCleanup() {
         guard let (token, epoch) = begin("캐시 · 로그 검사") else { return }
         smart = nil; smartDate = nil; cleanupDecisions = [:]
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let roots: [(URL, CandidateKind)] = [(home.appendingPathComponent("Library/Caches"), .cache), (home.appendingPathComponent("Library/Logs"), .log)]
-        let exclusions = runningBundleIDs
+        let running = runningCleanupOwners.union(RunningTools.read()); let days = projectRetentionDays
         let report = progress(epoch)
         Task {
             let result = await Task.detached(priority: .utility) {
-                var result = Scanner.cleanup(roots: roots, excluding: exclusions, token: token, progress: report)
-                var decisions: [String: CleanupDecision] = [:]
-                for item in result.items {
-                    if token.isCancelled { result.cancelled = true; break }
-                    do { decisions[item.id] = try CleanupPolicy().reason(for: item, runningBundleIDs: exclusions, token: token) }
-                    catch { if !token.isCancelled { result.issues.append(ScanIssue(path: item.id, error: error)) } }
-                }
-                return (result, decisions)
+                CacheCleanup.scan(runningOwners: running, days: days, token: token, progress: report)
             }.value
-            cleanup = result.0; cleanupDecisions = result.1
+            guard days == projectRetentionDays else { finish(true, issues: []); return }
+            cleanup = result.files; cleanupInventory = result.groups; cleanupDecisions = result.decisions
             cleanupDate = Date(); finish(cleanup.cancelled, issues: cleanup.issues)
         }
     }
@@ -454,7 +450,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
         let spaceMeasurement = CleanupSpaceMeasurement()
         operationLabel = "선택한 항목을 다시 확인하고 이동하는 중…"
         operationBusy = true
-        let operationToken = ScanToken()
+        let operationToken = ScanToken(); let days = projectRetentionDays
         Task {
             var results: [ActionRecord] = []
             for candidate in candidates {
@@ -462,7 +458,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                 let ownerRunning = ownerBundleID.map { id in running.contains { $0.bundleIdentifier == id && !$0.isTerminated } } ?? false
                 let bundleIDs = Set(running.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier))
                 let cleanupOwners = bundleIDs.union(running.filter { !$0.isTerminated }.compactMap(\.localizedName))
-                let policy = CleanupPolicy()
+                let policy = CleanupPolicy(days: days)
                 let original = originals[candidate.id]
                 let tools = RunningTools.read().union(bundleIDs)
                 let developerRunning = DeveloperCleanup.activeOwner(of: candidate.url, runningTools: tools) || original.map { DeveloperCleanup.activeOwner(of: $0.url, runningTools: tools) } == true
@@ -474,7 +470,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                 let result = await Task.detached(priority: .utility) {
                     do {
                         if candidate.kind == .space { try SpaceMap.validateSelection(candidate) }
-                        if candidate.kind == .developer { try DeveloperCleanup.validate(candidate, runningTools: tools, requireOld: recommendedOnly) }
+                        if candidate.kind == .developer { try DeveloperCleanup.validate(candidate, runningTools: tools, requireOld: recommendedOnly, days: days) }
                         if let orphan {
                             let installed = Set(ApplicationScanner.inventory(token: operationToken).apps.map(\.bundleID))
                             try LeftoverScanner.validate(orphan, installedIDs: installed, runningIDs: bundleIDs)
@@ -482,7 +478,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
                     } catch { return ActionRecord(kind: "휴지통 이동", sourcePath: candidate.id, trashPath: nil, bytes: 0, success: false, message: error.localizedDescription) }
                     if recommendedOnly && (candidate.kind == .cache || candidate.kind == .log) {
                         do {
-                            guard try CleanupPolicy().reason(for: candidate, runningBundleIDs: cleanupOwners, token: operationToken).isRecommended else { throw DonyError.changed }
+                            guard try CleanupPolicy(days: days).reason(for: candidate, runningBundleIDs: cleanupOwners.union(tools), token: operationToken).isRecommended else { throw DonyError.changed }
                         } catch { return ActionRecord(kind: "휴지통 이동", sourcePath: candidate.id, trashPath: nil, bytes: 0, success: false, message: "추천 기준을 다시 통과하지 못했습니다: " + error.localizedDescription) }
                     }
                     return TrashService.move(candidate, keeping: original, token: operationToken, beforeMutation: { spaceMeasurement.captureBeforeMutation() })
@@ -493,7 +489,11 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             cleanup.items.removeAll { moved.contains($0.id) }; largeFiles.items.removeAll { moved.contains($0.id) }; appFiles.items.removeAll { moved.contains($0.id) }
             developer.items.removeAll { moved.contains($0.id) }; leftovers.items.removeAll { moved.contains($0.id) }
             clutter.oldFiles.items.removeAll { moved.contains($0.id) }; clutter.installers.items.removeAll { moved.contains($0.id) }
-            if !moved.isEmpty { spaceMap = SpaceResult(); spaceDate = nil }
+            if !moved.isEmpty {
+                spaceMap = SpaceResult(); spaceDate = nil
+                cleanupInventory = []; cleanupDate = nil; developerDate = nil
+                smart = nil; smartDate = nil
+            }
             duplicates.groups = duplicates.groups.compactMap { group in
                 let copies = group.copies.filter { !moved.contains($0.id) }
                 return copies.isEmpty ? nil : DuplicateGroup(original: group.original, copies: copies)

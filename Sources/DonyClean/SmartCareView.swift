@@ -61,7 +61,7 @@ struct SmartCareView: View {
                     Button("선택 항목 정리") { model.runRecommended(includeCleanup: cleanCaches, includeDuplicates: cleanCopies, includeDeveloper: cleanDeveloper) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
                 }.padding(.top, 8)
                 DisclosureGroup("추천 기준") {
-                    Text("개발 캐시: 7일 이상 변경 없고 관련 도구가 종료된 생성물. 캐시: 확인된 앱 8종 중 14일 이상 변경이 없는 항목. 로그: 30일 이상 지난 .log 및 회전 로그. 실행 중인 앱·최근 변경·링크가 포함된 항목은 제외합니다. 중복은 내용이 같은 파일만 추리며 원본 한 개를 남깁니다.").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
+                    Text("보관 기간 \(model.projectRetentionDays)일 · 개별 파일 재확인 · 원본 보관").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.top, 8)
                 }.font(Theme.font(12)).tint(Theme.secondary)
                 IssuesView(issues: smart.issues)
             }

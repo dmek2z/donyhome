@@ -27,7 +27,7 @@ import DonyCore
             var folder = home.appendingPathComponent("Downloads")
             if let index = CommandLine.arguments.firstIndex(of: "--folder"), CommandLine.arguments.count > index + 1 { folder = URL(fileURLWithPath: CommandLine.arguments[index + 1]) }
             let running = Set(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier))
-            let result = SmartScanner.scan(folder: folder, runningBundleIDs: running, token: ScanToken())
+            let result = SmartScanner.scan(folder: folder, runningBundleIDs: running, token: ScanToken(), days: max(1, min(3650, UserDefaults.standard.object(forKey: "projectRetentionDays") as? Int ?? 14)))
             let plan = RecommendedActions.plan(cleanup: result.recommended + result.developer.recommended, duplicates: result.duplicates.groups, preserving: result.similar.groups.map(\.original))
             let output: [String: Any] = [
                 "readOnly": true, "cancelled": result.cancelled, "folder": folder.path,
@@ -262,6 +262,7 @@ struct PreferencesView: View {
                         CharacterPreviewView(mode: model.characterMode)
                     }.frame(maxWidth: .infinity, alignment: .leading).panel(24)
                     SettingsActionRow(title: "앱 권한", actionTitle: "설정 열기") { model.showPermissions(continueScan: false) }.panel(24)
+                    RetentionSettingsRow().panel()
                     AutomaticCleanupView()
                     StorageCareSettingsView()
                     SettingsActionRow(title: "초기 설정", actionTitle: "다시 열기") { model.preferencesShown = false; model.setupStep = 0; model.onboardingShown = true }.panel(24)

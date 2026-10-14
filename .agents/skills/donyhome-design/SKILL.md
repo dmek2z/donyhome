@@ -27,7 +27,7 @@ description: 도니홈 또는 donyhome macOS 앱의 화면, 버튼, 설정, 목�
 
 ## 저장소와 다른 Mac
 
-저장소에 이 스킬과 `AGENTS.md`를 유지한다. `docs/design-system.md`가 규격 원본이고 이 스킬의 reference는 같은 내용의 설치용 사본이다. 규격 변경 시 둘을 함께 갱신한다. `scripts/check-design-rules.py`가 사본의 일치 및 개발/자원 화면의 드롭다운 재도입을 검사한다. 기존 다른 화면의 문자 메뉴는 유지보수 대상으로 남아 있으며 새 UI의 예외 근거가 아니다.
+저장소에 이 스킬과 `AGENTS.md`를 유지한다. `docs/design-system.md`가 규격 원본이고 이 스킬의 reference는 같은 내용의 설치용 사본이다. 규격 변경 시 둘을 함께 갱신한다. `scripts/check-design-rules.py`가 사본의 일치 및 개발/자원 화면의 드롭다운 재도입을 검사한다. 주요 화면의 기존 문자 메뉴는 제거되어 있으며 새로 도입하지 않는다.
 
 다른 Mac에는 저장소에서 `zsh scripts/install-design-skill.sh`를 실행한다. 앱 설치만으로 Codex 스킬이 설치되었다고 가정하지 않는다. 전역 설치 후 스킬 검색은 다음 대화 턴부터 적용된다.
 

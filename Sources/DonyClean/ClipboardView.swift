@@ -34,10 +34,9 @@ struct ClipboardView: View {
             }
             if controller.ignoreNextCopy { Text("다음 복사는 기록하지 않아요.").font(Theme.font(12)).foregroundStyle(Theme.amber) }
             if !controller.pasteStack.isEmpty {
-                HStack { Text("순서대로 붙여넣기 · \(controller.pasteStack.count)개").font(Theme.font(13, weight: .semibold)); Spacer(); DonyMenuButton(title: "순서 작업") {
+                HStack { Text("순서대로 붙여넣기 · \(controller.pasteStack.count)개").font(Theme.font(13, weight: .semibold)); Spacer(); Button("다음 붙여넣기") { controller.pasteNext() }.buttonStyle(QuietButton()); DonyIconMenu(title: "순서 작업") {
                     Button("순서대로 복사 준비") { controller.startStack() }
                     Button("일반 텍스트로 준비") { controller.startStack(plainText: true) }
-                    Button("다음 붙여넣기") { controller.pasteNext() }
                     Button("순서 뒤집기") { controller.reverseStack() }
                     Button("텍스트 합쳐 복사") { controller.copyStackAsText() }
                     Button("순서 비우기") { controller.clearStack() }
@@ -106,6 +105,7 @@ struct ClipboardSettingsView: View {
     private func listBinding(_ keyPath: WritableKeyPath<ClipboardPreferences, [String]>) -> Binding<String> {
         Binding(get: { controller.preferences[keyPath: keyPath].joined(separator: "\n") }, set: { controller.preferences[keyPath: keyPath] = $0.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } })
     }
+    @State private var choosingPin: ClipboardItem?
     @State private var category = "일반"
     @State private var exclusion = "앱"
     @State private var loginEnabled = SMAppService.mainApp.status == .enabled
@@ -115,8 +115,18 @@ struct ClipboardSettingsView: View {
     private func behavior(_ key: WritableKeyPath<ClipboardBehavior, Bool>) -> Binding<Bool> {
         Binding(get: { (controller.preferences.behavior ?? ClipboardBehavior())[keyPath: key] }, set: { value in var settings = controller.preferences.behavior ?? ClipboardBehavior(); settings[keyPath: key] = value; controller.preferences.behavior = settings })
     }
+    private func pinKeySheet(_ item: ClipboardItem) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack { Text("고정 단축키").font(Theme.font(20, weight: .semibold)); Spacer(); DonyTextAction(title: "완료") { choosingPin = nil } }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 70))], spacing: 12) {
+                ForEach(controller.availablePinLetters, id: \.self) { letter in
+                    Button("⌘" + letter.uppercased()) { controller.assignPinLetter(item, letter: letter); choosingPin = nil }.buttonStyle(QuietButton())
+                }
+            }
+        }.padding(24).frame(width: 520).foregroundStyle(Theme.body).background(Theme.canvas)
+    }
     private func choices(_ title: String, options: [String], selection: Binding<String>) -> some View {
-        HStack { Text(title); Spacer(); DonyMenuButton(title: selection.wrappedValue, width: Theme.filterWidth) { ForEach(options, id: \.self) { value in Button(value) { selection.wrappedValue = value } } } }.frame(minHeight: 52)
+        VStack(alignment: .leading, spacing: 10) { Text(title).font(Theme.font(14, weight: .medium)); DonyChoices(options: options, selection: selection) }
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -161,7 +171,7 @@ struct ClipboardSettingsView: View {
                         Divider()
                         if !controller.items.contains(where: \.pinned) { Text("고정한 항목이 없어요").foregroundStyle(Theme.secondary) }
                         ForEach(controller.pinnedItems) { item in
-                            HStack { DonyMenuButton(title: item.pinLetter.map { "⌘" + $0.uppercased() } ?? "키 선택") { ForEach(controller.availablePinLetters, id: \.self) { letter in Button("⌘" + letter.uppercased()) { controller.assignPinLetter(item, letter: letter) } } }; TextField("제목", text: Binding(get: { item.title }, set: { controller.renamePin(item, title: $0) })).textFieldStyle(.roundedBorder); Button("편집") { pinEditing = item; pinText = item.text ?? "" }.buttonStyle(QuietButton()).disabled(item.text == nil); DonyIconMenu(title: "고정 항목 작업") { Button("위로") { controller.movePin(item, up: true) }; Button("아래로") { controller.movePin(item, up: false) }; Button("고정 해제") { controller.setPinned(item) } } }.frame(height: Theme.listRowHeight)
+                            HStack { Button(item.pinLetter.map { "⌘" + $0.uppercased() } ?? "키 선택") { choosingPin = item }.buttonStyle(QuietButton()); TextField("제목", text: Binding(get: { item.title }, set: { controller.renamePin(item, title: $0) })).textFieldStyle(.roundedBorder); Button("편집") { pinEditing = item; pinText = item.text ?? "" }.buttonStyle(QuietButton()).disabled(item.text == nil); DonyIconMenu(title: "고정 항목 작업") { Button("위로") { controller.movePin(item, up: true) }; Button("아래로") { controller.movePin(item, up: false) }; Button("고정 해제") { controller.setPinned(item) } } }.frame(height: Theme.listRowHeight)
                         }
                     case "제외":
                         DonyChoices(options: ["앱", "클립보드 타입", "정규식"], selection: $exclusion)
@@ -188,6 +198,7 @@ struct ClipboardSettingsView: View {
                 }.font(Theme.font(14)).frame(maxWidth: .infinity, alignment: .leading).panel(20).padding(.bottom, 12)
             }
         }.font(Theme.font(14)).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
+        .sheet(item: $choosingPin) { pinKeySheet($0) }
         .sheet(item: $pinEditing) { item in
             VStack(spacing: 16) { Text("고정 텍스트 편집").font(Theme.font(20, weight: .bold)); TextEditor(text: $pinText).frame(height: 220); HStack { Spacer(); Button("취소") { pinEditing = nil }.buttonStyle(QuietButton()); Button("저장") { controller.edit(item, text: pinText); pinEditing = nil }.buttonStyle(PrimaryButton()) } }.padding(24).frame(width: 520)
         }

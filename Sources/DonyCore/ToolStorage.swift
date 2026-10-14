@@ -59,6 +59,7 @@ public enum ToolStorage {
         "config.json", "config.toml", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "MEMORY.md"
     ]).union(ProjectCleanup.markers)
     private static func protected(_ url: URL, root: URL) -> Bool {
+        if CacheScopes.isProtected(url) { return true }
         let relative = String(url.path.dropFirst(root.path.count + 1))
         return relative.split(separator: "/").contains { part in
             let name = String(part)
@@ -107,7 +108,7 @@ public enum ToolStorage {
                         if location.kind == .log && !["log", "txt", "out"].contains(url.pathExtension.lowercased()) && !CacheScopes.isLog(url) { return }
                         let candidate = try FileCandidate.capture(url: url, root: location.root, kind: location.kind, token: token)
                         let allowed = eligible(candidate, owners: location.owners, running: runningTools, days: days, now: now, openFiles: openFiles)
-                        let reason = allowed ? "\(days)일 이상 지난 캐시·로그" : openFiles?.contains(candidate) == true ? "열린 파일 · 보관" : !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 보관" : "최근 변경 · 보관"
+                        let reason = allowed ? "\(days)일 이상 지난 캐시·로그" : openFiles?.contains(candidate) == true ? "열린 파일 · 보관" : candidate.kind == .log && !location.owners.isDisjoint(with: runningTools) && openFiles?.complete != true ? "열린 파일 확인 불가 · 보관" : !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 보관" : "최근 변경 · 보관"
                         result.items.append(ToolStorageItem(candidate: candidate, owners: location.owners, isEligible: allowed, reason: reason))
                     }
                 } catch {

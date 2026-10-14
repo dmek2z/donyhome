@@ -3,6 +3,7 @@ import Foundation
 public struct SmartScanResult: Sendable {
     public var cleanup = ScanResult()
     public var decisions: [String: CleanupDecision] = [:]
+    public var cacheGroups: [CacheInventoryGroup] = []
     public var largeFiles = ScanResult()
     public var duplicates = DuplicateResult()
     public var developer = DeveloperResult()
@@ -23,25 +24,29 @@ public enum SmartScanPhase: String, Sendable {
 }
 
 public enum SmartScanner {
-    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, folder: URL, runningBundleIDs: Set<String>, runningTools: Set<String> = RunningTools.read(), token: ScanToken, includeApplications: Bool = true, phase: (@Sendable (SmartScanPhase) -> Void)? = nil, progress: Scanner.Progress? = nil) -> SmartScanResult {
+    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, folder: URL, runningBundleIDs: Set<String>, runningTools: Set<String> = RunningTools.read(), token: ScanToken, includeApplications: Bool = true, days: Int? = nil, phase: (@Sendable (SmartScanPhase) -> Void)? = nil, progress: Scanner.Progress? = nil) -> SmartScanResult {
         var result = SmartScanResult()
         guard !token.isCancelled else { result.cancelled = true; return result }
         phase?(.cleanup)
         let roots: [(URL, CandidateKind)] = [(home.appendingPathComponent("Library/Caches"), .cache), (home.appendingPathComponent("Library/Logs"), .log)]
         progress?(0, "캐시 · 로그")
-        result.cleanup = Scanner.cleanup(roots: roots, excluding: runningBundleIDs, token: token, progress: progress)
-        let policy = CleanupPolicy(home: home)
-        for item in result.cleanup.items {
-            if token.isCancelled { break }
-            do { result.decisions[item.id] = try policy.reason(for: item, runningBundleIDs: runningBundleIDs, token: token) }
-            catch {
-                if !token.isCancelled { result.cleanup.issues.append(ScanIssue(path: item.id, error: error)) }
+        if let days {
+            let cache = CacheCleanup.scan(home: home, runningOwners: runningBundleIDs.union(runningTools), days: days, token: token, progress: progress)
+            result.cleanup = cache.files; result.decisions = cache.decisions; result.cacheGroups = cache.groups
+        } else {
+            result.cleanup = Scanner.cleanup(roots: roots, excluding: runningBundleIDs, token: token, progress: progress)
+            let policy = CleanupPolicy(home: home)
+            for item in result.cleanup.items {
+                if token.isCancelled { break }
+                do { result.decisions[item.id] = try policy.reason(for: item, runningBundleIDs: runningBundleIDs, token: token) }
+                catch { if !token.isCancelled { result.cleanup.issues.append(ScanIssue(path: item.id, error: error)) } }
             }
         }
+        let policy = CleanupPolicy(home: home, days: days)
         if !token.isCancelled {
             phase?(.development)
             progress?(0, "개발 캐시")
-            result.developer = DeveloperCleanup.scan(home: home, runningTools: runningTools.union(runningBundleIDs), token: token)
+            result.developer = DeveloperCleanup.scan(home: home, runningTools: runningTools.union(runningBundleIDs), token: token, days: days ?? 7)
         }
         if !token.isCancelled {
             phase?(.files)

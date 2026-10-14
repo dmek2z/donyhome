@@ -8,9 +8,9 @@ struct TrashView: View {
             HStack {
                 Text("휴지통").font(Theme.font(16, weight: .semibold))
                 Spacer()
-                DonyMenuButton(title: "관리") {
+                Button("내용 검사") { model.scanTrash() }.buttonStyle(QuietButton()).disabled(model.busy)
+                DonyIconMenu(title: "휴지통 추가 작업") {
                     Button("휴지통 열기") { model.showFinder(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")) }
-                    Button("내용 검사") { model.scanTrash() }.disabled(model.busy)
                     Divider()
                     Button("검사한 항목 영구 삭제", role: .destructive) { model.emptyInspectedTrash() }.disabled(model.busy || model.trashItems.cancelled || model.trashItems.items.isEmpty)
                 }

@@ -50,25 +50,14 @@ struct ToolCareView: View {
             if let focus, !model.connectedTools.contains(focus) { model.developmentToolFilter = nil }
         }
         .onChange(of: model.projectRetentionDays) { _, _ in selection.removeAll() }
-        .sheet(isPresented: $showSettings) {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    Text("캐시·로그 보관").font(Theme.font(20, weight: .semibold))
-                    Spacer()
-                    DonyTextAction(title: "완료") { showSettings = false }
-                }
-                DonyChoices(options: ["1일", "3일", "7일", "14일", "30일", "90일"], selection: Binding(
-                    get: { "\(model.projectRetentionDays)일" },
-                    set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14 }
-                )).disabled(model.busy)
-            }.padding(24).frame(width: 520).background(Theme.canvas)
-        }
+        .sheet(isPresented: $showSettings) { RetentionSettingsSheet() }
     }
     private var summary: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 20) {
-                metric("캐시·로그", value: model.toolStorageDate == nil ? "검사 전" : DisplayFormat.bytes(items.reduce(0) { $0 + $1.candidate.bytes }))
+                metric("확인된 캐시·로그", value: model.toolStorageDate == nil ? "검사 전" : (model.toolStorage.incompleteTools.isEmpty ? "" : "≥ ") + DisplayFormat.bytes(items.reduce(0) { $0 + $1.candidate.bytes }))
                 metric("정리 가능한 파일", value: model.toolStorageCurrent ? DisplayFormat.bytes(eligible.reduce(0) { $0 + $1.candidate.bytes }) : "다시 검사")
+                metric("보관", value: DisplayFormat.bytes(items.filter { !$0.isEligible }.reduce(0) { $0 + $1.candidate.bytes }))
                 metric("실행 중 메모리", value: DisplayFormat.bytes(memoryBytes))
                     .help("프로세스 합산값 · 공유 영역이 중복될 수 있어요. 파일 정리와 일시 정지는 RAM을 비우지 않아요.")
             }
@@ -104,7 +93,7 @@ struct ToolCareView: View {
                     Text(usage.map { "실행 중 · \($0.processes.count)개 프로세스" } ?? model.toolStatuses[tool] ?? "연동 확인 필요")
                         .font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                Text(model.toolStorageDate == nil ? "—" : model.toolStorage.recognizedTools.contains(tool) ? DisplayFormat.bytes(files.reduce(0) { $0 + $1.candidate.bytes }) : "경로 미확인").frame(width: 85, alignment: .trailing)
+                Text(model.toolStorageDate == nil ? "—" : model.toolStorage.recognizedTools.contains(tool) ? (model.toolStorage.incompleteTools.contains(tool) ? "≥ " : "") + DisplayFormat.bytes(files.reduce(0) { $0 + $1.candidate.bytes }) : "경로 미확인").frame(width: 85, alignment: .trailing)
                 Text(model.toolStorageCurrent ? DisplayFormat.bytes(files.filter(\.isEligible).reduce(0) { $0 + $1.candidate.bytes }) : "—").frame(width: 85, alignment: .trailing)
                 Text(usage.map { DisplayFormat.bytes($0.bytes) } ?? "—").frame(width: 85, alignment: .trailing)
                 Text(cpu.isEmpty ? "—" : DisplayFormat.percent(cpu.reduce(0, +))).frame(width: 60, alignment: .trailing)

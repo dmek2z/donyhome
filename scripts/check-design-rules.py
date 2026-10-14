@@ -14,13 +14,15 @@ if not screens.is_dir():
 for path in sorted(screens.glob('*.swift')):
     source = path.read_text()
     # Bound the remaining legacy debt; new screens cannot add text dropdowns.
-    legacy_menu_counts = {'TrashView.swift': 1, 'ToolsView.swift': 1, 'ClipboardView.swift': 3}
+    legacy_menu_counts = {}
     text_menus = list(re.finditer(r'\bDonyMenuButton\s*\(', source))
     if path.name != 'DonyControls.swift' and len(text_menus) > legacy_menu_counts.get(path.name, 0):
         errors.append(f'{path.relative_to(args.root)}: text dropdowns are forbidden in new/development/resource UI; use direct actions, chips or settings')
-    if path.name in {'ToolCareView.swift', 'DeveloperTasksView.swift', 'AIProjectsView.swift', 'DeveloperView.swift', 'PerformanceView.swift'}:
-        if re.search(r'\b(?:Menu|Picker)\s*\(', source):
-            errors.append(f'{path.relative_to(args.root)}: native dropdowns are forbidden in primary development/resource controls')
+    native_menus = len(re.findall(r'\bMenu\s*\(', source))
+    # One secondary pin-key submenu remains inside ClipboardItemRow's icon menu.
+    allowed_submenus = 1 if path.name == 'ClipboardView.swift' else 0
+    if path.name != 'DonyControls.swift' and (native_menus > allowed_submenus or re.search(r'\bPicker\s*\(', source)):
+        errors.append(f'{path.relative_to(args.root)}: native dropdowns are forbidden in primary controls')
     for match in re.finditer(r'(?m)^(?:(?:private|fileprivate|public|internal)\s+)?struct\s+(\w+Row)\b', source):
         following = re.search(r'(?m)^(?:(?:private|fileprivate|public|internal)\s+)?struct\s+', source[match.end():])
         end = match.end() + following.start() if following else len(source)
@@ -33,7 +35,7 @@ for path in sorted(screens.glob('*.swift')):
         continue
     for number, line in enumerate(source.splitlines(), 1):
         if re.search(r'\.menu(?:Style|Indicator)\s*\(', line) or re.search(r'(?<![\w])Menu\s*\{', line):
-            errors.append(f'{path.relative_to(args.root)}:{number}: use DonyMenuButton/DonyIconMenu; menu chrome belongs in DonyControls.swift')
+            errors.append(f'{path.relative_to(args.root)}:{number}: use direct controls/DonyIconMenu; menu chrome belongs in DonyControls.swift')
 for relative in ['AGENTS.md', '.agents/skills/donyhome-design/SKILL.md', 'docs/design-system.md', '.agents/skills/donyhome-design/references/design-system.md', 'scripts/install-design-skill.sh']:
     if not (args.root / relative).is_file():
         errors.append(f'{relative}: missing maintained design instructions')

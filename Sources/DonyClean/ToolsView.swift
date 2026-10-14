@@ -15,13 +15,14 @@ struct ToolsView: View {
                 if model.snapshotsDate == nil { EmptyView() }
                 else if model.localSnapshots.isEmpty { Text("이 Mac에 저장된 백업이 없어요").font(Theme.font(13)).foregroundStyle(Theme.secondary) }
                 else {
-                    HStack {
-                        Text("백업 시점").font(Theme.font(14))
-                        Spacer()
-                        DonyMenuButton(title: selectedSnapshot.isEmpty ? "선택하세요" : selectedSnapshot, width: Theme.filterWidth) {
-                            Button("선택 해제") { selectedSnapshot = "" }
-                            ForEach(model.localSnapshots, id: \.self) { snapshot in Button(snapshot) { selectedSnapshot = snapshot } }
-                        }.disabled(model.busy).help(selectedSnapshot)
+                    HStack { Text("백업 시점").font(Theme.font(14)); Spacer(); if !selectedSnapshot.isEmpty { DonyTextAction(title: "선택 해제") { selectedSnapshot = "" } } }
+                    ForEach(model.localSnapshots, id: \.self) { snapshot in
+                        HStack(spacing: 12) {
+                            Toggle("선택 " + snapshot, isOn: Binding(get: { selectedSnapshot == snapshot }, set: { selectedSnapshot = $0 ? snapshot : "" })).toggleStyle(DonyCheckbox()).labelsHidden().disabled(model.busy)
+                            Text(snapshot).font(Theme.font(13)).lineLimit(1).help(snapshot)
+                            Spacer()
+                        }.frame(height: Theme.listRowHeight)
+                        if snapshot != model.localSnapshots.last { Divider() }
                     }
                     HStack { Text("선택한 백업 시점은 영구 제거돼요.").font(Theme.font(12)).foregroundStyle(Theme.secondary); Spacer(); Button { model.runMaintenance(.deleteSnapshot(selectedSnapshot)) } label: { Text("영구 삭제").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(!model.localSnapshots.contains(selectedSnapshot) || model.busy) }
                 }

@@ -114,4 +114,17 @@ import Testing
         #expect(result.files.items.map(\.id) == [log.path])
     }
 
+    @Test func smartScanUsesTheSameExplicitRetentionForCacheAndDeveloperLeaves() throws {
+        try FileManager.default.createDirectory(at: home.appendingPathComponent("Downloads"), withIntermediateDirectories: true)
+        let cache = try file("Library/Caches/Aside/old", days: 8)
+        let developer = try file("Library/Caches/pip/old", days: 8)
+        let result = SmartScanner.scan(home: home, folder: home.appendingPathComponent("Downloads"), runningBundleIDs: [], runningTools: [], token: ScanToken(), includeApplications: false, days: 7)
+        #expect(result.recommended.contains { $0.id == cache.path })
+        #expect(result.developer.recommended.contains { $0.id == developer.path })
+        #expect(!result.cacheGroups.isEmpty)
+        let longer = SmartScanner.scan(home: home, folder: home.appendingPathComponent("Downloads"), runningBundleIDs: [], runningTools: [], token: ScanToken(), includeApplications: false, days: 14)
+        #expect(longer.recommended.isEmpty)
+        #expect(longer.developer.recommended.isEmpty)
+    }
+
 }

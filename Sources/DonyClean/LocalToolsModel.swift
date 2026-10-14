@@ -25,9 +25,10 @@ extension AppModel {
     func scanDeveloper() {
         guard let (token, _) = begin("개발 캐시 검사") else { return }
         smart = nil; smartDate = nil
-        let bundleIDs = runningBundleIDs
+        let bundleIDs = runningBundleIDs; let days = projectRetentionDays
         Task {
-            developer = await Task.detached(priority: .utility) { DeveloperCleanup.scan(runningTools: RunningTools.read().union(bundleIDs), token: token) }.value
+            developer = await Task.detached(priority: .utility) { DeveloperCleanup.scan(runningTools: RunningTools.read().union(bundleIDs), token: token, days: days) }.value
+            if days != projectRetentionDays { developer = DeveloperResult(); finish(true, issues: []); return }
             developerDate = Date(); finish(developer.cancelled, issues: developer.issues)
         }
     }

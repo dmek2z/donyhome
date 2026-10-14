@@ -25,23 +25,22 @@ extension AppModel {
 
     func scanStorageRecommendations() {
         guard let (token, epoch) = begin("공간 부족 정리 검사") else { return }
-        let running = runningBundleIDs; let report = progress(epoch)
+        let running = runningCleanupOwners; let report = progress(epoch); let days = projectRetentionDays
         Task {
             let value = await Task.detached(priority: .utility) {
-                let result = AutomaticCleanup.scan(runningOwners: running, token: token, progress: report)
+                let result = AutomaticCleanup.scan(runningOwners: running, token: token, progress: report, days: days)
                 var decisions: [String: CleanupDecision] = [:]
-                for item in result.items { decisions[item.id] = try? CleanupPolicy().reason(for: item, runningBundleIDs: running, token: token) }
+                for item in result.items { decisions[item.id] = try? CleanupPolicy(days: days).reason(for: item, runningBundleIDs: running, token: token) }
                 return (result, decisions)
             }.value
+            guard days == projectRetentionDays else { finish(true, issues: []); return }
             storageRecommendations = value.0; storageRecommendationDecisions = value.1; storageRecommendationDate = Date()
             finish(value.0.cancelled, issues: value.0.issues)
         }
     }
     func openStorageCare() {
         section = .cleanup
-        if storageRecommendationDate != nil && !storageRecommendations.cancelled {
-            cleanup = storageRecommendations; cleanupDecisions = storageRecommendationDecisions; cleanupDate = storageRecommendationDate
-        } else { scanCleanup() }
+        scanCleanup()
     }
     func saveStorageCare() {
         storageWarningGB = max(1, min(1000, storageWarningGB))
