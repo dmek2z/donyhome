@@ -160,7 +160,23 @@ final class ClipboardPanel: NSPanel {
         }
     }
     func delete(_ item: ClipboardItem) { items.removeAll { $0.id == item.id }; pasteStack.removeAll { $0 == item.id }; persist() }
-    func clear(includePinned: Bool = false) { items.removeAll { includePinned || !$0.pinned }; pasteStack = []; persist() }
+    func clear(includePinned: Bool = false) {
+        items.removeAll { includePinned || !$0.pinned }
+        clearStack()
+        if !items.contains(where: { $0.id == currentCopiedItemID }) { currentCopiedItemID = nil; copiedChangeCount = nil }
+        if includePinned { query = "" }
+        status = "기록을 지웠어요."
+        persist()
+    }
+    func confirmClearAll() {
+        guard !items.isEmpty else { return }
+        let reopen = panel?.isVisible == true
+        dismissPopup()
+        if ConfirmationDialog.show(title: "전체 기록을 지울까요?", message: "고정한 항목을 포함해 클립보드 기록 \(items.count)개를 지워요. 지운 기록은 복구할 수 없어요.", action: "전체 지우기", destructive: true, paths: []) {
+            clear(includePinned: true)
+        }
+        if reopen { showPopup() }
+    }
     func resetUnreadableStore() {
         do {
             if FileManager.default.fileExists(atPath: store.url.path) {

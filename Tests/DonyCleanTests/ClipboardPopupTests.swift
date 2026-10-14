@@ -139,6 +139,28 @@ import DonyCore
         #expect(f.0.copyShortcut("1"))
         #expect(f.1.string(forType: .string) == "copy immediately before opening")
     }
+    @Test func clearingAllIncludesPinsAndPersistsAnEmptyHistoryWithoutErasingTheSystemCopy() throws {
+        let f = try controller(); defer { cleanup(f) }
+        let pinned = f.0.quickItems[1]; f.0.setPinned(pinned)
+        #expect(f.0.copy(pinned))
+        f.0.selectStack(f.0.items)
+        f.0.query = "old search"
+        f.0.clear(includePinned: true)
+        #expect(f.0.items.isEmpty)
+        #expect(f.0.pasteStack.isEmpty)
+        #expect(f.0.currentCopiedItemID == nil)
+        #expect(f.0.query.isEmpty)
+        #expect(try ClipboardStore(url: f.2.appendingPathComponent("history.json")).load().isEmpty)
+        #expect(f.1.string(forType: .string) == "second fixture")
+    }
+    @Test func clearingOnlyUnpinnedHistoryKeepsThePinnedCurrentCopy() throws {
+        let f = try controller(); defer { cleanup(f) }
+        let pinned = f.0.quickItems[1]; f.0.setPinned(pinned)
+        #expect(f.0.copy(pinned))
+        f.0.clear()
+        #expect(f.0.items.map(\.id) == [pinned.id])
+        #expect(f.0.isCurrentCopy(f.0.items[0]))
+    }
     @Test func rebuiltPopupHandlesNumberedAppKitEventsExactlyOnce() async throws {
         let popup = ClipboardPanel(contentRect: .zero, styleMask: [.nonactivatingPanel], backing: .buffered, defer: false)
         let f = try controller(popup: popup); defer { popup.close(); cleanup(f) }

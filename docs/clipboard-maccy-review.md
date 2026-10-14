@@ -36,3 +36,10 @@ Verification: core191 tests/34 suites and popup11 tests passed together; the add
 Installed2.3.3 native checks: the reported latest sentence appeared as number1 after item-click copy/reopening, with the actual general pasteboard bytes matching. New external copies appeared in the rebuilt popup instead of the previous stale list. A separate process restored the clipboard representations saved immediately before copy testing; the visible popup closed and reopening placed that external copy at number1. History/settings were retained and no personal cleanup ran.
 
 CUA numbered/direction-key attempts during this check returned focus to the main window without a clipboard write; those attempts are not counted as keyboard success. The in-process AppKit event test above verifies the actual hosted keyboard monitor and write/close/promote behavior. This follow-up did not run a complete real cleanup confirmation alongside the popup; modal/event-tracking capture is verified using the native run-loop modes with private fixtures.
+
+
+## 2.3.4: clear all history
+
+The quick-popup footer now exposes a direct 전체 지우기 button, disabled for empty history. The main management action uses the same confirmation flow. Confirmation shows the complete history count, includes pinned entries and states that deletion cannot be undone. A popup is temporarily hidden for confirmation and rebuilt afterward; cancellation does not modify history. Clearing resets the paste queue/current marker/search as needed, persists empty history and preserves the system pasteboard bytes.
+
+Verification: popup14 tests (including persisted full deletion with a pin/current copy and preservation of pinned-only clearing), design5 tests,2.3.4/build22 release/signature/ZIP/installed binary verification passed. Installed app reported2.3.4; native confirmation rendered the25-record count, irreversible warning and Cancel/Delete buttons in the common style. Personal history deletion was not executed by the agent; deletion is tested only on private fixtures. Other physical Macs were not checked.

@@ -22,7 +22,7 @@ struct ClipboardView: View {
                     Button("다음 복사 한 번 무시") { controller.ignoreNextCopy = true }
                     Divider()
                     Button("고정하지 않은 기록 지우기") { controller.clear() }
-                    Button("모든 기록 지우기…", role: .destructive) { if ConfirmationDialog.show(title: "모든 기록을 지울까요?", message: "고정한 항목을 포함해 클립보드 기록을 지워요.", action: "모두 지우기", destructive: true, paths: []) { controller.clear(includePinned: true) } }
+                    Button("전체 지우기…", role: .destructive) { controller.confirmClearAll() }.disabled(controller.items.isEmpty)
                 }
             }.frame(height: 42)
             HStack(spacing: 12) {
@@ -257,7 +257,13 @@ struct ClipboardQuickView: View {
             if !controller.status.isEmpty { Text(controller.status).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(2) }
             if controller.preferences.appearance?.showFooter != false {
                 Divider()
-                HStack { Button("설정") { controller.showQuickSettings() }.buttonStyle(QuietButton()); Spacer(); Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary); DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } } }
+                HStack {
+                    Button("설정") { controller.showQuickSettings() }.buttonStyle(QuietButton())
+                    Spacer()
+                    Text("↵ 선택 · ⌥↵ 붙여넣기").font(Theme.font(11)).foregroundStyle(Theme.secondary)
+                    Button("전체 지우기", role: .destructive) { controller.confirmClearAll() }.buttonStyle(QuietButton()).disabled(controller.items.isEmpty)
+                    DonyIconMenu(title: "기록 작업") { Button("고정하지 않은 기록 지우기") { controller.clear() }; Button("일시 정지") { controller.preferences.paused.toggle() } }
+                }
             }
         }.padding(22).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 20)).foregroundStyle(Theme.ink)
         .onChange(of: controller.popupGeneration) { _, _ in selected = 0; searchFocused = true; hovered = nil; preview = nil }
