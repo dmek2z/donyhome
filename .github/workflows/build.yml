@@ -1,0 +1,11 @@
+name: Build
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the app (also compiles the bundled smc from source)
+        run: zsh scripts/build-app.sh
