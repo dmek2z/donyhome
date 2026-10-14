@@ -5,7 +5,7 @@
 | 구성요소 | 용도 | 라이선스 | 경로 |
 |---|---|---|---|
 | [Maccy](https://github.com/p0deje/Maccy) | 클립보드 캡처·검색·정렬 로직 참고·이식 | MIT | `Resources/Clipboard/Maccy-LICENSE.txt` |
-| [Fuse](https://github.com/krisk/Fuse) 계열 퍼지 검색 | 클립보드 유사 검색 | MIT | `Resources/Clipboard/Fuse-LICENSE.txt` |
+| [fuse-swift](https://github.com/krisk/fuse-swift) 퍼지 검색 | 클립보드 유사 검색 | MIT | `Resources/Clipboard/Fuse-LICENSE.txt` |
 | [battery](https://github.com/actuallymentor/battery) | 배터리 충전 제어 스크립트 | MIT | `Resources/Battery/LICENSE.battery` |
 | [smcFanControl](https://github.com/hholtmann/smcFanControl) `smc` | 배터리 제어가 호출하는 별도 실행 파일 | GPL-2.0 | `Resources/Battery/LICENSE.smc`, 소스 `Resources/Battery/smc-source/` |
 | [Pretendard](https://github.com/orioncactus/pretendard) | 본문 글꼴 | SIL OFL 1.1 | `Resources/Fonts/OFL.txt` |
