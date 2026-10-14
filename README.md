@@ -100,7 +100,9 @@ Maccy의 캡처·검색 로직을 통합했습니다.
 
 ## 설치
 
-필요한 것: macOS 14 이상, Apple Silicon, Xcode 또는 Command Line Tools.
+빌드된 앱은 [Releases](https://github.com/dmek2z/donyhome/releases/latest)에서 ZIP으로 받을 수 있어요. 처음 실행할 때 막히면 우클릭 → 열기를 사용하세요(ad-hoc 서명).
+
+직접 빌드하려면 macOS 14 이상, Apple Silicon, Xcode 또는 Command Line Tools가 필요해요.
 
 ```sh
 git clone https://github.com/dmek2z/donyhome.git
