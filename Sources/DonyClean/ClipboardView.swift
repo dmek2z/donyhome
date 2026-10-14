@@ -16,7 +16,7 @@ struct ClipboardView: View {
                 PageHeader(title: "클립보드")
                 Spacer()
                 Button("설정") { showSettings = true }.buttonStyle(QuietButton())
-                Button("빠르게 열기") { controller.showPopup() }.buttonStyle(QuietButton())
+                Button(controller.preferences.hotkeyEnabled ? "빠르게 열기 · " + ClipboardController.shortcutLabel(keyCode: controller.preferences.hotkeyKeyCode, modifiers: controller.preferences.hotkeyModifiers) : "빠르게 열기") { controller.showPopup() }.buttonStyle(QuietButton())
                 DonyIconMenu(title: "클립보드 작업", size: Theme.controlHeight) {
                     Button(controller.preferences.paused ? "기록 다시 시작" : "기록 일시 정지") { controller.preferences.paused.toggle() }
                     Button("다음 복사 한 번 무시") { controller.ignoreNextCopy = true }

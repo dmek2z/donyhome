@@ -118,13 +118,16 @@ final class ClipboardPanel: NSPanel {
     }
     func poll() {
         guard captureSession.hasPendingChange else { return }
+        clipLog.debug("poll: change count=\(self.pasteboard.changeCount, privacy: .public)")
         currentCopiedItemID = nil; copiedChangeCount = nil
         dismissPopup()
         if ignoreNextCopy { ignoreNextCopy = false; captureSession.synchronize(); return }
         guard let item = captureSession.poll(preferences: preferences) else {
+            clipLog.debug("poll: nothing captured (access=\(String(describing: self.pasteboardAccess), privacy: .public))")
             if pasteboardAccess == .denied { status = Self.pasteboardDeniedMessage }
             return
         }
+        clipLog.debug("poll: captured")
         accept(item)
     }
     private func accept(_ item: ClipboardItem) {
@@ -274,6 +277,10 @@ final class ClipboardPanel: NSPanel {
             NSApp.activate(ignoringOtherApps: true); NSApp.hide(nil)
         }
         return true
+    }
+    /// 「⇧⌘C」처럼 사람이 읽는 단축키 표기.
+    static func shortcutLabel(keyCode: UInt32, modifiers: UInt32) -> String {
+        (modifiers & UInt32(controlKey) != 0 ? "⌃" : "") + (modifiers & UInt32(optionKey) != 0 ? "⌥" : "") + (modifiers & UInt32(shiftKey) != 0 ? "⇧" : "") + (modifiers & UInt32(cmdKey) != 0 ? "⌘" : "") + ClipboardKeyboardLayout.name(for: UInt16(keyCode))
     }
     enum PasteboardAccess { case allowed, ask, denied }
     /// macOS 15.4+의 「다른 앱에서 붙여넣기」 설정. 꺼져 있으면 복사한 내용을 읽지 못해 기록이 쌓이지 않는다.
