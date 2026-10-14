@@ -226,7 +226,7 @@ struct ClipboardQuickView: View {
     let dismiss: () -> Void
     @State private var selected = 0
     @FocusState private var searchFocused: Bool
-    @State private var monitor: Any?
+    @State private var monitorID = UUID()
     @State private var hovered: UUID?
     @State private var preview: ClipboardItem?
     var body: some View {
@@ -273,8 +273,8 @@ struct ClipboardQuickView: View {
         }
         .onChange(of: controller.quickSettingsShown) { _, shown in if shown { hovered = nil; preview = nil } }
         .onChange(of: controller.query) { _, _ in selected = 0; hovered = nil; preview = nil }
-        .onAppear { searchFocused = true; if monitor == nil { monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in handle(event) ? nil : event } } }
-        .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
+        .onAppear { searchFocused = true; controller.installPopupKeyMonitor(id: monitorID, handle: handle) }
+        .onDisappear { controller.removePopupKeyMonitor(id: monitorID) }
     }
     private func matches(_ event: NSEvent, shortcut: ClipboardKeyShortcut) -> Bool {
         let flags = event.modifierFlags

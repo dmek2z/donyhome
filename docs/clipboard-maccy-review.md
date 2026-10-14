@@ -1,4 +1,4 @@
-# Clipboard flow ·2.3.2
+# Clipboard flow ·2.3.3
 
 Reference: https://github.com/p0deje/Maccy at fe0d74d2a622bdadb6513b8bf8fe4aeb0609f6f2. Reviewed FloatingPanel.swift, Observables/Popup.swift, Observables/History.swift, Observables/AppState.swift, Views/KeyHandlingView.swift and README usage. Existing clipboard capture/format handling attribution and MIT license remain bundled.
 
@@ -21,3 +21,18 @@ Installed:/Users/dhkim/Applications/DonyHome.app. NativeCmd2 changed the actual 
 This patch's final native verification did not repeat the entire cleanup-confirmation/modal scenario; the original failure was observed during such a confirmation and the modal admission/independent-settings paths have component assertions. Hold-to-cycle and slide-out preview remain outside this fix.
 
 The local Swift6.4 test build required an explicit external-plugin-path for TestingMacros under CommandLineTools/usr/lib/swift/host/plugins/testing; product release building does not require that test-only argument.
+
+
+## 2.3.3: stale popup reproduction and correction
+
+A real failure remained in2.3.2: the general pasteboard and persisted/main-window history contained the latest copy, but reopening the existing floating popup still rendered an older number1. This was reproduced in the installed app, so successful storage/shortcut assertions alone did not establish that the visible popup was current.
+
+The controller now polls synchronously before presentation and recreates the standalone hosting tree on each opening. Query, selection and scroll start fresh; the controller owns exactly one popup key monitor, and an old tree can only remove its own monitor identity. The visible list and the current shortcut targets are built from the same recent-copy order.
+
+A second regression test exposed capture suspension in NSModalPanelRunLoopMode: the old scheduled timer left the new copy uncaptured and the popup visible. Capture now runs synchronously on the main run loop, registered for common, event-tracking and modal-panel modes. Tests use temporary pasteboards and zero-size fixture windows, without exercising real cleanup.
+
+Verification: core191 tests/34 suites and popup11 tests passed together; the added AppKit key-event regression also passed, for203 distinct tests total. That additional test mounts the actual hosting view and sends numbered AppKit events to its own private fixture panel:2 copies the second item once and closes, rebuilding then1 copies the promoted item once and closes. It guards against missing or duplicate monitors across rebuilt trees. Design policy5 tests passed;2.3.3/build21 release build and strict signature passed.
+
+Installed2.3.3 native checks: the reported latest sentence appeared as number1 after item-click copy/reopening, with the actual general pasteboard bytes matching. New external copies appeared in the rebuilt popup instead of the previous stale list. A separate process restored the clipboard representations saved immediately before copy testing; the visible popup closed and reopening placed that external copy at number1. History/settings were retained and no personal cleanup ran.
+
+CUA numbered/direction-key attempts during this check returned focus to the main window without a clipboard write; those attempts are not counted as keyboard success. The in-process AppKit event test above verifies the actual hosted keyboard monitor and write/close/promote behavior. This follow-up did not run a complete real cleanup confirmation alongside the popup; modal/event-tracking capture is verified using the native run-loop modes with private fixtures.

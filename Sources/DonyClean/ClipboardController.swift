@@ -44,6 +44,7 @@ final class ClipboardPanel: NSPanel {
     private var pendingPaste: Task<Void, Never>?
     private var stackMonitor: Any?
     private var outsideClickMonitor: Any?
+    private var popupKeyMonitor: (id: UUID, monitor: Any)?
     private var stackActive = false
     private var stackPlain = false
     private var stackPreparedCount: Int?
@@ -82,7 +83,15 @@ final class ClipboardPanel: NSPanel {
                 self.rememberSource(app)
             }
         }
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in Task { @MainActor in self?.poll() } }
+        let captureTimer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            // Installed only on the main run loop. Dispatching a Task here can
+            // defer capture until an AppKit nested/modal loop has returned.
+            MainActor.assumeIsolated { self?.poll() }
+        }
+        RunLoop.main.add(captureTimer, forMode: .common)
+        RunLoop.main.add(captureTimer, forMode: .modalPanel)
+        RunLoop.main.add(captureTimer, forMode: .eventTracking)
+        timer = captureTimer
         registerHotkey()
     }
     func stop() {
@@ -90,6 +99,7 @@ final class ClipboardPanel: NSPanel {
         if preferences.behavior?.clearOnQuit == true { clear(includePinned: true) }
         if preferences.behavior?.clearSystemOnQuit == true { pasteboard.clearContents() }
         timer?.invalidate(); timer = nil
+        removePopupKeyMonitor()
         if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }; activationObserver = nil
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil
         if let handler { RemoveEventHandler(handler) }; handler = nil
@@ -307,7 +317,19 @@ final class ClipboardPanel: NSPanel {
         stackRequiresExplicitNext = true
         paste(item, plainText: stackPlain)
     }
-    func showPopup() {
+    func installPopupKeyMonitor(id: UUID, handle: @escaping (NSEvent) -> Bool) {
+        removePopupKeyMonitor()
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { event in handle(event) ? nil : event }) {
+            popupKeyMonitor = (id, monitor)
+        }
+    }
+    func removePopupKeyMonitor(id: UUID? = nil) {
+        guard let current = popupKeyMonitor, id == nil || id == current.id else { return }
+        NSEvent.removeMonitor(current.monitor); popupKeyMonitor = nil
+    }
+    func preparePopup() {
+        // Capture before rendering, including a copy just before the hotkey.
+        poll()
         rememberSource(NSWorkspace.shared.frontmostApplication); query = ""
         popupGeneration += 1
         if panel == nil {
@@ -315,12 +337,19 @@ final class ClipboardPanel: NSPanel {
             window.isFloatingPanel = true
             window.title = "클립보드"; window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             window.backgroundColor = .clear; window.isOpaque = false; window.hasShadow = true; window.hidesOnDeactivate = false
-            window.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }).preferredColorScheme(.light))
             panel = window
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 MainActor.assumeIsolated { guard self?.panel?.attachedSheet == nil else { return }; self?.panel?.orderOut(nil) }
             }
         }
+        // Hidden standalone hosting views can retain an old rendered list.
+        // A fresh tree also resets selection/scroll and its keyboard handler.
+        removePopupKeyMonitor()
+        panel?.contentView = nil
+        panel?.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }).preferredColorScheme(.light))
+    }
+    func showPopup() {
+        preparePopup()
         if let panel {
             let point = NSEvent.mouseLocation
             guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main else { status = "목록을 표시할 화면을 찾지 못했어요."; return }

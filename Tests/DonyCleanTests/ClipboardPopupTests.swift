@@ -112,4 +112,49 @@ import DonyCore
         #expect(f.1.string(forType: .string) == "external fixture")
     }
 
+    @Test(arguments: [RunLoop.Mode.eventTracking, RunLoop.Mode.modalPanel])
+    func externalCopyIsCapturedWhileTheRunLoopIsTrackingOrModal(mode: RunLoop.Mode) throws {
+        let popup = ClipboardPanel(contentRect: .zero, styleMask: [.nonactivatingPanel], backing: .buffered, defer: false)
+        let f = try controller(popup: popup); defer { popup.close(); cleanup(f) }
+        f.0.preferences.hotkeyEnabled = false
+        f.0.start()
+        popup.orderFront(nil)
+        f.1.clearContents(); #expect(f.1.setString("copy during nested run loop", forType: .string))
+        let deadline = Date().addingTimeInterval(1.2)
+        while Date() < deadline, f.0.quickItems.first?.text != "copy during nested run loop" {
+            _ = RunLoop.main.run(mode: mode, before: min(deadline, Date().addingTimeInterval(0.1)))
+        }
+        #expect(f.0.quickItems.first?.text == "copy during nested run loop")
+        #expect(!popup.isVisible)
+    }
+
+
+    @Test func preparingPopupSynchronizesPendingCopyBeforeRendering() throws {
+        let f = try controller(); defer { cleanup(f) }
+        f.0.preparePopup()
+        f.1.clearContents(); #expect(f.1.setString("copy immediately before opening", forType: .string))
+        f.0.preparePopup()
+        #expect(f.0.quickItems.first?.text == "copy immediately before opening")
+        #expect(f.0.currentCopiedItemID == f.0.quickItems.first?.id)
+        #expect(f.0.copyShortcut("1"))
+        #expect(f.1.string(forType: .string) == "copy immediately before opening")
+    }
+    @Test func rebuiltPopupHandlesNumberedAppKitEventsExactlyOnce() async throws {
+        let popup = ClipboardPanel(contentRect: .zero, styleMask: [.nonactivatingPanel], backing: .buffered, defer: false)
+        let f = try controller(popup: popup); defer { popup.close(); cleanup(f) }
+        let secondID = f.0.quickItems[1].id
+        for (number, keyCode) in [("2", UInt16(19)), ("1", UInt16(18))] {
+            f.0.preparePopup(); popup.orderFront(nil)
+            popup.contentView?.layoutSubtreeIfNeeded()
+            // Allow the hosting view's actual onAppear to install its monitor.
+            try await Task.sleep(for: .milliseconds(100))
+            let before = f.0.items.first { $0.id == secondID }!.numberOfCopies
+            let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command], timestamp: 0, windowNumber: popup.windowNumber, context: nil, characters: number, charactersIgnoringModifiers: number, isARepeat: false, keyCode: keyCode)!
+            NSApp.sendEvent(event)
+            #expect(f.1.string(forType: .string) == "second fixture")
+            #expect(f.0.quickItems.first?.id == secondID)
+            #expect(f.0.items.first { $0.id == secondID }?.numberOfCopies == before + 1)
+            #expect(!popup.isVisible)
+        }
+    }
 }
