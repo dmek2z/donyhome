@@ -36,6 +36,13 @@ public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
         if script.contains("/node_modules/@google/gemini-cli/") { return .gemini }
         return allCases.first { tool in tool != .terminal && tool != .other && tool.executableNames.map { $0.lowercased() }.contains(scriptName) }
     }
+    /// 네이티브 설치는 `~/.local/bin/claude` → `~/.local/share/claude/versions/2.1.0`처럼
+    /// 버전 이름의 실행 파일을 실행해서 프로세스 이름도 버전이 된다. `<도구>/versions/<버전>`에서 도구 이름(소문자)을 꺼낸다.
+    public static func versionedInstallName(_ path: String) -> String? {
+        let components = path.lowercased().split(separator: "/")
+        guard components.count >= 3, components[components.count - 2] == "versions" else { return nil }
+        return String(components[components.count - 3])
+    }
     /// 도구별 별칭(소문자)을 한 번만 계산한다.
     private static let aliasTable: [(tool: AITool, aliases: Set<String>)] = allCases.map { tool in
         (tool, Set([tool.title.lowercased()] + tool.executableNames.map { $0.lowercased() }))
@@ -56,8 +63,9 @@ public enum AITool: String, Codable, CaseIterable, Identifiable, Sendable {
         if let hint = process.toolHint.flatMap(Self.init(rawValue:)) { return hint }
         if let match = prefixes.first(where: { process.path.hasPrefix($0.prefix) }) { return applicationTools[match.key] }
         let apps = appNames(in: process.path.lowercased()); let name = process.name.lowercased()
+        let versioned = versionedInstallName(process.path)
         return aliasTable.first { entry in
-            !entry.aliases.isDisjoint(with: apps) || entry.aliases.contains(name) || (entry.tool == .tmux && name.hasPrefix("tmux:")) || (entry.tool == .herdr && name == "herdr-server")
+            !entry.aliases.isDisjoint(with: apps) || entry.aliases.contains(name) || versioned.map(entry.aliases.contains) == true || (entry.tool == .tmux && name.hasPrefix("tmux:")) || (entry.tool == .herdr && name == "herdr-server")
         }?.tool
     }
     public static func assignments(_ processes: [ProcessReading], currentUID: UInt32, applicationTools: [String: AITool] = [:]) -> [Int32: AITool] {

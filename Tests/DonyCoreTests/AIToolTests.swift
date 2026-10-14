@@ -16,6 +16,11 @@ import Foundation
         #expect(AITool.identify(process("cursor-helper-unrelated", path: "/tmp/cursor-helper-unrelated")) == nil)
         #expect(AITool.identify(process("node", path: "/usr/local/bin/node")) == nil)
     }
+    @Test func identifiesNativeInstallerVersionedExecutable() {
+        #expect(AITool.identify(process("2.1.299", path: "/Users/test/.local/share/claude/versions/2.1.299")) == .claude)
+        #expect(AITool.identify(process("2.1.299", path: "/Users/test/.local/share/claude/2.1.299")) == nil)
+        #expect(AITool.identify(process("2.1.299", path: "/Users/test/.local/share/unknown/versions/2.1.299")) == nil)
+    }
     @Test func totalsOnlyCurrentUsersMeasuredAIProcesses() {
         let processes = [process("Cursor", path: "/Applications/Cursor.app/Contents/MacOS/Cursor", memory: 200),
                          process("Cursor Helper", path: "/Applications/Cursor.app/Contents/Frameworks/helper", memory: 300, pid: 101),
