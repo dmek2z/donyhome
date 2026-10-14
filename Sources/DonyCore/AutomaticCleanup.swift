@@ -6,7 +6,19 @@ public enum AutomaticCleanup {
         enabled && (lastAttempt.map { now.timeIntervalSince($0) >= 86400 } ?? true)
     }
 
-    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, now: Date = Date(), runningOwners: Set<String>, token: ScanToken, progress: Scanner.Progress? = nil) -> ScanResult {
+    public static func scan(home: URL = FileManager.default.homeDirectoryForCurrentUser, now: Date = Date(), runningOwners: Set<String>, token: ScanToken, progress: Scanner.Progress? = nil, days: Int? = nil) -> ScanResult {
+        if let days {
+            var scanned = CacheCleanup.scan(home: home, runningOwners: runningOwners, days: days, token: token, now: now, progress: progress)
+            // Package/runtime caches require manual review; retain the existing automatic scope.
+            scanned.files.items = scanned.files.items.filter { item in
+                let owner = CacheScopes.owner(of: item.url, home: (try? FileSafety.canonicalRoot(home)) ?? home) ?? ""
+                return item.kind == .log || !["pnpm", "pip", "Homebrew", "Yarn"].contains(owner)
+            }
+            if scanned.groups.contains(where: { $0.incomplete && CacheScopes.isKnown(root: $0.root, home: (try? FileSafety.canonicalRoot(home)) ?? home) && !["pnpm", "pip", "Homebrew", "Yarn"].contains($0.root.lastPathComponent) }) {
+                scanned.files.items.removeAll(); scanned.files.cancelled = true
+            }
+            return scanned.files
+        }
         var result = ScanResult()
         let policy = CleanupPolicy(home: home)
         for (relative, kind) in [("Library/Caches", CandidateKind.cache), ("Library/Logs", .log)] {
