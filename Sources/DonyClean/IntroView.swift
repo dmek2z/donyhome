@@ -64,7 +64,7 @@ struct LetterView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     DonyIcon("clipboard", size: 16).foregroundStyle(Theme.primary)
-                    Text("도니의 편지").font(Theme.font(13, weight: .semibold)).foregroundStyle(Theme.secondary)
+                    Text("맥이 난로가 되는 분들께").font(Theme.font(13, weight: .semibold)).foregroundStyle(Theme.secondary)
                 }
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                     Text(line).font(Theme.font(index == 0 ? 20 : 14.5, weight: index == 0 ? .bold : .regular)).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
