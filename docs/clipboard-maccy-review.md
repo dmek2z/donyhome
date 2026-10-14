@@ -1,4 +1,4 @@
-# Clipboard flow ·2.3.5
+# Clipboard flow ·2.3.6
 
 Reference: https://github.com/p0deje/Maccy at fe0d74d2a622bdadb6513b8bf8fe4aeb0609f6f2. Reviewed FloatingPanel.swift, Observables/Popup.swift, Observables/History.swift, Observables/AppState.swift, Views/KeyHandlingView.swift and README usage. Existing clipboard capture/format handling attribution and MIT license remain bundled.
 
@@ -56,3 +56,14 @@ The user clarified that complete clearing must remove the existing clipboard. On
 Regression evidence: the original blocking-confirmation test failed when its modal watchdog had to stop the application loop, then passed with the asynchronous presenter. A system-clearing test failed because the previous implementation retained the text and pasteboard item, then passed. Final popup17 tests passed, covering nonblocking presentation, single confirmation ownership, cancellation, pinned history persistence, system clearing, empty history with an unrecorded copy, state invalidation and hosted numbered key events. Design5 policy tests and release2.3.5/build23 build/signature passed.
 
 Final installed app: clicked the quick-popup Whole Clear button and observed the new confirmation describing all25 stored entries plus current copied contents. Cancel returned to the popup; Settings then opened its independent window; Done closed it. Original history IDs remained present. These checks used native CUA element clicks; coordinate-click attempts were rejected with noWindowsAvailable and are not claimed as pointer-coordinate verification. Actual deletion was exercised only against private test pasteboards/stores; no personal history deletion was performed by the agent. Other physical Macs and unrelated cleanup-modal flows were not checked.
+
+
+## 2.3.6: the visible Whole Clear button clears on its first click
+
+The prior action kept records on its first click and only opened a second confirmation. In a separate debug fixture app using the real ClipboardQuickView/ClipboardController and an isolated store/pasteboard, the first click showed2 retained records; clicking the second button finally produced0. That extra step did not match the user's requirement that clicking Whole Clear itself remove the existing clipboard.
+
+Both the quick footer and management action now call clearAll directly. The first action synchronously clears the pasteboard and all stored/pinned history, synchronizes capture and clears state. The visible popup is rebuilt on the next main-loop turn after the original SwiftUI button action returns; it shows0 and an empty list. There is no confirmation panel in this clipboard path. Other deletion confirmations remain unchanged; the user-requested exception is documented in the shared design rules.
+
+The dedicated debug-only ClipboardUIFixture marker in a separate test bundle permits native button testing without touching the general pasteboard, real history or preferences. It initializes a pinned row, an ordinary row and a current copy, then records memory/store/pasteboard counts. Production release builds exclude this fixture entry. Final native fixture check: clicked the actual footer button once, observed0 records/empty message/disabled clear button, and read state.json with memoryCount0, storedCount0, pasteboardItemCount0. No deletion function or confirmation completion was directly invoked for that check. The previous direct-completion tests missed this first-click behavior.
+
+Final clipboard17 tests and design5 policy tests passed. Global design skill reference was updated. Real personal history was not cleared during development. The existing installed app is replaced with the corresponding2.3.6/build24 release after build/signature verification. Pointer-coordinate automation and other physical Macs are not claimed.

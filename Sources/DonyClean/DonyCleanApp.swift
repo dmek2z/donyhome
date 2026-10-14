@@ -50,6 +50,9 @@ import DonyCore
             return
         }
         Theme.registerFonts()
+        #if DEBUG
+        if ClipboardUIFixture.runIfRequested() { return }
+        #endif
         DonyHomeApp.main()
     }
 }

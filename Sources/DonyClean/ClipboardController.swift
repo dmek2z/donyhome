@@ -39,7 +39,6 @@ final class ClipboardPanel: NSPanel {
     private var handler: EventHandlerRef?
     private var panel: NSPanel?
     private var quickSettingsPanel: ClipboardPanel?
-    private(set) var clearConfirmationPanel: ConfirmationPanel?
     private var sourceApp: NSRunningApplication?
     private var activationObserver: NSObjectProtocol?
     private var pendingPaste: Task<Void, Never>?
@@ -98,9 +97,6 @@ final class ClipboardPanel: NSPanel {
     }
     func stop() {
         cancelShortcutRecording()
-        clearConfirmationPanel?.completion = nil
-        clearConfirmationPanel?.contentView = nil
-        clearConfirmationPanel?.close(); clearConfirmationPanel = nil
         if preferences.behavior?.clearOnQuit == true { clear(includePinned: true) }
         if preferences.behavior?.clearSystemOnQuit == true { pasteboard.clearContents() }
         timer?.invalidate(); timer = nil
@@ -173,20 +169,18 @@ final class ClipboardPanel: NSPanel {
         status = "기록을 지웠어요."
         persist()
     }
-    func confirmClearAll() {
-        if let existing = clearConfirmationPanel { existing.makeKeyAndOrderFront(nil); return }
+    func clearAll() {
         guard canClearAll else { return }
-        let reopen = panel?.isVisible == true
-        dismissPopup()
-        clearConfirmationPanel = ConfirmationDialog.present(title: "클립보드를 전부 비울까요?", message: "고정한 항목을 포함한 기록 \(items.count)개와 현재 복사된 내용을 지워요. 지운 기록은 복구할 수 없어요.", action: "전체 지우기", destructive: true, paths: []) { [weak self] accepted in
-            guard let self else { return }
-            self.clearConfirmationPanel = nil
-            if accepted {
-                self.pasteboard.clearContents()
-                self.captureSession.synchronize()
-                self.clear(includePinned: true)
+        let refreshPopup = panel?.isVisible == true
+        pasteboard.clearContents()
+        captureSession.synchronize()
+        clear(includePinned: true)
+        if refreshPopup {
+            // Finish the current SwiftUI button action before replacing its tree.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.panel?.isVisible == true else { return }
+                self.showPopup()
             }
-            if reopen { self.showPopup() }
         }
     }
     func resetUnreadableStore() {

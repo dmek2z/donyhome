@@ -139,36 +139,19 @@ import DonyCore
         #expect(f.0.copyShortcut("1"))
         #expect(f.1.string(forType: .string) == "copy immediately before opening")
     }
-    @Test func clearConfirmationReturnsWithoutHoldingAnApplicationModalLoop() throws {
+    @Test func oneClearAllActionImmediatelyEmptiesHistoryWithoutAnApplicationModal() throws {
         let f = try controller(); defer { cleanup(f) }
-        var watchdogFired = false
-        let watchdog = Timer(timeInterval: 0.4, repeats: false) { _ in
-            MainActor.assumeIsolated { watchdogFired = true; NSApp.stopModal(withCode: .cancel) }
-        }
-        RunLoop.main.add(watchdog, forMode: .modalPanel)
-        defer { watchdog.invalidate() }
-        f.0.confirmClearAll()
-        #expect(!watchdogFired)
+        f.0.clearAll()
         #expect(NSApp.modalWindow == nil)
-        #expect(f.0.items.count == 2)
-        let confirmation = try #require(f.0.clearConfirmationPanel)
-        f.0.confirmClearAll()
-        #expect(f.0.clearConfirmationPanel === confirmation)
-        f.0.showQuickSettings()
-        #expect(f.0.quickSettingsShown)
-        confirmation.cancelOperation(nil)
-        #expect(f.0.clearConfirmationPanel == nil)
-        #expect(f.0.items.count == 2)
+        #expect(f.0.items.isEmpty)
+        #expect(try ClipboardStore(url: f.2.appendingPathComponent("history.json")).load().isEmpty)
     }
-    @Test func acceptingTheNonblockingClearConfirmationDeletesOnlyFixtureHistory() throws {
+    @Test func oneClearAllActionAlsoRemovesPinsAndTheCurrentSystemCopy() throws {
         let f = try controller(); defer { cleanup(f) }
         f.0.setPinned(f.0.items[0])
         #expect(f.0.copy(f.0.items[0]))
-        f.0.confirmClearAll()
-        let confirmation = try #require(f.0.clearConfirmationPanel)
-        confirmation.resolve(true)
+        f.0.clearAll()
         #expect(f.0.items.isEmpty)
-        #expect(f.0.clearConfirmationPanel == nil)
         #expect(try ClipboardStore(url: f.2.appendingPathComponent("history.json")).load().isEmpty)
         #expect(f.1.string(forType: .string) == nil)
         #expect((f.1.pasteboardItems ?? []).isEmpty)
@@ -176,16 +159,12 @@ import DonyCore
         #expect(f.0.items.isEmpty)
         #expect(!f.0.canClearAll)
     }
-    @Test func clearAllCanRemoveASystemCopyEvenWithNoStoredHistoryAndCancelPreservesIt() throws {
+    @Test func clearAllCanRemoveASystemCopyEvenWithNoStoredHistory() throws {
         let f = try controller(); defer { cleanup(f) }
         f.0.clear(includePinned: true)
         f.1.clearContents(); f.1.setString("unrecorded fixture", forType: .string)
         #expect(f.0.canClearAll)
-        f.0.confirmClearAll()
-        try #require(f.0.clearConfirmationPanel).cancelOperation(nil)
-        #expect(f.1.string(forType: .string) == "unrecorded fixture")
-        f.0.confirmClearAll()
-        try #require(f.0.clearConfirmationPanel).resolve(true)
+        f.0.clearAll()
         #expect(!f.0.canClearAll)
         #expect(f.1.string(forType: .string) == nil)
     }
