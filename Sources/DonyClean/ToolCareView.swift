@@ -69,12 +69,6 @@ struct ToolCareView: View {
                     DonyTextAction(title: "전체 보기") { model.developmentToolFilter = nil }
                 }
                 Spacer()
-                Button { model.reviewDevelopmentTasks(focus) } label: {
-                    Text("작업 확인").frame(width: Theme.actionWidth - 24)
-                }.buttonStyle(QuietButton()).disabled(model.busy)
-                Button { model.reviewToolMemory(focus) } label: {
-                    Text("메모리 확인").frame(width: Theme.actionWidth - 24)
-                }.buttonStyle(QuietButton()).disabled(model.busy)
             }
         }.panel()
     }

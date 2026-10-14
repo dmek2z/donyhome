@@ -23,6 +23,8 @@ import DonyCore
         model.automaticCleanupEnabled = false; model.onboardingShown = false; model.resumedScanChecked = true
         model.permissionSetupReviewed = true; model.folder = directory
         model.excludedRecommendations = []
+        model.introPage = state.hasPrefix("intro") ? Int(state.dropFirst("intro".count)) ?? 0 : nil
+        if state.hasPrefix("intro") { model.onboardingShown = true }
         if state == "inspection" || state == "review" {
             let caches = ["com.google.Chrome", "com.spotify.client", "com.figma.Desktop"].enumerated().map { make($1, kind: .cache, bytes: 40_000 * ($0 + 1), in: "Caches") }
             let developer = [make("DerivedData-Build", kind: .developer, bytes: 90_000, in: "Developer")]

@@ -133,6 +133,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var toolStatuses: [AITool: String] = [:]
     @Published var notificationStatus = "확인 중"
     @Published var setupStep = 0
+    /// 첫 설치 때 설정보다 먼저 보여주는 소개 페이지. nil이면 소개를 건너뛴 상태.
+    @Published var introPage: Int? = FirstLaunchSetup.shouldShow() ? 0 : nil
     @Published var automaticCleanupEnabled = UserDefaults.standard.bool(forKey: "automaticCleanupEnabled")
     @Published var lastAutomaticCleanup = UserDefaults.standard.object(forKey: "lastAutomaticCleanup") as? Date
     @Published var automaticCleanupSummary: String?

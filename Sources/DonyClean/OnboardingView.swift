@@ -48,6 +48,9 @@ struct OnboardingView: View {
         })
     }
     var body: some View {
+        if model.introPage != nil { IntroView().environmentObject(model) } else { setupBody }
+    }
+    private var setupBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 30, height: 30)
@@ -66,7 +69,6 @@ struct OnboardingView: View {
                             if model.busy { ProgressView().controlSize(.small) }
                             Text(model.busy ? "개발 도구를 탐색하고 있어요…" : detectedTools.isEmpty ? "이 Mac에서 사용 중인 개발 도구를 찾지 못했어요. 아래에서 직접 고를 수 있어요." : "사용 중인 개발 도구 \(detectedTools.count)개를 찾았어요").font(Theme.font(14, weight: .semibold))
                             Spacer()
-                            DonyTextAction(title: "다시 탐색") { scanTools() }.disabled(model.busy)
                         }
                         if !detectedTools.isEmpty {
                             VStack(spacing: 0) {
@@ -97,11 +99,7 @@ struct OnboardingView: View {
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                         DisclosureGroup("정리에서 제외할 프로젝트 직접 선택") {
                             VStack(alignment: .leading, spacing: 0) {
-                                HStack {
-                                    Text("체크 해제한 프로젝트는 정리하지 않아요").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                                    Spacer()
-                                    Button("폴더 추가") { model.addProjects(tools: model.connectedTools) }.buttonStyle(QuietButton()).disabled(model.connectedTools.isEmpty || model.busy)
-                                }.padding(.vertical, 12)
+                                Text("체크 해제한 프로젝트는 정리하지 않아요").font(Theme.font(12)).foregroundStyle(Theme.secondary).padding(.vertical, 12)
                                 ForEach(projectPaths, id: \.self) { path in
                                     Divider()
                                     HStack(spacing: 12) {
@@ -133,9 +131,6 @@ struct OnboardingView: View {
                             Divider()
                             summaryRow("프로젝트", "\(Set(model.linkedProjects.filter(\.enabled).map(\.path)).count)개 자동 동기화", done: !model.linkedProjects.isEmpty)
                         }.panel(20)
-                        Text("캐릭터").font(Theme.font(14, weight: .semibold))
-                        DonyChoices(options: ["컬러", "흑백"], selection: Binding(get: { model.characterMode.title }, set: { model.setCharacterMode($0 == "흑백" ? .monochrome : .color) }))
-                        CharacterPreviewView(mode: model.characterMode)
                     }
                 }.padding(24)
             }

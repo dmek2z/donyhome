@@ -56,8 +56,6 @@ struct SmartCareView: View {
                         Text("\(selectedCount)개 선택 · " + DisplayFormat.bytes(selectedBytes)).font(Theme.font(21, weight: .semibold))
                         Text("선택 항목은 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
                     }
-                    Spacer()
-                    Button("선택 항목 정리") { model.runRecommended(includeCleanup: model.cleanCaches, includeDuplicates: model.cleanCopies, includeDeveloper: model.cleanDeveloper, includeWorkspaces: model.cleanWorkspaces) }.buttonStyle(PrimaryButton()).disabled(model.busy || smart.cancelled || selectedCount == 0)
                 }.padding(.top, 8)
                 DisclosureGroup("추천 기준") {
                     VStack(alignment: .leading, spacing: 8) {
@@ -81,24 +79,31 @@ struct SmartCareView: View {
         model.section = section
     }
     private func recommendedRow(_ title: String, icon: String, detail: String, selected: Binding<Bool>, section: Section, mode: String? = nil, reason: String? = nil, review: [String] = []) -> some View {
-        HStack(spacing: 12) {
-            Toggle(title, isOn: selected).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel(title).disabled(model.busy || detail.hasPrefix("0개"))
-            DonyIcon(icon).foregroundStyle(section.iconColor)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(Theme.font(14, weight: .medium))
-                if let reason, !detail.hasPrefix("0개") { Text(reason).font(Theme.font(11)).foregroundStyle(Theme.secondary) }
-            }
-            Spacer()
-            Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)
-            Button("검토") { model.reviewSelection = review; open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy || detail.hasPrefix("0개"))
+        let empty = detail.hasPrefix("0개")
+        return HStack(spacing: 12) {
+            Toggle(title, isOn: selected).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel(title).disabled(model.busy || empty)
+            Button { model.reviewSelection = review; open(section, mode: mode) } label: {
+                HStack(spacing: 12) {
+                    DonyIcon(icon).foregroundStyle(section.iconColor)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(Theme.font(14, weight: .medium))
+                        if let reason, !empty { Text(reason).font(Theme.font(11)).foregroundStyle(Theme.secondary) }
+                    }
+                    Spacer()
+                    Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)
+                    DonyIcon("chevron.right", size: 12).foregroundStyle(Theme.secondary)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(model.busy || empty).accessibilityLabel(title + " 검토")
         }.padding(.vertical, 10)
     }
     private func reviewRow(_ title: String, icon: String, detail: String, section: Section, mode: String? = nil) -> some View {
-        HStack(spacing: 12) {
-            DonyIcon(icon).foregroundStyle(section.iconColor).padding(.leading, 32)
-            Text(title).font(Theme.font(14, weight: .medium)); Spacer()
-            Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)
-            Button("직접 선택") { open(section, mode: mode) }.buttonStyle(QuietButton()).disabled(model.busy)
-        }.padding(.vertical, 10)
+        Button { open(section, mode: mode) } label: {
+            HStack(spacing: 12) {
+                DonyIcon(icon).foregroundStyle(section.iconColor).padding(.leading, 32)
+                Text(title).font(Theme.font(14, weight: .medium)); Spacer()
+                Text(detail).font(Theme.font(13)).foregroundStyle(Theme.secondary)
+                DonyIcon("chevron.right", size: 12).foregroundStyle(Theme.secondary)
+            }.padding(.vertical, 10).contentShape(Rectangle())
+        }.buttonStyle(.plain).disabled(model.busy).accessibilityLabel(title + " 직접 확인")
     }
 }
