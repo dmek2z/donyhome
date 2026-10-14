@@ -66,23 +66,3 @@ import Foundation
         expectTrue(FileManager.default.fileExists(atPath: first.path))
     }
 }
-
-@Suite struct CLIProcessPolicyTests {
-    private func process(_ name: String, path: String, cpu: Double?, memory: Int64 = 10_000_000, age: Double = 3600, uid: UInt32 = 501, pid: Int32 = 5000) -> ProcessReading {
-        ProcessReading(pid: pid, uid: uid, startSeconds: UInt64(Date().timeIntervalSince1970 - age), startMicroseconds: 0, name: name, path: path, memoryBytes: memory, cpuNanos: nil, cpuPercent: cpu)
-    }
-    @Test func runawayAndIdleCLIProcessesAreFoundAndProtectedOnesAreNot() {
-        let list = [
-            process("grok", path: "/Users/u/.grok/bin/grok", cpu: 81, age: 4000, pid: 6001),
-            process("node", path: "/opt/homebrew/bin/node", cpu: 0, memory: 400_000_000, age: 8 * 3600, pid: 6002),
-            process("new", path: "/opt/homebrew/bin/new", cpu: 90, age: 120, pid: 6003),
-            process("zsh", path: "/bin/zsh", cpu: 90, age: 9000, pid: 6004),
-            process("claude", path: "/Users/u/.local/bin/claude", cpu: 90, age: 9000, pid: 6005),
-            process("Helper", path: "/Applications/Foo.app/Contents/MacOS/Helper", cpu: 90, age: 9000, pid: 6006),
-            process("other", path: "/Users/u/bin/other", cpu: 90, age: 9000, uid: 0, pid: 6007),
-            process("self", path: "/Users/u/bin/self", cpu: 90, age: 9000, pid: 6008)
-        ]
-        let found = CLIProcessPolicy.findings(list, currentUID: 501, ownPID: 6008).map(\.process.name)
-        #expect(found == ["grok", "node"])
-    }
-}

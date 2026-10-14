@@ -30,8 +30,6 @@ import DonyCore
                 "duplicateGroups": result.duplicates.groups.count, "duplicateCopies": result.duplicates.groups.flatMap(\.copies).count,
                 "largeFiles": result.largeFiles.items.count, "applications": result.applications.apps.count,
                 "issues": result.issues.count, "recommendedBytes": plan.bytes,
-                "developerItems": result.developer.items.prefix(60).map { ["path": $0.id, "bytes": $0.bytes, "recommended": result.developer.decisions[$0.id]?.isRecommended == true, "reason": result.developer.decisions[$0.id]?.reason ?? ""] as [String: Any] },
-                "developerIssues": result.developer.issues.prefix(40).map { ["path": $0.path, "message": $0.message] },
                 "recommended": plan.items.map { ["path": $0.id, "kind": $0.kind.rawValue, "bytes": $0.bytes] as [String: Any] }
             ]
             if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]), let text = String(data: data, encoding: .utf8) { print(text) }

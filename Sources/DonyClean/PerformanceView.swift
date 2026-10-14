@@ -18,7 +18,6 @@ struct PerformanceView: View {
     @State private var memorySort = false
     @State private var search = ""
     @State private var selection = Set<String>()
-    @State private var cliSelection = Set<String>()
     private var selectedRows: [UsageRow] { rows.filter { selection.contains($0.id) && model.canQuit($0.process) } }
     private var rows: [UsageRow] {
         let processes = model.snapshot.processes
@@ -70,30 +69,6 @@ struct PerformanceView: View {
                     Button("선택한 앱 종료") { model.quitSelected(selectedRows.map(\.process)); selection.removeAll() }.buttonStyle(PrimaryButton()).disabled(selectedRows.isEmpty || model.busy)
                 }
             }.panel()
-            let cli = model.cliFindings
-            if !cli.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        DonyIcon("cpu", size: 24).foregroundStyle(Theme.primary)
-                        Text("폭주·방치된 개발 프로세스").font(Theme.font(15, weight: .semibold))
-                        Spacer()
-                        Button("모두 선택") { cliSelection = Set(cli.map(\.id)) }.buttonStyle(QuietButton()).disabled(model.busy)
-                        Button("선택한 프로세스 종료") { model.terminateCLI(cli.filter { cliSelection.contains($0.id) }); cliSelection.removeAll() }.buttonStyle(PrimaryButton()).disabled(cliSelection.isEmpty || model.busy)
-                    }
-                    ForEach(cli.prefix(30)) { finding in
-                        HStack(spacing: 10) {
-                            Toggle("선택 " + finding.process.name, isOn: Binding(get: { cliSelection.contains(finding.id) }, set: { if $0 { cliSelection.insert(finding.id) } else { cliSelection.remove(finding.id) } })).toggleStyle(DonyCheckbox()).labelsHidden().disabled(model.busy)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(finding.process.name + " · PID \(finding.process.pid)").font(Theme.font(12, weight: .medium))
-                                Text(finding.reason).font(Theme.font(10)).foregroundStyle(Theme.secondary)
-                            }
-                            Spacer()
-                            Text(finding.process.path).font(Theme.font(9)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).frame(maxWidth: 260)
-                        }
-                    }
-                    Text("CPU 50% 이상으로 10분 넘게 도는 프로세스, 또는 300 MB 이상을 6시간 넘게 쓰지 않고 잡고 있는 프로세스예요. 일반 종료만 요청해요.").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                }.panel()
-            }
             if let relief = model.lastRelief {
                 VStack(alignment: .leading, spacing: 9) {
                     Text(relief.app + " 종료 요청 후 관측").font(Theme.font(13, weight: .semibold))
