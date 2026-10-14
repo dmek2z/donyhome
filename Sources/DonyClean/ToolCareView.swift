@@ -99,6 +99,32 @@ struct ToolCareView: View {
                 .background(focus == tool ? Theme.primary.opacity(0.06) : Color.clear).contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel("도구 상세 " + tool.title)
     }
+    private var selectedBytes: Int64 { items.filter { selection.contains($0.id) }.reduce(0) { $0 + $1.candidate.bytes } }
+    /// 정리할 수 없는 이유를 정리 기준과 연결해서 묶어 보여준다.
+    private func policyLabel(_ reason: String) -> String {
+        if reason.hasPrefix("최근 변경") { return "\(model.projectRetentionDays)일 안에 쓴 파일(정리 기준)" }
+        if reason.hasPrefix("사용 중인 도구") { return "실행 중인 도구의 파일" }
+        if reason.hasPrefix("열린 파일 ·") { return "다른 프로그램이 열어 둔 파일" }
+        return "상태를 확인하지 못한 파일"
+    }
+    private var blockedSummary: String {
+        var counts: [String: Int] = [:]
+        for item in items where !item.isEligible { counts[policyLabel(item.reason), default: 0] += 1 }
+        return counts.sorted { $0.value > $1.value }.prefix(3).map { "\($0.key) \($0.value)개" }.joined(separator: " · ")
+    }
+    private var cleanBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(selection.isEmpty ? (eligible.isEmpty ? "지금 정리할 수 있는 파일이 없어요" : "정리할 파일을 선택해 주세요") : "\(selection.count)개 선택 · " + DisplayFormat.bytes(selectedBytes)).font(Theme.font(15, weight: .semibold))
+                    Text(eligible.isEmpty ? "정리 기준(\(model.projectRetentionDays)일 이상 안 쓴 항목)에 맞지 않거나 보호 중인 파일이에요." : "정리 가능 \(eligible.count)개 · 선택한 파일은 휴지통으로 이동해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                }
+                Spacer(minLength: 12)
+                Button("선택한 파일 정리") { model.cleanToolStorage(selection) }.buttonStyle(PrimaryButton()).disabled(model.busy || !model.toolStorageCurrent || selection.isEmpty)
+            }
+            if eligible.isEmpty, !blockedSummary.isEmpty { Text(blockedSummary).font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.body) }
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 12))
+    }
     private var filePanel: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -109,6 +135,7 @@ struct ToolCareView: View {
                     SelectionControl(selection: $selection, ids: eligible.map(\.id)).disabled(model.busy || !model.toolStorageCurrent)
                 }
             }
+            if model.toolStorageDate != nil, !model.toolStorage.cancelled, !items.isEmpty { cleanBar }
             if model.toolStorage.cancelled { Text("검사 중단 · 다시 검사해 주세요").font(Theme.font(12)).foregroundStyle(Theme.amber) }
             else if items.isEmpty {
                 Text(model.toolStorageDate == nil ? "검사 전" : "정리 대상 없음").font(Theme.font(13)).foregroundStyle(Theme.secondary)
@@ -129,13 +156,6 @@ struct ToolCareView: View {
                     }
                 }
                 ListPagination(total: items.count, page: $page)
-            }
-            if !selection.isEmpty {
-                HStack {
-                    Text("\(selection.count)개 선택").font(Theme.font(13))
-                    Spacer()
-                    Button("선택한 파일 정리") { model.cleanToolStorage(selection) }.buttonStyle(PrimaryButton()).disabled(model.busy || !model.toolStorageCurrent)
-                }
             }
         }.panel()
     }

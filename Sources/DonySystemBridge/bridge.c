@@ -1,3 +1,4 @@
+#include <errno.h>
 #include "DonySystemBridge.h"
 #include <mach/mach.h>
 #include <mach/mach_host.h>
@@ -120,7 +121,13 @@ int dc_read_owned_processes(DCProcess *output, int capacity, int *complete) {
     for (int i = 0; i < bytes / (int)sizeof(int); i++) {
         if (pids[i] <= 0) continue;
         struct proc_bsdinfo bsd;
-        if (filled >= capacity || proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd)) != sizeof(bsd) || bsd.pbi_uid != getuid()) { valid = 0; continue; }
+        if (filled >= capacity) { valid = 0; continue; }
+        errno = 0;
+        int info = proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &bsd, sizeof(bsd));
+        // 목록을 읽는 사이 정상 종료된 프로세스는 파일을 잡을 수 없으므로 건너뛴다. 권한 오류나 이상한 응답만 불완전으로 본다.
+        if (info <= 0) { if (errno == EPERM || errno == EACCES) valid = 0; continue; }
+        if (info != (int)sizeof(bsd)) { valid = 0; continue; }
+        if (bsd.pbi_uid != getuid()) continue; // 목록을 읽은 뒤 PID가 다른 사용자 프로세스로 재사용됨
         DCProcess *row = &output[filled++]; memset(row, 0, sizeof(*row));
         row->pid = pids[i]; row->parent_pid = bsd.pbi_ppid; row->uid = bsd.pbi_uid;
         row->start_seconds = bsd.pbi_start_tvsec; row->start_microseconds = bsd.pbi_start_tvusec;

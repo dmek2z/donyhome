@@ -6,6 +6,9 @@ public struct ToolStorageItem: Identifiable, Sendable {
     public let owners: Set<AITool>
     public let isEligible: Bool
     public let reason: String
+    public init(candidate: FileCandidate, owners: Set<AITool>, isEligible: Bool, reason: String) {
+        self.candidate = candidate; self.owners = owners; self.isEligible = isEligible; self.reason = reason
+    }
 }
 public struct ToolStorageResult: Sendable {
     public var items: [ToolStorageItem] = []

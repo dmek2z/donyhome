@@ -65,6 +65,22 @@ import DonyCore
                 clip("hello@example.com", app: "Mail", minutes: 180, pinned: true)
             ])
             model.section = .clipboard
+        } else if state.hasPrefix("toolclean") {
+            model.connectedTools = [.codex, .claude]
+            let owners: [Set<AITool>] = [[.codex], [.claude]]
+            func item(_ name: String, _ reason: String, eligible: Bool, bytes: Int, owner: Int) -> ToolStorageItem {
+                ToolStorageItem(candidate: make(name, kind: .cache, bytes: bytes, in: "ToolCaches"), owners: owners[owner], isEligible: eligible, reason: reason)
+            }
+            var result = ToolStorageResult()
+            if state == "toolclean" {
+                result.items += [item("old-cache-1.bin", "14일 이상 지난 캐시·로그", eligible: true, bytes: 48_000, owner: 0), item("old-log-2.log", "14일 이상 지난 캐시·로그", eligible: true, bytes: 31_000, owner: 1)]
+            }
+            for index in 0..<4 { result.items.append(item("live-cache-\(index).bin", "사용 중인 도구 · 보관", eligible: false, bytes: 20_000 + index, owner: index % 2)) }
+            for index in 0..<2 { result.items.append(item("recent-\(index).bin", "최근 변경 · 보관", eligible: false, bytes: 12_000 + index, owner: 0)) }
+            result.items.append(item("open-1.bin", "열린 파일 · 보관", eligible: false, bytes: 9_000, owner: 1))
+            result.recognizedTools = [.codex, .claude]
+            model.toolStorage = result; model.toolStorageTools = model.connectedTools; model.toolStorageDays = model.projectRetentionDays; model.toolStorageDate = Date()
+            model.section = .development; model.developmentMode = "도구 정리"
         } else if state == "dony" {
             model.section = .dony
         } else if state == "retention" {
@@ -82,6 +98,7 @@ import DonyCore
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1130, height: 900), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "도니홈 화면 검토 · 임시 데이터"; window.isReleasedWhenClosed = false
         if state == "character" { window.setContentSize(NSSize(width: 620, height: 330)) }
+        if state.hasPrefix("toolclean") { window.setContentSize(NSSize(width: 1130, height: 1500)) }
         window.contentView = state == "character"
             ? NSHostingView(rootView: VStack(spacing: 14) {
                 Text("메뉴 막대 캐릭터").font(Theme.font(17, weight: .semibold)).frame(maxWidth: .infinity, alignment: .leading)

@@ -57,3 +57,4 @@ Final local extension: added current-user Trash manifest inspection and explicit
 2026-10-15 2.3.24: 클립보드 — 원인은 저장된 단축키(⌥⌘C)와 실제로 누른 키(⇧⌘C) 불일치(등록·창 표시는 정상, 로그로 확인). 설정을 ⇧⌘C로 바꿔 동작 확인. 빠르게 열기 버튼에 단축키 표시, 진단 로그 추가. 등록 성공 결과는 다른 앱과의 충돌을 알려주지 않음(별도 프로세스도 같은 키 등록 성공).
 2026-10-15 2.3.25: Dock 아이콘 숨기기 토글(설정·첫 실행). NSApp.setActivationPolicy(.accessory)를 실행 시·토글 시 적용. lsappinfo로 확인: 일반 Foreground, 숨김 UIElement. 테스트 227개·디자인 규칙·빌드 통과. 실제 클릭 토글은 미확인.
 2026-10-15 2.3.26: 코덱스 피드백 반영 — README 개인정보 정정(git ls-remote), 클립보드 만료(기본 30일)·민감 패턴 기본 제외·첫 실행 저장 선택, 권한 화면에 stale 손쉬운 사용 안내, 자산 문서 정리. 테스트 231개. Keychain 암호화는 ad-hoc 서명 때문에 보류.
+2026-10-15 2.3.27: 개발 도구 정리 항상 '확인 불가' 수정 — bridge.c 프로세스 목록 완전성(종료된 PID 건너뜀), OpenFiles(종료 프로세스 건너뜀·신규 프로세스 합침·재시도·Apple 시스템 에이전트 읽기 실패 허용). 실측(533 프로세스): 이전 invComplete=false/openComplete=false/eligible=0 → 이후 true/true/eligible=20. 정리 막대·이유 요약 UI 추가, 렌더링 확인. 테스트 231개.
