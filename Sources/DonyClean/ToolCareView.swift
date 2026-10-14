@@ -124,7 +124,7 @@ struct ToolCareView: View {
             }
             if eligible.isEmpty, !blockedSummary.isEmpty { Text(blockedSummary).font(Theme.font(12, weight: .medium)).foregroundStyle(Theme.body) }
             if !model.cleanRunningToolFiles, items.contains(where: { $0.reason.hasPrefix("사용 중인 도구") }) {
-                Text("실행 중인 도구의 캐시는 기본으로 정리하지 않아요. 정리 기준 설정에서 「실행 중인 도구의 캐시도 정리」를 켤 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("실행 중인 도구의 캐시는 기본으로 정리하지 않아요. 정리 기준에서 켤 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(Theme.canvas).clipShape(RoundedRectangle(cornerRadius: 12))
     }
