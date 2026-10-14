@@ -52,6 +52,12 @@ class DesignPolicyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn('portable reference differs', result.stdout)
 
+    def test_native_reference_image_must_ship_with_skill(self):
+        (self.root / '.agents/skills/donyhome-design/assets/development-reference.png').unlink()
+        result = self.check_policy()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('broken portable reference', result.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

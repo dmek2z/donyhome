@@ -41,6 +41,15 @@ spec = args.root / 'docs/design-system.md'
 reference = args.root / '.agents/skills/donyhome-design/references/design-system.md'
 if spec.is_file() and reference.is_file() and spec.read_bytes() != reference.read_bytes():
     errors.append('donyhome-design: portable reference differs from docs/design-system.md; update both')
+skill = args.root / '.agents/skills/donyhome-design'
+for document in skill.rglob('*.md'):
+    for match in re.finditer(r'\[[^\]]*\]\(([^)]+)\)', document.read_text()):
+        target = match.group(1).split('#', 1)[0]
+        if not target or re.match(r'[a-zA-Z][a-zA-Z0-9+.-]*:', target):
+            continue
+        resolved = (document.parent / target).resolve()
+        if not resolved.is_relative_to(skill.resolve()) or not resolved.is_file():
+            errors.append(f'donyhome-design: broken portable reference {target} in {document.name}')
 if errors:
     print('\n'.join(errors))
     raise SystemExit(1)

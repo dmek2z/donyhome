@@ -6,6 +6,8 @@
 
 UI를 새로 만들거나 수정할 때 [.agents/skills/donyhome-design/SKILL.md](.agents/skills/donyhome-design/SKILL.md)와 [docs/design-system.md](docs/design-system.md)를 먼저 읽고 적용한다.
 
+기능 수정 중 화면·문구·설정이 바뀌는 경우도 UI 작업이다. 스킬의 실제 기준 화면과 비교 지침을 먼저 확인한다. 작업 브랜치·소스 버전과 실제 실행 앱의 버전·경로를 맞추고, 변경 후 캡처와 검증 범위를 결과에 남긴다. 스킬 파일의 존재나 정적 검사 통과만으로 디자인 적용 완료라고 보고하지 않는다.
+
 - `Theme.swift` / `DonyControls.swift`의 공통 토큰과 컴포넌트를 사용한다.
 - 주요 화면에 글자 드롭다운 버튼·기능 소개·버튼 재설명을 새로 넣지 않는다. 선택은 행·칩·분할 선택·직접 버튼, 설정은 설정창으로 표현한다. 실제 오류·제외 사유·삭제 확인은 유지한다.
 - 전역 스킬이 없는 Mac은 `zsh scripts/install-design-skill.sh`로 저장소의 독립 스킬을 설치한다. 앱 설치만으로 스킬이 적용된다고 가정하지 않는다.
