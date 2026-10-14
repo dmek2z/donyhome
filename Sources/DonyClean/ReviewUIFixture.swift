@@ -81,7 +81,14 @@ import DonyCore
         let clipboard = ClipboardController(pasteboard: NSPasteboard(name: .init("donyhome-review-" + UUID().uuidString)), storeURL: directory.appendingPathComponent("clipboard.json"))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1130, height: 900), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "도니홈 화면 검토 · 임시 데이터"; window.isReleasedWhenClosed = false
-        window.contentView = state == "retention"
+        if state == "character" { window.setContentSize(NSSize(width: 620, height: 330)) }
+        window.contentView = state == "character"
+            ? NSHostingView(rootView: VStack(spacing: 14) {
+                Text("메뉴 막대 캐릭터").font(Theme.font(17, weight: .semibold)).frame(maxWidth: .infinity, alignment: .leading)
+                CharacterPreviewView(mode: .color)
+                CharacterPreviewView(mode: .monochrome)
+            }.padding(24).frame(width: 620, height: 330).background(Theme.canvas).preferredColorScheme(.light))
+            : state == "retention"
             ? NSHostingView(rootView: RetentionSettingsSheet().environmentObject(model).font(Theme.font(14)).preferredColorScheme(.light))
             : NSHostingView(rootView: RootView(lifecycle: lifecycle).environmentObject(model).environmentObject(clipboard).font(Theme.font(14)).preferredColorScheme(.light))
         window.center(); window.makeKeyAndOrderFront(nil)
