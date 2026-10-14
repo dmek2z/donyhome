@@ -62,12 +62,9 @@ struct LetterView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    DonyIcon("clipboard", size: 16).foregroundStyle(Theme.primary)
-                    Text("맥이 난로가 되는 분들께").font(Theme.font(13, weight: .semibold)).foregroundStyle(Theme.secondary)
-                }
+                Text("맥이 난로가 되는 분들께").font(Theme.font(24, weight: .bold))
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                    Text(line).font(Theme.font(index == 0 ? 20 : 14.5, weight: index == 0 ? .bold : .regular)).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                    Text(line).font(Theme.font(14.5)).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                         .opacity(shown > index ? 1 : 0).offset(y: shown > index ? 0 : 8)
                 }
                 HStack(spacing: 10) {

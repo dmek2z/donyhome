@@ -96,8 +96,8 @@ struct CharacterPreviewView: View {
     let mode: CharacterMode
     var body: some View {
         HStack(spacing: 12) {
-            preview("여유", activity: .relaxed)
-            preview("과부하", activity: .overloaded)
+            preview("여유 (커피 한 잔)", activity: .relaxed)
+            preview("과부하 (땀 뻘뻘)", activity: .overloaded)
         }
     }
     private func preview(_ title: String, activity: CharacterActivity) -> some View {

@@ -4,7 +4,7 @@
 
 Pre-flight: Core candidate identity shared by scanners, duplicates, application scan and file operations. SystemSnapshot shared by window and menu bar. UI confirmations consume identical immutable candidate records; operations revalidate at execution.
 
-Tasks 1–3: implemented and compiled. Initial 16 filesystem/process/action tests passed. User requested the Dony Dony design and Dony logo; applied source tokens at commit n/a. Original site favicon and upstream Pretendard bundled. Actual overview and performance screenshots displayed; Dony overview reviewed at 1130x790.
+Tasks 1–3: implemented and compiled. Initial 16 filesystem/process/action tests passed. User requested the Dony design and Dony logo; applied source tokens at commit n/a. Original site favicon and upstream Pretendard bundled. Actual overview and performance screenshots displayed; Dony overview reviewed at 1130x790.
 
 Independent core review: no Critical findings. Fixed three Important findings: permission-denied related paths becoming empty results, action summaries overwriting history persistence warnings, and duplicate comparison continuing after cancellation. Regression tests were first observed failing and are now green. Ancestor-chain omission upgraded to a safety-contract fix and covered by a replacing-ancestor-with-symlink regression. Foundation normalizes /private/var back to the /var symlink; use realpath canonical root spelling without re-standardizing existing target URLs. Verified 20 tests / 3 suites via scripts/test.sh on 2026-10-13.
 
@@ -53,3 +53,4 @@ Final local extension: added current-user Trash manifest inspection and explicit
 2026-10-14 2.3.20: 편지 말투 개정(쾌남), 도니 페이지 카드 분리. 렌더링 캡처 확인. 클릭 동작 미확인.
 2026-10-14 2.3.21: 편지 팝업 상단 제목을 공지 제목과 통일.
 2026-10-15 2.3.22: 성능 — AITool 식별을 경로 구성요소 해시 조회로 변경(실제 프로세스 516개 기준 73ms→6.5ms, 디버그), aiUsage를 샘플링 때 1회 계산·저장. 클립보드 붙여넣기 접근 진단 추가, 온보딩 프로젝트 도구별 묶음·검색·기본 선택, 메일 버튼, THIRD_PARTY_NOTICES. 테스트 227개·디자인 규칙·빌드 통과. 클립보드 단축키 녹화 문제는 재현하지 못함.
+2026-10-15 2.3.23: 공개 준비 — LICENSE(MIT), README 개편·스크린샷 9장, smc 소스 빌드 전환(설치 해시 smc.sha256), Dony→Dony 이름 변경, 편지 제목, 캐릭터 문구, 클립보드 진단 로그. 테스트·디자인 규칙·빌드 통과.

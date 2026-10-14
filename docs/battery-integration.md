@@ -7,12 +7,16 @@ and BatteryInstallation. It refreshes read-only state every 15 seconds while the
 page is visible. Switching sections does not stop original maintenance jobs.
 
 Copy `Resources/Battery` recursively into `Contents/Resources/Battery` before app
-signing. Preserve `battery`, `battery.upstream.sh`, `smc`, `smc-source/**`, both
-licenses, provenance and adaptation notes. Do not recompile or re-sign `smc`
-without updating the hardcoded SHA256 in BatteryEngine.swift. The checks apply to
-the exact staged binary. App bundle signing may be checked to ensure it does not
-change this binary's bytes. The bundled smc is arm64, as the original battery
-engine targets Apple Silicon MacBooks.
+signing. Preserve `battery`, `battery.upstream.sh`, `smc-source/**`, both
+licenses, provenance and adaptation notes. `smc` is not stored in the repository:
+`scripts/build-app.sh` compiles `smc-source/` into `Contents/Resources/Battery/smc`
+(arm64, as the original battery engine targets Apple Silicon MacBooks).
+Because users build it themselves, the binary's SHA256 is not hardcoded. The install
+script hashes the bundled `smc`, verifies the root-owned staged copy against that
+hash and records it in `smc.sha256` next to the installed binary. Trust checks and
+removal use that root-owned file. Installations made by earlier versions have no
+`smc.sha256` and are checked against `BatteryInstallation.legacySMCHash`.
+`battery` keeps its pinned `engineHash`.
 
 No privileged operation runs at app launch, in tests, or on unsupported hardware.
 Mac mini: `pmset -g batt` contains no InternalBattery; every installation/control

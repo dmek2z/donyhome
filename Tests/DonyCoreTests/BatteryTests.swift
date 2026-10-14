@@ -53,8 +53,14 @@ import Foundation
     }
     @Test func offlineInstallQuotesResourcePathAndChecksStagedHashes() throws {
         #expect(BatteryInstallation.shellQuote("a'b $(touch x)") == "'a'\\''b $(touch x)'")
-        let path = URL(fileURLWithPath: "/Applications/A ' $(x)/Contents/Resources/Battery")
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("A ' $(x)-\(UUID().uuidString)/Contents/Resources/Battery")
+        try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: path.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()) }
+        try Data("fixture smc build".utf8).write(to: path.appendingPathComponent("smc"))
+        let smcHash = try BatteryInstallation.smcHash(resources: path)
         let script = try BatteryInstallation.installScript(resources: path, user: "dony")
+        #expect(script.contains(smcHash) && script.contains("smc.sha256"))
+        #expect(throws: BatteryError.self) { try BatteryInstallation.smcHash(resources: path.appendingPathComponent("missing")) }
         #expect(script.contains("src=" + BatteryInstallation.shellQuote(path.path)))
         #expect(script.contains("shasum -a 256 \"$stage/battery\""))
         #expect(script.contains(BatteryInstallation.engineHash))
@@ -78,7 +84,7 @@ import Foundation
         #expect(!script.contains("/usr/local/bin"))
         #expect(!script.contains("curl"))
         #expect(script.contains(BatteryInstallation.engineHash))
-        #expect(script.contains(BatteryInstallation.smcHash))
+        #expect(script.contains(BatteryInstallation.legacySMCHash) && script.contains("smc.sha256"))
         #expect(script.contains("[ ! -L \"$p\" ]"))
         #expect(script.contains("$(/bin/cat \"$rule\")"))
         #expect(throws: BatteryError.self) { try BatteryInstallation.uninstallScript(user: "x;rm -rf /") }

@@ -42,12 +42,21 @@ import Darwin
             return true
         } catch { return false }
     }
+    /// 설치 때 남긴 smc 해시(root 소유 파일). 예전 설치본에는 파일이 없어 고정값을 쓴다.
+    private nonisolated static func installedSMCHash(base: String) -> String? {
+        let file = base + "/smc.sha256"
+        guard FileManager.default.fileExists(atPath: file) else { return BatteryInstallation.legacySMCHash }
+        guard trustedFile(file), let text = try? String(contentsOfFile: file, encoding: .utf8) else { return nil }
+        let hash = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return hash.count == 64 && hash.allSatisfy({ $0.isHexDigit && !$0.isUppercase }) ? hash : nil
+    }
     private nonisolated static func trustedInstallation() -> Bool {
         let base = BatteryInstallation.directory
         let parents = ["/Library", "/Library/PrivilegedHelperTools", base, "/private", "/private/etc", "/private/etc/sudoers.d"]
         guard parents.allSatisfy({ trustedFile($0) }),
               trustedFile(base + "/battery", hash: BatteryInstallation.engineHash),
-              trustedFile(base + "/smc", hash: BatteryInstallation.smcHash),
+              let smcHash = installedSMCHash(base: base),
+              trustedFile(base + "/smc", hash: smcHash),
               trustedFile(BatteryInstallation.sudoers),
               trustedFile(base + "/privileges.conf"),
               let expected = try? BatteryInstallation.privilegeConfiguration(user: NSUserName()),

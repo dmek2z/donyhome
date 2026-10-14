@@ -1,10 +1,14 @@
 import AppKit
+import os
 import SwiftUI
 import Carbon
 import Vision
 import DonyCore
 
 /// Takes keyboard focus without activating or raising the utility's main window.
+/// 클립보드 단축키·빠른 창 진단 로그. `log show --predicate 'subsystem == "local.dony.DonyClean"'`로 본다.
+let clipLog = Logger(subsystem: "local.dony.DonyClean", category: "clipboard")
+
 final class ClipboardPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -93,6 +97,7 @@ final class ClipboardPanel: NSPanel {
         RunLoop.main.add(captureTimer, forMode: .modalPanel)
         RunLoop.main.add(captureTimer, forMode: .eventTracking)
         timer = captureTimer
+        clipLog.notice("start: timer installed")
         registerHotkey()
     }
     func stop() {
@@ -384,6 +389,7 @@ final class ClipboardPanel: NSPanel {
         panel?.contentView = NSHostingView(rootView: ClipboardQuickView(controller: self, dismiss: { [weak self] in self?.panel?.orderOut(nil) }).preferredColorScheme(.light))
     }
     func showPopup() {
+        clipLog.notice("showPopup: begin")
         preparePopup()
         if let panel {
             let point = NSEvent.mouseLocation
@@ -396,11 +402,12 @@ final class ClipboardPanel: NSPanel {
             else { panel.setFrameOrigin(NSPoint(x: min(max(bounds.minX, point.x), bounds.maxX - panel.frame.width), y: min(max(bounds.minY, point.y - panel.frame.height), bounds.maxY - panel.frame.height))) }
         }
         panel?.orderFrontRegardless(); panel?.makeKey()
+        clipLog.notice("showPopup: end visible=\(self.panel?.isVisible ?? false, privacy: .public) frame=\(NSStringFromRect(self.panel?.frame ?? .zero), privacy: .public)")
     }
     private func registerHotkey() {
         if let hotkey { UnregisterEventHotKey(hotkey) }; hotkey = nil
         hotkeyRegistered = false; hotkeyError = nil
-        guard timer != nil, preferences.hotkeyEnabled else { return }
+        guard timer != nil, preferences.hotkeyEnabled else { clipLog.notice("registerHotkey: skipped timer=\(self.timer != nil, privacy: .public) enabled=\(self.preferences.hotkeyEnabled, privacy: .public)"); return }
         if handler == nil {
             var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
             let installed = InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
@@ -408,6 +415,7 @@ final class ClipboardPanel: NSPanel {
                 var identity = EventHotKeyID()
                 guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &identity) == noErr, identity.signature == 0x444F4E59, identity.id == 1 else { return OSStatus(eventNotHandledErr) }
                 let controller = Unmanaged<ClipboardController>.fromOpaque(context).takeUnretainedValue()
+                clipLog.notice("hotkey pressed")
                 Task { @MainActor in
                     if controller.panel?.isVisible == true { controller.panel?.orderOut(nil) }
                     else { controller.showPopup() }
@@ -417,6 +425,7 @@ final class ClipboardPanel: NSPanel {
         }
         let result = RegisterEventHotKey(preferences.hotkeyKeyCode, preferences.hotkeyModifiers, EventHotKeyID(signature: 0x444F4E59, id: 1), GetApplicationEventTarget(), 0, &hotkey)
         hotkeyRegistered = result == noErr
+        clipLog.notice("registerHotkey: key=\(self.preferences.hotkeyKeyCode, privacy: .public) mods=\(self.preferences.hotkeyModifiers, privacy: .public) result=\(result, privacy: .public)")
         if result != noErr { hotkeyError = "다른 앱과 단축키가 겹치거나 등록이 거부됐어요. Maccy가 같은 키를 사용한다면 둘 중 하나의 단축키를 바꿔주세요."; status = hotkeyError! }
     }
     private func persist() {

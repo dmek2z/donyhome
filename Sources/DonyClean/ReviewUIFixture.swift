@@ -18,7 +18,7 @@ import DonyCore
             try! Data(repeating: 7, count: bytes).write(to: url)
             return try! FileCandidate.capture(url: url, root: dir, kind: kind)
         }
-        let model = AppModel(store: HistoryStore(directory: directory.appendingPathComponent("actions")), automaticallySample: false)
+        let model = AppModel(store: HistoryStore(directory: directory.appendingPathComponent("actions")), automaticallySample: state == "overview")
         model.automaticStorageCheck = false; model.storageAlertsEnabled = false; model.notifyEnabled = false
         model.automaticCleanupEnabled = false; model.onboardingShown = false; model.resumedScanChecked = true
         model.permissionSetupReviewed = true; model.folder = directory
@@ -43,12 +43,28 @@ import DonyCore
         } else if state.hasPrefix("onboarding") {
             model.onboardingShown = true; model.setupStep = Int(state.dropFirst("onboarding".count).prefix(1)) ?? 0
             model.connectedTools = [.codex, .claude, .terminal]
-            model.connectedTools = [.codex, .claude, .cursor]
-            model.linkedProjects = ["donyhome", "blog", "agent-skills"].map { LinkedProject(tool: .codex, path: directory.appendingPathComponent($0).path, enabled: $0 != "blog", discovered: true) }
-                + ["medi-admin", "dony-social-studio"].map { LinkedProject(tool: .claude, path: directory.appendingPathComponent($0).path, discovered: true) }
+            model.connectedTools = [.codex, .claude]
+            model.linkedProjects = ["my-app", "landing-page", "api-server"].map { LinkedProject(tool: .codex, path: directory.appendingPathComponent($0).path, enabled: $0 != "landing-page", discovered: true) }
+                + ["dotfiles", "notes"].map { LinkedProject(tool: .claude, path: directory.appendingPathComponent($0).path, discovered: true) }
         } else if state == "development" {
             model.connectedTools = [.codex, .claude, .cursor, .hermes, .tmux, .terminal]
             model.section = .development; model.developmentMode = "도구 정리"
+        } else if state == "clipboard" {
+            func clip(_ text: String, app: String, minutes: Int, pinned: Bool = false) -> ClipboardItem {
+                var item = ClipboardItem(representations: [[ClipboardRepresentation(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))]], application: app)
+                item.firstCopiedAt = Date().addingTimeInterval(Double(-minutes * 60)); item.lastCopiedAt = item.firstCopiedAt; item.pinned = pinned
+                if pinned { item.pinOrder = 1; item.pinLetter = "b" }
+                return item
+            }
+            try? ClipboardStore(url: directory.appendingPathComponent("clipboard.json")).save([
+                clip("https://github.com/dmek2z/donyhome", app: "Safari", minutes: 2),
+                clip("git commit -m \"fix: 맥이 난로가 되기 전에 정리\"", app: "Terminal", minutes: 9),
+                clip("npm run build && npm test", app: "Terminal", minutes: 21),
+                clip("SELECT name, size FROM caches ORDER BY size DESC LIMIT 10;", app: "TablePlus", minutes: 48),
+                clip("내일 오전 10시 · 도니홈 소개 정리", app: "Notes", minutes: 95),
+                clip("hello@example.com", app: "Mail", minutes: 180, pinned: true)
+            ])
+            model.section = .clipboard
         } else if state == "dony" {
             model.section = .dony
         } else if state == "retention" {

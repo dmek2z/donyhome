@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 public enum BatteryCommand: Equatable, Sendable {
     case maintain(Int, lower: Int?, forceDischarge: Bool)
@@ -64,7 +65,13 @@ public enum BatteryInstallation {
     public static let executable = directory + "/battery"
     public static let sudoers = "/private/etc/sudoers.d/donyhome-battery"
     public static let engineHash = "1bf8905c66259c956b62ca3cfbd055902664be663c8cf28d9eb90ed5901ce703"
-    public static let smcHash = "2270d5f12a13610e403a6f38f7aab4b3717c2fa8c5c048d303bb2056167fe274"
+    /// 미리 빌드한 smc를 쓰던 예전 설치본을 점검·제거하기 위한 값. 새 설치는 smc.sha256 파일을 기준으로 한다.
+    public static let legacySMCHash = "2270d5f12a13610e403a6f38f7aab4b3717c2fa8c5c048d303bb2056167fe274"
+    /// 앱에 포함된 smc(사용자가 소스에서 빌드한 파일)의 SHA256.
+    public static func smcHash(resources: URL) throws -> String {
+        guard let data = try? Data(contentsOf: resources.appendingPathComponent("smc")), !data.isEmpty else { throw BatteryError.untrustedInstallation }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
     public static func shellQuote(_ text: String) -> String { "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'" }
     public static func privilegeConfiguration(user: String) throws -> String {
         guard !user.isEmpty, user != "root", user.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { throw BatteryError.untrustedInstallation }
@@ -74,6 +81,7 @@ public enum BatteryInstallation {
     /// Complete reviewed offline install body. Never executed by tests or at application launch.
     public static func installScript(resources: URL, user: String) throws -> String {
         let config = try privilegeConfiguration(user: user)
+        let smcHash = try Self.smcHash(resources: resources)
         let source = shellQuote(resources.path)
         return """
         set -eu
@@ -103,6 +111,10 @@ public enum BatteryInstallation {
         # Validate the root-owned staged bytes, avoiding source hash/copy races.
         [ "$(/usr/bin/shasum -a 256 "$stage/battery" | /usr/bin/awk '{print $1}')" = \(engineHash) ] || exit 1
         [ "$(/usr/bin/shasum -a 256 "$stage/smc" | /usr/bin/awk '{print $1}')" = \(smcHash) ] || exit 1
+        # 이 설치에서 검증한 smc의 해시를 root 소유 파일로 남겨 이후 점검·제거의 기준으로 쓴다.
+        /usr/bin/printf '%s\n' \(smcHash) > "$stage/smc.sha256"
+        /usr/sbin/chown root:wheel "$stage/smc.sha256"
+        /bin/chmod 644 "$stage/smc.sha256"
         /usr/bin/printf '%s' \(shellQuote(config)) > "$tmp"
         /usr/bin/install -o root -g wheel -m 644 "$tmp" "$stage/privileges.conf"
         /usr/sbin/chown root:wheel "$tmp"
@@ -130,12 +142,22 @@ public enum BatteryInstallation {
           [ $((0$mode & 0022)) = 0 ] || exit 1
         done
         [ "$(/usr/bin/shasum -a 256 "$dst/battery" | /usr/bin/awk '{print $1}')" = \(engineHash) ] || exit 1
-        [ "$(/usr/bin/shasum -a 256 "$dst/smc" | /usr/bin/awk '{print $1}')" = \(smcHash) ] || exit 1
+        smc_expected=\(legacySMCHash)
+        if [ -e "$dst/smc.sha256" ]; then
+          [ ! -L "$dst/smc.sha256" ] || exit 1
+          [ "$(/usr/bin/stat -f %u "$dst/smc.sha256")" = 0 ] || exit 1
+          smc_mode=$(/usr/bin/stat -f %Lp "$dst/smc.sha256")
+          [ $((0$smc_mode & 0022)) = 0 ] || exit 1
+          smc_expected=$(/bin/cat "$dst/smc.sha256")
+          case "$smc_expected" in *[!0-9a-f]*|"") exit 1 ;; esac
+          [ "${#smc_expected}" = 64 ] || exit 1
+        fi
+        [ "$(/usr/bin/shasum -a 256 "$dst/smc" | /usr/bin/awk '{print $1}')" = "$smc_expected" ] || exit 1
         expected=$(/usr/bin/printf '%s' \(shellQuote(config)))
         [ "$(/bin/cat "$rule")" = "$expected" ] || exit 1
         [ "$(/bin/cat "$dst/privileges.conf")" = "$expected" ] || exit 1
         # No recursive deletion: retain unexpected extra files for administrator review.
-        /bin/rm -f "$rule" "$dst/battery" "$dst/smc" "$dst/privileges.conf"
+        /bin/rm -f "$rule" "$dst/battery" "$dst/smc" "$dst/privileges.conf" "$dst/smc.sha256"
         /bin/rmdir "$dst"
         """
     }

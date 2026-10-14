@@ -18,6 +18,13 @@ for dony_resource_folder in Battery Clipboard ToolIcons; do
         ditto "Resources/$dony_resource_folder" "$dony_bundle/Contents/Resources/$dony_resource_folder"
     fi
 done
+# smc는 저장소에 바이너리로 두지 않는다. 포함된 GPL 소스(Resources/Battery/smc-source)에서 빌드해 앱에 넣는다.
+dony_smc_dir="$PWD/build/smc-build"
+rm -rf "$dony_smc_dir"; mkdir -p "$dony_smc_dir"
+cp Resources/Battery/smc-source/smc.c Resources/Battery/smc-source/smc.h "$dony_smc_dir/"
+(cd "$dony_smc_dir" && cc -arch arm64 -mmacosx-version-min=11.0 -DCMD_TOOL_BUILD -O2 -o smc smc.c -framework IOKit -framework CoreFoundation)
+cp "$dony_smc_dir/smc" "$dony_bundle/Contents/Resources/Battery/smc"
+chmod 755 "$dony_bundle/Contents/Resources/Battery/smc"
 swift -sdk "$dony_sdk_path" scripts/app-icon.swift Resources/DonyLogo.png build/DonyAppIcon.png
 for dony_icon_size in 16 32 128 256 512; do
     sips -z "$dony_icon_size" "$dony_icon_size" build/DonyAppIcon.png --out "build/DonyHome.iconset/icon_${dony_icon_size}x${dony_icon_size}.png" >/dev/null

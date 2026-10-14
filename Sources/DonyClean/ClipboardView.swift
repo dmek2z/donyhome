@@ -356,6 +356,7 @@ struct ClipboardShortcutRecorder: View {
         endRecording(); recording = true
         controller.registerShortcutRecorder(id: recorderID, cancel: { endRecording() })
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            clipLog.notice("recorder keyDown: code=\(event.keyCode, privacy: .public) flags=\(event.modifierFlags.rawValue, privacy: .public) window=\(event.window?.windowNumber ?? -1, privacy: .public) expected=\(recorderWindow ?? -1, privacy: .public)")
             guard let window = event.window, window.isVisible, window.windowNumber == recorderWindow else { return event }
             if event.keyCode == 53 { endRecording(); return nil }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
