@@ -53,86 +53,106 @@ struct PerformanceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "CPU · 메모리")
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack { Text("CPU").font(Theme.font(13, weight: .medium)); Spacer(); Text(DisplayFormat.percent(model.snapshot.cpuPercent)).font(Theme.font(24, weight: .semibold)).monospacedDigit() }
-                    Sparkline(values: model.cpuHistory, title: "CPU")
-                }.frame(maxWidth: .infinity).frame(height: 104, alignment: .top).panel(20)
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack { Text("메모리").font(Theme.font(13, weight: .medium)); Spacer(); Chip(text: model.snapshot.pressure.label, color: model.pressureColor) }
-                    Text((model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—") + " / " + DisplayFormat.bytes(model.snapshot.memoryTotal)).font(Theme.font(21, weight: .semibold)).monospacedDigit()
-                    Sparkline(values: model.memoryHistory, color: model.pressureColor, title: "메모리 사용량")
-                }.frame(maxWidth: .infinity).frame(height: 104, alignment: .top).panel(20)
-            }
-            if let relief = model.lastRelief {
-                VStack(alignment: .leading, spacing: 9) {
-                    Text(relief.app + " 종료 요청 후 관측").font(Theme.font(13, weight: .semibold))
-                    HStack(spacing: 30) {
-                        Text("CPU  " + DisplayFormat.percent(relief.before.cpuPercent) + " → " + DisplayFormat.percent(relief.after.cpuPercent))
-                        Text("메모리  " + (relief.before.memoryUsed.map(DisplayFormat.bytes) ?? "—") + " → " + (relief.after.memoryUsed.map(DisplayFormat.bytes) ?? "—"))
-                    }.font(Theme.font(12, weight: .medium)).monospacedDigit()
-                    Text("전체 시스템 · 요청 3초 후").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                }.panel(16)
-            }
+            summaryPanels
+            if let relief = model.lastRelief { reliefPanel(relief) }
             DonyChoices(options: ["내 앱", "내 프로세스", "전체 프로세스"], selection: $scope)
                 .onChange(of: scope) { _, _ in selection.removeAll() }
-            HStack(spacing: 12) {
-                if let toolFilter {
-                    Text(toolFilter.title).font(Theme.font(13, weight: .semibold))
-                    DonyTextAction(title: "전체 보기") { self.toolFilter = nil; selection.removeAll() }
-                }
-                Text("\(rows.count)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                Spacer()
-                DonySearchField(placeholder: "이름 검색", text: $search).frame(width: 160)
-                DonyChoices(options: ["메모리순", "CPU순"], selection: Binding(get: { memorySort ? "메모리순" : "CPU순" }, set: { memorySort = $0 == "메모리순" })).frame(width: 170)
-                SelectionControl(selection: $selection, ids: selectableRows.map(\.id), recommended: scope == "내 앱" ? nil : model.cliFindingIDs).disabled(model.busy)
-            }
-            if !selectedRows.isEmpty {
-                HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button(selectedRows.allSatisfy { model.canQuit($0.process) } ? "선택한 앱 종료" : "선택한 항목 종료") { model.quitSelected(selectedRows.map(\.process).filter { model.canQuit($0) }); model.terminateCLI(selectedRows.map(\.process).filter { !model.canQuit($0) }) }.buttonStyle(PrimaryButton()).disabled(model.busy) }
-            }
+            toolbar
+            if !selectedRows.isEmpty { selectionBar }
             if rows.isEmpty {
                 EmptyState(icon: "waveform.path.ecg", title: "표시할 항목이 없어요", subtitle: "")
             } else {
-                LazyVStack(spacing: 0) {
-                    HStack {
-                        Text("앱 / 프로세스"); Spacer(); Text("CPU").help("앱 CPU는 코어당 100% 기준").frame(width: 70, alignment: .trailing); Text(scope == "내 앱" ? "메모리 합산" : "메모리").frame(width: 90, alignment: .trailing); Text("관리").frame(width: 100, alignment: .trailing)
-                    }.font(Theme.font(10, weight: .medium)).foregroundStyle(Theme.secondary).padding(.horizontal, 18).padding(.vertical, 12).background(Theme.canvas)
-                    ForEach(displayedRows) { row in
-                        HStack(spacing: 10) {
-                            Toggle("선택 " + row.name, isOn: Binding(get: { selection.contains(row.id) }, set: { if $0 { selection.insert(row.id) } else { selection.remove(row.id) } })).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel("선택 " + row.name).disabled(!model.canQuit(row.process) || model.busy)
-                            Group {
-                                if let icon = row.icon { Image(nsImage: icon).resizable().scaledToFit() }
-                                else { DonyIcon("gearshape.2", size: 20).foregroundStyle(Theme.secondary).padding(5) }
-                            }.frame(width: 28, height: 28)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(row.name).font(Theme.font(12, weight: .medium)).lineLimit(1)
-                                Text(scope == "내 앱" ? "프로세스 \(row.count)개" : "PID \(row.process.pid)").font(Theme.font(9)).foregroundStyle(Theme.secondary)
-                            }
-                            Spacer(minLength: 4)
-                            Text(DisplayFormat.percent(row.cpu)).foregroundStyle((row.cpu ?? 0) > 85 ? Theme.amber : Theme.ink).frame(width: 70, alignment: .trailing)
-                            Text(row.memory >= 0 ? DisplayFormat.bytes(row.memory) : "—").frame(width: 90, alignment: .trailing)
-                            HStack(spacing: 5) {
-                                if model.canQuit(row.process) {
-                                    Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.busy)
-                                    DonyIconMenu(title: "프로세스 작업") { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.busy)
-                                } else if model.canTerminateCLI(row.process) {
-                                    Button("종료") { model.terminateCLI([row.process]) }.buttonStyle(QuietButton()).disabled(model.busy)
-                                } else { DonyIcon("lock").foregroundStyle(Theme.secondary).help("직접 종료할 수 없는 시스템 또는 백그라운드 프로세스") }
-                            }.frame(width: 100, alignment: .trailing)
-                        }.font(Theme.font(11)).monospacedDigit().frame(height: 56).padding(.horizontal, 18)
-                        Divider().padding(.leading, 56)
-                    }
-                }.panel(0)
+                processTable
                 if rows.count > 100 { Text("100 / \(rows.count)개 표시").font(Theme.font(10)).foregroundStyle(Theme.secondary) }
             }
-            DisclosureGroup("시스템 상세 정보") {
-                HStack { Text("스왑 " + (model.snapshot.swapUsed.map(DisplayFormat.bytes) ?? "—")); Spacer(); Text("압축 메모리 " + (model.snapshot.memoryCompressed.map(DisplayFormat.bytes) ?? "—")) }.font(Theme.font(12)).padding(.vertical, 12)
-                Text("앱 메모리 합산에는 공유 메모리가 중복될 수 있어요").font(Theme.font(11)).foregroundStyle(Theme.secondary)
-                HStack { Spacer(); Button("활동 모니터 열기") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")) }.buttonStyle(QuietButton()) }
-            }.font(Theme.font(12)).tint(Theme.secondary).panel(20)
+            systemDetails
         }.onAppear {
             if let tool = model.performanceTool { toolFilter = tool; search = ""; scope = "내 앱"; model.performanceTool = nil }
             else { toolFilter = nil }
         }
+    }
+    private var summaryPanels: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack { Text("CPU").font(Theme.font(13, weight: .medium)); Spacer(); Text(DisplayFormat.percent(model.snapshot.cpuPercent)).font(Theme.font(24, weight: .semibold)).monospacedDigit() }
+                Sparkline(values: model.cpuHistory, title: "CPU")
+            }.frame(maxWidth: .infinity).frame(height: 104, alignment: .top).panel(20)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack { Text("메모리").font(Theme.font(13, weight: .medium)); Spacer(); Chip(text: model.snapshot.pressure.label, color: model.pressureColor) }
+                Text("\(model.snapshot.memoryUsed.map(DisplayFormat.bytes) ?? "—") / \(DisplayFormat.bytes(model.snapshot.memoryTotal))").font(Theme.font(21, weight: .semibold)).monospacedDigit()
+                Sparkline(values: model.memoryHistory, color: model.pressureColor, title: "메모리 사용량")
+            }.frame(maxWidth: .infinity).frame(height: 104, alignment: .top).panel(20)
+        }
+    }
+    private func reliefPanel(_ relief: ReliefObservation) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(relief.app + " 종료 요청 후 관측").font(Theme.font(13, weight: .semibold))
+            HStack(spacing: 30) {
+                Text("CPU  \(DisplayFormat.percent(relief.before.cpuPercent)) → \(DisplayFormat.percent(relief.after.cpuPercent))")
+                Text("메모리  \(relief.before.memoryUsed.map(DisplayFormat.bytes) ?? "—") → \(relief.after.memoryUsed.map(DisplayFormat.bytes) ?? "—")")
+            }.font(Theme.font(12, weight: .medium)).monospacedDigit()
+            Text("전체 시스템 · 요청 3초 후").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+        }.panel(16)
+    }
+    private var toolbar: some View {
+        HStack(spacing: 12) {
+            if let toolFilter {
+                Text(toolFilter.title).font(Theme.font(13, weight: .semibold))
+                DonyTextAction(title: "전체 보기") { self.toolFilter = nil; selection.removeAll() }
+            }
+            Text("\(rows.count)개").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+            Spacer()
+            DonySearchField(placeholder: "이름 검색", text: $search).frame(width: 160)
+            DonyChoices(options: ["메모리순", "CPU순"], selection: Binding(get: { memorySort ? "메모리순" : "CPU순" }, set: { memorySort = $0 == "메모리순" })).frame(width: 170)
+            SelectionControl(selection: $selection, ids: selectableRows.map(\.id), recommended: scope == "내 앱" ? nil : model.cliFindingIDs).disabled(model.busy)
+        }
+    }
+    private var selectionBar: some View {
+        HStack { Text("\(selectedRows.count)개 선택").font(Theme.font(13, weight: .medium)); Spacer(); Button(selectedRows.allSatisfy { model.canQuit($0.process) } ? "선택한 앱 종료" : "선택한 항목 종료") { model.quitSelected(selectedRows.map(\.process).filter { model.canQuit($0) }); model.terminateCLI(selectedRows.map(\.process).filter { !model.canQuit($0) }) }.buttonStyle(PrimaryButton()).disabled(model.busy) }
+    }
+    private var processTable: some View {
+        LazyVStack(spacing: 0) {
+            HStack {
+                Text("앱 / 프로세스"); Spacer(); Text("CPU").help("앱 CPU는 코어당 100% 기준").frame(width: 70, alignment: .trailing); Text(scope == "내 앱" ? "메모리 합산" : "메모리").frame(width: 90, alignment: .trailing); Text("관리").frame(width: 100, alignment: .trailing)
+            }.font(Theme.font(10, weight: .medium)).foregroundStyle(Theme.secondary).padding(.horizontal, 18).padding(.vertical, 12).background(Theme.canvas)
+            ForEach(displayedRows) { row in
+                processRow(row)
+                Divider().padding(.leading, 56)
+            }
+        }.panel(0)
+    }
+    private func processRow(_ row: UsageRow) -> some View {
+        HStack(spacing: 10) {
+            Toggle("선택 " + row.name, isOn: Binding(get: { selection.contains(row.id) }, set: { if $0 { selection.insert(row.id) } else { selection.remove(row.id) } })).toggleStyle(DonyCheckbox()).labelsHidden().accessibilityLabel("선택 " + row.name).disabled(!model.canQuit(row.process) || model.busy)
+            Group {
+                if let icon = row.icon { Image(nsImage: icon).resizable().scaledToFit() }
+                else { DonyIcon("gearshape.2", size: 20).foregroundStyle(Theme.secondary).padding(5) }
+            }.frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.name).font(Theme.font(12, weight: .medium)).lineLimit(1)
+                Text(scope == "내 앱" ? "프로세스 \(row.count)개" : "PID \(row.process.pid)").font(Theme.font(9)).foregroundStyle(Theme.secondary)
+            }
+            Spacer(minLength: 4)
+            Text(DisplayFormat.percent(row.cpu)).foregroundStyle((row.cpu ?? 0) > 85 ? Theme.amber : Theme.ink).frame(width: 70, alignment: .trailing)
+            Text(row.memory >= 0 ? DisplayFormat.bytes(row.memory) : "—").frame(width: 90, alignment: .trailing)
+            processActions(row).frame(width: 100, alignment: .trailing)
+        }.font(Theme.font(11)).monospacedDigit().frame(height: 56).padding(.horizontal, 18)
+    }
+    @ViewBuilder private func processActions(_ row: UsageRow) -> some View {
+        HStack(spacing: 5) {
+            if model.canQuit(row.process) {
+                Button("종료") { model.quit(row.process) }.buttonStyle(QuietButton()).disabled(model.busy)
+                DonyIconMenu(title: "프로세스 작업") { Button("강제 종료…", role: .destructive) { model.quit(row.process, force: true) } }.disabled(model.busy)
+            } else if model.canTerminateCLI(row.process) {
+                Button("종료") { model.terminateCLI([row.process]) }.buttonStyle(QuietButton()).disabled(model.busy)
+            } else { DonyIcon("lock").foregroundStyle(Theme.secondary).help("직접 종료할 수 없는 시스템 또는 백그라운드 프로세스") }
+        }
+    }
+    private var systemDetails: some View {
+        DisclosureGroup("시스템 상세 정보") {
+            HStack { Text("스왑 " + (model.snapshot.swapUsed.map(DisplayFormat.bytes) ?? "—")); Spacer(); Text("압축 메모리 " + (model.snapshot.memoryCompressed.map(DisplayFormat.bytes) ?? "—")) }.font(Theme.font(12)).padding(.vertical, 12)
+            Text("앱 메모리 합산에는 공유 메모리가 중복될 수 있어요").font(Theme.font(11)).foregroundStyle(Theme.secondary)
+            HStack { Spacer(); Button("활동 모니터 열기") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")) }.buttonStyle(QuietButton()) }
+        }.font(Theme.font(12)).tint(Theme.secondary).panel(20)
     }
 }
