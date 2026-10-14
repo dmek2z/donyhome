@@ -48,22 +48,23 @@ struct IntroView: View {
 
 /// 첫 화면: 도니가 이 앱을 만든 이유를 담은 편지. 줄이 하나씩 나타난다.
 struct LetterView: View {
+    var buttonTitle = "시작하기"
     let next: () -> Void
     @State private var shown = 0
     private let lines: [String] = [
         "안녕하세요, 도니예요 👋",
-        "저는 사양이 넉넉하지 않은 맥으로 작업을 8~9개씩 돌려요.\n그러다 보면 맥이 뜨거워져서 멈추거나, 팬 소리가 방해될 때가 많았어요. 🔥",
-        "한창 삘 받아서 코딩하는데 흐름이 뚝 끊기는 게 제일 싫었거든요.\n그래서 로컬에 딱 맞게 직접 만들었어요.",
-        "익숙한 c**m*맥에, 복붙러들의 친구 Maccy,\n그리고 고양이 RunCat까지 한 앱에 합쳐 놓은 셈이에요. 🐱",
-        "전부 열어 뒀어요. 가져가서 입맛대로 마음껏 커스텀하세요.",
-        "항상 행복하길 💙"
+        "제 맥은 솔직히 사양이 넉넉하지 않아요. 그런데 작업은 8~9개를 동시에 돌려요. 결과는 뻔해요. 맥이 난로가 되고, 팬은 비행기 이륙 소리를 내다가, 어느 순간 화면이 그대로 멈춰요. 🔥",
+        "제일 억울한 건 한창 삘 받아서 달리는 중일 때예요. 흐름이 뚝 끊기면 아이디어도 같이 식어 버리거든요.",
+        "그래서 만들었어요. 정리는 c**m*맥처럼 시원하게, 복사 기록은 복붙러의 친구 Maccy처럼 빠르게, 맥이 얼마나 바쁜지는 RunCat 고양이처럼 귀엽게. 세 가지를 로컬에 딱 맞춰 한 앱에 담았어요. 🐱",
+        "전부 열어 뒀어요. 마음에 드는 부분만 가져가도 좋고, 입맛대로 뜯어고쳐도 좋아요.",
+        "맥도, 여러분도 항상 행복하길 바라요 ✨"
     ]
     var body: some View {
         VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
-                    Text("💌").font(.system(size: 20))
-                    Text("도니가 보내는 편지").font(Theme.font(13, weight: .semibold)).foregroundStyle(Theme.secondary)
+                    DonyIcon("clipboard", size: 16).foregroundStyle(Theme.primary)
+                    Text("도니의 편지").font(Theme.font(13, weight: .semibold)).foregroundStyle(Theme.secondary)
                 }
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                     Text(line).font(Theme.font(index == 0 ? 20 : 14.5, weight: index == 0 ? .bold : .regular)).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
@@ -79,7 +80,7 @@ struct LetterView: View {
             .background(.white).clipShape(RoundedRectangle(cornerRadius: 20))
             .shadow(color: .black.opacity(0.06), radius: 18, y: 8)
             .rotationEffect(.degrees(-0.6))
-            Button("시작하기", action: next).buttonStyle(PrimaryButton()).opacity(shown > lines.count ? 1 : 0.35)
+            Button(buttonTitle, action: next).buttonStyle(PrimaryButton()).opacity(shown > lines.count ? 1 : 0.35)
         }
         .padding(.horizontal, 36).padding(.vertical, 28).frame(width: 700, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)
         .task {
