@@ -17,6 +17,7 @@ public enum DeveloperCleanup {
         ("Library/Caches/Yarn", ["yarn", "node"])
     ]
     public static func label(_ item: FileCandidate) -> String {
+        if StaleWorkspaces.isWorkspace(item) { return "방치된 작업공간 · " + item.url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent + " · " + item.name }
         if item.id.contains("/Xcode/DerivedData/") { return "Xcode · " + item.url.deletingLastPathComponent().lastPathComponent + " · " + item.name }
         if item.id.contains("/.npm/_cacache") { return "npm 다운로드 캐시" }
         return item.name + " 다운로드 캐시"
@@ -65,6 +66,11 @@ public enum DeveloperCleanup {
                 result.issues.append(ScanIssue(path: target.path, message: error.localizedDescription))
             }
         }
+        if !result.cancelled && !token.isCancelled {
+            let workspaces = StaleWorkspaces.scan(home: home, token: token, now: now)
+            result.items += workspaces.items; result.decisions.merge(workspaces.decisions) { $1 }
+            result.issues += workspaces.issues; result.cancelled = workspaces.cancelled
+        }
         result.items.sort { $0.bytes > $1.bytes }
         result.cancelled = result.cancelled || token.isCancelled
         if result.cancelled { result.decisions.removeAll() }
@@ -72,6 +78,7 @@ public enum DeveloperCleanup {
     }
     public static func validate(_ item: FileCandidate, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<String>, now: Date = Date(), token: ScanToken = ScanToken(), requireOld: Bool = true) throws {
         try token.check()
+        if StaleWorkspaces.isWorkspace(item, home: home) { try StaleWorkspaces.validate(item, home: home, requireOld: requireOld, now: now, token: token); return }
         let base = try FileSafety.canonicalRoot(home)
         let known = targets.contains { path, _ in
             let target = base.appendingPathComponent(path)

@@ -8,7 +8,7 @@ struct DeveloperView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                VStack(alignment: .leading, spacing: 7) { Text("Xcode · npm · pip · Homebrew · Yarn").font(Theme.font(14, weight: .medium)); Text(DisplayFormat.bytes(model.developer.items.reduce(0) { $0 + $1.bytes })).font(Theme.font(26, weight: .semibold)) }
+                VStack(alignment: .leading, spacing: 7) { Text("방치된 작업공간 · Xcode · npm · pip · Homebrew · Yarn").font(Theme.font(14, weight: .medium)); Text(DisplayFormat.bytes(model.developer.items.reduce(0) { $0 + $1.bytes })).font(Theme.font(26, weight: .semibold)) }
                 Spacer(); Button("개발 캐시 검사") { model.scanDeveloper() }.buttonStyle(PrimaryButton()).disabled(model.busy)
             }.panel()
             if model.developer.cancelled { Chip(text: "중단됨 · 일부 결과", color: Theme.amber) }
@@ -24,7 +24,7 @@ struct DeveloperView: View {
                 }.panel(0)
                 SelectionBar(selected: selected) { model.moveToTrash(selected) }
             }
-            Text("Xcode Archives와 프로젝트 원본은 유지해요. 사용 중인 개발 도구의 캐시는 정리에서 제외해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
+            Text("방치된 작업공간은 변경·미푸시 커밋이 없고 14일 이상 쓰지 않은 것만 추천하며, 휴지통에서 복원할 수 있어요. Xcode Archives와 프로젝트 원본은 유지해요.").font(Theme.font(12)).foregroundStyle(Theme.secondary)
             IssuesView(issues: model.developer.issues)
         }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }
     }
