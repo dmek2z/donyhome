@@ -1,13 +1,6 @@
 import SwiftUI
 
 struct DonyProfileView: View {
-    private let career: [(String, String)] = [
-        ("2026–", "닥터스코스메틱 · 최고전략책임자(CSO)"),
-        ("2025–2026", "그린리본 · Product Owner / Marketing Lead"),
-        ("2023–2025", "테드스토리 · 사업총괄이사(COO)"),
-        ("2022–2023", "포티파이 · 마케팅 및 사업개발팀 리드"),
-        ("2019", "넥스트벨류 창업 · 이커머스 분석·광고 자동화")
-    ]
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("도니").font(Theme.font(28, weight: .bold))
@@ -40,21 +33,7 @@ struct DonyProfileView: View {
                     .font(Theme.font(14)).foregroundStyle(Theme.body).lineSpacing(5)
                     .fixedSize(horizontal: false, vertical: true)
             }.frame(maxWidth: .infinity, alignment: .leading).panel()
-            VStack(alignment: .leading, spacing: 12) {
-                Text("지나온 일들").font(Theme.font(16, weight: .semibold))
-                VStack(spacing: 0) {
-                    ForEach(Array(career.enumerated()), id: \.offset) { index, entry in
-                        HStack(spacing: 16) {
-                            Text(entry.0).font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                                .frame(width: 88, alignment: .leading)
-                            Text(entry.1).font(Theme.font(14)).foregroundStyle(Theme.body)
-                                .lineLimit(1).truncationMode(.middle).help(entry.1)
-                            Spacer(minLength: 0)
-                        }.frame(height: Theme.listRowHeight)
-                        if index < career.count - 1 { Divider() }
-                    }
-                }.padding(.horizontal, 24).panel(0)
-            }
+
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }

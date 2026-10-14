@@ -7,13 +7,20 @@ struct DonyMenuButton<Content: View>: View {
     @ViewBuilder let content: () -> Content
     @Environment(\.isEnabled) private var enabled
     var body: some View {
-        Menu(content: content) {
-            Text(title).font(Theme.font(14, weight: .medium)).lineLimit(1)
-                .padding(.horizontal, 28).frame(width: width, height: Theme.controlHeight)
-                .overlay(alignment: .trailing) { DonyIcon("chevron.right", size: 10).rotationEffect(.degrees(90)).padding(.trailing, 12) }
-                .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55))
-                .background(Theme.controlFill).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius)).contentShape(Rectangle())
-        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel(title)
+        // macOS turns images inside a Menu label into native menu images and
+        // can ignore SwiftUI sizing/rotation. Keep the native label text-only;
+        // draw the deterministic decoration outside that conversion boundary.
+        Menu(content: content) { Text(title) }
+            .menuStyle(.button).buttonStyle(MenuHitAreaStyle(width: width, height: Theme.controlHeight)).menuIndicator(.hidden)
+            .frame(width: width, height: Theme.controlHeight)
+            .overlay {
+                Text(title).font(Theme.font(14, weight: .medium)).lineLimit(1)
+                    .padding(.horizontal, 28).frame(width: width, height: Theme.controlHeight)
+                    .overlay(alignment: .trailing) { DonyIcon("chevron.right", size: 10).rotationEffect(.degrees(90)).padding(.trailing, 12) }
+                    .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55))
+                    .background(Theme.controlFill).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }.contentShape(Rectangle()).fixedSize().accessibilityLabel(title)
     }
 }
 
@@ -23,10 +30,14 @@ struct DonyIconMenu<Content: View>: View {
     @ViewBuilder let content: () -> Content
     @Environment(\.isEnabled) private var enabled
     var body: some View {
-        Menu(content: content) {
-            DonyIcon("ellipsis", size: 16).frame(width: size, height: size)
-                .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55)).contentShape(Rectangle())
-        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel(title).help(title)
+        Menu(content: content) { Text(" ") }
+            .menuStyle(.button).buttonStyle(MenuHitAreaStyle(width: size, height: size)).menuIndicator(.hidden)
+            .frame(width: size, height: size)
+            .overlay {
+                DonyIcon("ellipsis", size: 16).frame(width: size, height: size)
+                    .foregroundStyle(enabled ? Theme.body : Theme.secondary.opacity(0.55))
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }.contentShape(Rectangle()).fixedSize().accessibilityLabel(title).help(title)
     }
 }
 
@@ -130,5 +141,13 @@ struct DonyTabs: View {
                 }.buttonStyle(.plain).accessibilityAddTraits(selection == option ? .isSelected : [])
             }
         }.padding(.top, 10).overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1).offset(y: 1) }
+    }
+}
+
+private struct MenuHitAreaStyle: ButtonStyle {
+    let width: CGFloat
+    let height: CGFloat
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.frame(width: width, height: height).contentShape(Rectangle())
     }
 }

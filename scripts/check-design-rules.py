@@ -19,6 +19,9 @@ for path in sorted(screens.glob('*.swift')):
         if re.search(r'\.panel\s*\(', source[match.start():end]):
             errors.append(f'{path.relative_to(args.root)}: {match.group(1)} must be a compact row; put the panel around the list, not each item')
     if path.name == 'DonyControls.swift':
+        for label in re.finditer(r'Menu\(content:\s*content\)\s*\{([^}]*)\}', source):
+            if re.search(r'\b(?:DonyIcon|Image)\s*\(', label.group(1)):
+                errors.append('DonyControls.swift: keep native Menu labels text-only; draw sized icons outside native label conversion')
         continue
     for number, line in enumerate(source.splitlines(), 1):
         if re.search(r'\.menu(?:Style|Indicator)\s*\(', line) or re.search(r'(?<![\w])Menu\s*\{', line):
