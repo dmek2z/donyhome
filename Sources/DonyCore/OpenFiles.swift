@@ -78,6 +78,8 @@ public struct OwnedProcessInventory: Sendable {
     public func openFiles(token: ScanToken) -> OpenFileSnapshot {
         // 프로세스가 계속 생기고 끝나는 Mac(AI 도구 등)에서는 두 번 읽은 목록이 같기를 기다리면 영영 확정되지 않는다.
         // 끝난 프로세스는 건너뛰고, 새로 생긴 프로세스는 직접 읽어서 합친다. 그래도 실패하면 최대 4번 다시 시도한다.
+        // 처음 받은 목록이 잘렸거나 불완전하면 새 목록으로 바꿔 확정하지 않는다(재시도는 완전한 목록에서 시작할 때만).
+        guard complete else { return OpenFileSnapshot(paths: [], identities: [], complete: false) }
         var current = self
         for _ in 0..<4 {
             guard !token.isCancelled else { break }
