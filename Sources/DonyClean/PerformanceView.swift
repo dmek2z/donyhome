@@ -17,6 +17,7 @@ struct PerformanceView: View {
     @State private var scope = "내 앱"
     @State private var memorySort = true
     @State private var search = ""
+    @State private var toolFilter: AITool?
     @State private var selection = Set<String>()
     private var displayedRows: [UsageRow] { Array(rows.prefix(100)) }
     private var selectableRows: [UsageRow] { displayedRows.filter { model.canQuit($0.process) } }
@@ -39,7 +40,10 @@ struct PerformanceView: View {
                 UsageRow(process: $0, name: $0.name, cpu: $0.cpuPercent, memory: $0.memoryBytes, count: 1, icon: NSRunningApplication(processIdentifier: $0.pid)?.icon)
             }
         }
-        output = output.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || String($0.process.pid).contains(search) }
+        output = output.filter {
+            DevelopmentResourceFilter.includes($0.process, tool: toolFilter, applicationTools: model.aiApplicationTools) &&
+                (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || String($0.process.pid).contains(search))
+        }
         return output.sorted {
             let a = memorySort ? Double($0.memory) : ($0.cpu ?? -1)
             let b = memorySort ? Double($1.memory) : ($1.cpu ?? -1)
@@ -71,8 +75,8 @@ struct PerformanceView: View {
                 }.panel(16)
             }
             HStack(spacing: 12) {
-                DonyMenuButton(title: scope == "내 앱" ? "실행 중인 앱" : scope, width: Theme.filterWidth) {
-                    Button("실행 중인 앱") { scope = "내 앱"; selection.removeAll() }
+                DonyMenuButton(title: toolFilter?.title ?? (scope == "내 앱" ? "실행 중인 앱" : scope), width: Theme.filterWidth) {
+                    Button("실행 중인 앱 · 필터 해제") { scope = "내 앱"; toolFilter = nil; selection.removeAll() }
                     Button("내 프로세스") { scope = "내 프로세스"; selection.removeAll() }
                     Button("전체 프로세스") { scope = "전체 프로세스"; selection.removeAll() }
                 }
@@ -124,7 +128,8 @@ struct PerformanceView: View {
                 HStack { Spacer(); Button("활동 모니터 열기") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")) }.buttonStyle(QuietButton()) }
             }.font(Theme.font(12)).tint(Theme.secondary).panel(20)
         }.onAppear {
-            if let tool = model.performanceTool { search = tool.title; model.performanceTool = nil }
+            if let tool = model.performanceTool { toolFilter = tool; search = ""; scope = "내 앱"; model.performanceTool = nil }
+            else { toolFilter = nil }
         }
     }
 }
