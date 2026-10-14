@@ -69,7 +69,7 @@ struct PermissionChecklist: View {
                 else { model.setNotifications(true); model.refreshToolConnections() }
             }
             Divider()
-            row("손쉬운 사용", state: clipboard.accessibilityAllowed ? "허용됨" : "권한 필요", allowed: clipboard.accessibilityAllowed, checking: false, action: "설정 열기") {
+            row("손쉬운 사용", detail: clipboard.accessibilityAllowed ? nil : "시스템 설정 목록에 DonyHome이 이미 켜져 있는데도 이 상태라면 이전 빌드의 항목이에요. 목록에서 DonyHome을 선택해 −로 지운 뒤 아래 버튼으로 다시 허용해 주세요.", state: clipboard.accessibilityAllowed ? "허용됨" : "권한 필요", allowed: clipboard.accessibilityAllowed, checking: false, action: "설정 열기") {
                 if clipboard.accessibilityAllowed { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
                 else { clipboard.requestAccessibility() }
             }
@@ -80,7 +80,7 @@ struct PermissionChecklist: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(Theme.font(14, weight: .medium))
-                if let detail { Text(detail).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.middle).help(detail) }
+                if let detail { Text(detail).font(Theme.font(11)).foregroundStyle(Theme.secondary).lineLimit(3).truncationMode(.middle).fixedSize(horizontal: false, vertical: true).help(detail) }
             }
             Spacer()
             HStack(spacing: 5) {

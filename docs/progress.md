@@ -4,7 +4,7 @@
 
 Pre-flight: Core candidate identity shared by scanners, duplicates, application scan and file operations. SystemSnapshot shared by window and menu bar. UI confirmations consume identical immutable candidate records; operations revalidate at execution.
 
-Tasks 1–3: implemented and compiled. Initial 16 filesystem/process/action tests passed. User requested the Dony design and Dony logo; applied source tokens at commit n/a. Original site favicon and upstream Pretendard bundled. Actual overview and performance screenshots displayed; Dony overview reviewed at 1130x790.
+Tasks 1–3: implemented and compiled. Initial 16 filesystem/process/action tests passed. Dony design and the Dony logo applied. Upstream Pretendard bundled. Actual overview and performance screenshots displayed; Dony overview reviewed at 1130x790.
 
 Independent core review: no Critical findings. Fixed three Important findings: permission-denied related paths becoming empty results, action summaries overwriting history persistence warnings, and duplicate comparison continuing after cancellation. Regression tests were first observed failing and are now green. Ancestor-chain omission upgraded to a safety-contract fix and covered by a replacing-ancestor-with-symlink regression. Foundation normalizes /private/var back to the /var symlink; use realpath canonical root spelling without re-standardizing existing target URLs. Verified 20 tests / 3 suites via scripts/test.sh on 2026-10-13.
 
@@ -12,7 +12,7 @@ Review scope decisions: UI/packaging/live telemetry are verified by the primary 
 
 Build environment: this CLT lacks XCTest and SDK 27 SwiftUI macros. The app uses installed SDK 26.5. The native SwiftPM test driver with explicit Testing framework/plugin paths supports the full suite; use scripts/test.sh. Only disposable temporary fixtures have been moved to Trash during tests.
 
-Latest user extensions (2026-10-13): replaced SF Symbol decorations with 26 official Phosphor vector PDFs from the same family/weight as Dony; native SwiftUI template rendering, source SVGs and MIT license retained. Added SmartScanner (single action for cleanup, large files, duplicates, installed apps), conservative CleanupPolicy, category selections, overlap-safe RecommendedActions plan, execution-time policy checks and bulk normal GUI-app quit. Renamed sorting-only memory button to a truthful label. Comparison with current official CleanMyMac modules recorded in docs/cleanmymac-review.md, including Apple Silicon/Intel-specific RAM differences.
+Latest user extensions (2026-10-13): replaced SF Symbol decorations with 26 official Phosphor vector PDFs in one consistent family and weight; native SwiftUI template rendering, source SVGs and MIT license retained. Added SmartScanner (single action for cleanup, large files, duplicates, installed apps), conservative CleanupPolicy, category selections, overlap-safe RecommendedActions plan, execution-time policy checks and bulk normal GUI-app quit. Renamed sorting-only memory button to a truthful label. Comparison with current official CleanMyMac modules recorded in docs/cleanmymac-review.md, including Apple Silicon/Intel-specific RAM differences.
 
 Review of new smart-action flow found two Important issues: active app caches reachable through duplicate scans, and duplicate identity/original dependencies lost when merging log/cache candidates. Both were reproduced with failing fixture regressions and fixed. Protection paths and includeCopies are separate so excluding the duplicate category cannot remove retained originals via cleanup. Reviewer re-read final changes and found no remaining Critical/Important in that scope.
 
@@ -56,3 +56,4 @@ Final local extension: added current-user Trash manifest inspection and explicit
 2026-10-15 2.3.23: 공개 준비 — LICENSE(MIT), README 개편·스크린샷 9장, smc 소스 빌드 전환(설치 해시 smc.sha256), Dony→Dony 이름 변경, 편지 제목, 캐릭터 문구, 클립보드 진단 로그. 테스트·디자인 규칙·빌드 통과.
 2026-10-15 2.3.24: 클립보드 — 원인은 저장된 단축키(⌥⌘C)와 실제로 누른 키(⇧⌘C) 불일치(등록·창 표시는 정상, 로그로 확인). 설정을 ⇧⌘C로 바꿔 동작 확인. 빠르게 열기 버튼에 단축키 표시, 진단 로그 추가. 등록 성공 결과는 다른 앱과의 충돌을 알려주지 않음(별도 프로세스도 같은 키 등록 성공).
 2026-10-15 2.3.25: Dock 아이콘 숨기기 토글(설정·첫 실행). NSApp.setActivationPolicy(.accessory)를 실행 시·토글 시 적용. lsappinfo로 확인: 일반 Foreground, 숨김 UIElement. 테스트 227개·디자인 규칙·빌드 통과. 실제 클릭 토글은 미확인.
+2026-10-15 2.3.26: 코덱스 피드백 반영 — README 개인정보 정정(git ls-remote), 클립보드 만료(기본 30일)·민감 패턴 기본 제외·첫 실행 저장 선택, 권한 화면에 stale 손쉬운 사용 안내, 자산 문서 정리. 테스트 231개. Keychain 암호화는 ad-hoc 서명 때문에 보류.

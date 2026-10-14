@@ -1,6 +1,6 @@
 # Asset sources
 
-- DonyLogo.png is the original favicon from https://Dony/favicon.png, retrieved 2026-10-13 at the user's request. The site's header uses a `dony` wordmark with a dot; its favicon is the original white `dony` wordmark on blue. The original PNG is unmodified in the sidebar. `scripts/app-icon.swift` generates a rounded full blue tile with transparent corners for the app's ICNS, avoiding the white frame around the previous opaque square artwork. No Finder custom-icon override is required; the bundle remains strictly code-signature verifiable.
+- DonyLogo.png is Dony's own logo (the `dony` wordmark on blue), created by the author. The original PNG is unmodified in the sidebar. `scripts/app-icon.swift` generates a rounded full blue tile with transparent corners for the app's ICNS, avoiding the white frame around the previous opaque square artwork. No Finder custom-icon override is required; the bundle remains strictly code-signature verifiable.
 - PretendardVariable.ttf comes from the upstream https://github.com/orioncactus/pretendard (`packages/pretendard/dist/public/variable/PretendardVariable.ttf`). Bundled under SIL Open Font License; see Fonts/OFL.txt. Fonts register for the process only, with no global installation.
 - UI tokens and controls are original to this project (`Theme.swift`, `DonyControls.swift`): gray canvas, white cards, blue primary action, Pretendard.
 

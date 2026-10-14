@@ -5,7 +5,7 @@
     <key>CFBundleIdentifier</key><string>local.dony.DonyClean</string>
     <key>CFBundleName</key><string>donyhome</string>
     <key>CFBundleDisplayName</key><string>donyhome · 도니홈</string>
-    <key>CFBundleShortVersionString</key><string>2.3.25</string>
+    <key>CFBundleShortVersionString</key><string>2.3.26</string>
     <key>CFBundleVersion</key><string>30</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleIconFile</key><string>DonyHome.icns</string>

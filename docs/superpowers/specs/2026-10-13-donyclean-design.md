@@ -18,7 +18,7 @@ Every actionable row retains its scanned path, allowed root and lstat fingerprin
 
 ## Experience
 
-Korean interface using the Dony design tokens: #f6f7f9 sidebar (240 px), #f2f4f6 canvas, white cards (20 px radius), #3182f6 primary buttons (42 px height), bundled Pretendard, and original Dony favicon. Remove decorative overlines, marketing hero and repeated descriptions; retain measurements, labels, errors and important confirmations. This supersedes the initial mint/charcoal proposal per user direction on 2026-10-13. Window minimum 960x680. Six sections: Overview, Cleanup, Files, Performance, Applications, History. Preference toggles for monitoring notifications and login at launch. Main window and menu bar share one bounded sampler; hidden/minimized window retains only lightweight monitoring. Permission problems are reported rather than interpreted as empty directories.
+Korean interface using the Dony design tokens: #f6f7f9 sidebar (240 px), #f2f4f6 canvas, white cards (20 px radius), #3182f6 primary buttons (42 px height), bundled Pretendard, and the Dony logo. Remove decorative overlines, marketing hero and repeated descriptions; retain measurements, labels, errors and important confirmations. This supersedes the initial mint/charcoal proposal per user direction on 2026-10-13. Window minimum 960x680. Six sections: Overview, Cleanup, Files, Performance, Applications, History. Preference toggles for monitoring notifications and login at launch. Main window and menu bar share one bounded sampler; hidden/minimized window retains only lightweight monitoring. Permission problems are reported rather than interpreted as empty directories.
 
 ## Deferred scope
 

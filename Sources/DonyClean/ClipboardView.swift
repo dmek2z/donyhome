@@ -171,6 +171,11 @@ struct ClipboardSettingsView: View {
                             Toggle(title, isOn: Binding(get: { types.contains { controller.preferences.enabledTypes.contains($0) } }, set: { enabled in controller.preferences.enabledTypes.removeAll { types.contains($0) }; if enabled { controller.preferences.enabledTypes += types } })).toggleStyle(DonySwitch())
                         }
                         Divider()
+                        choices("기록 보관 기간", options: ["7일", "30일", "90일", "안 지움"], selection: Binding(
+                            get: { switch (controller.preferences.behavior ?? ClipboardBehavior()).effectiveExpireDays { case 7: return "7일"; case 30: return "30일"; case 90: return "90일"; case 0: return "안 지움"; default: return "30일" } },
+                            set: { value in var settings = controller.preferences.behavior ?? ClipboardBehavior(); settings.expireDays = ["7일": 7, "30일": 30, "90일": 90, "안 지움": 0][value] ?? 30; controller.preferences.behavior = settings }
+                        ))
+                        Text("고정한 항목은 기간과 상관없이 남아요. 기록은 이 Mac에만 저장되고, 비밀번호 앱과 토큰·개인정보로 보이는 텍스트는 저장하지 않아요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
                         HStack { Text("최대 기록 수"); Spacer(); TextField("200", value: $controller.preferences.limit, format: .number).frame(width: 90).textFieldStyle(.roundedBorder).onChange(of: controller.preferences.limit) { _, value in controller.preferences.limit = max(1, min(10000, value)) }; Text("개") }
                         choices("정렬 기준", options: ["최근 복사", "처음 복사", "복사 횟수"], selection: Binding(get: { ["최근 복사", "처음 복사", "복사 횟수"][ClipboardSort.allCases.firstIndex(of: controller.preferences.sort) ?? 0] }, set: { controller.preferences.sort = ClipboardSort.allCases[["최근 복사", "처음 복사", "복사 횟수"].firstIndex(of: $0) ?? 0] }))
                         Text("기록 용량 · " + DisplayFormat.bytes(Int64(controller.items.reduce(0) { $0 + $1.byteCount }))).font(Theme.font(12)).foregroundStyle(Theme.secondary)

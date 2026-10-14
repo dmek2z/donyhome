@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// The same Phosphor fill family used by the Dony sidebar.
+/// Phosphor fill icons used across the app.
 struct DonyIcon: View {
     let symbol: String
     let size: CGFloat

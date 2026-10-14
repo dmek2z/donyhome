@@ -19,6 +19,7 @@ struct OnboardingView: View {
         return AITool.selectable.filter { $0 != .other && (running.contains($0) || DevelopmentRuntime.installed($0)) }
     }
     @State private var toolsPreselected = false
+    @State private var clipboardSave = true
     private func projectCount(_ tool: AITool) -> Int { Set(model.linkedProjects.filter { $0.tool == tool }.map(\.path)).count }
     /// 이 Mac에서 쓰는 개발 도구를 찾고 연동 대상으로 선택한 뒤 도구별 프로젝트를 탐색한다.
     private func scanTools() {
@@ -109,7 +110,7 @@ struct OnboardingView: View {
             HStack {
                 Image(nsImage: CodingCharacter.developerAvatar).resizable().interpolation(.none).frame(width: 30, height: 30)
                 Text("도니홈 시작하기").font(Theme.font(21, weight: .bold))
-                Spacer(); Button("나중에") { model.completeOnboarding() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary).disabled(model.requestingPermissions)
+                Spacer(); Button("나중에") { clipboard.finishInitialChoice(save: clipboardSave); model.completeOnboarding() }.buttonStyle(.plain).font(Theme.font(12)).foregroundStyle(Theme.secondary).disabled(model.requestingPermissions)
             }.padding(24)
             HStack(spacing: 8) {
                 ForEach(0..<4) { index in Capsule().fill(index <= model.setupStep ? Theme.primary : Theme.line).frame(height: 4) }
@@ -165,6 +166,11 @@ struct OnboardingView: View {
                             Toggle("로그인할 때 실행", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) })).toggleStyle(DonySwitch())
                             Divider()
                             Toggle("Dock에 아이콘 숨기기", isOn: Binding(get: { model.hideDockIcon }, set: { model.setHideDockIcon($0) })).toggleStyle(DonySwitch())
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Toggle("복사 기록 저장", isOn: $clipboardSave).toggleStyle(DonySwitch())
+                                Text("기록은 이 Mac에만 저장되고 30일 뒤 자동으로 지워져요. 비밀번호 앱과 토큰·개인정보로 보이는 텍스트는 저장하지 않아요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                            }
                         }.padding(20).background(.white).clipShape(RoundedRectangle(cornerRadius: 16))
                     default:
                         VStack(spacing: 0) {
@@ -188,7 +194,7 @@ struct OnboardingView: View {
                             UserDefaults.standard.set(true, forKey: "permissionSetupReviewed")
                         }
                         model.setupStep += 1
-                    } else { model.completeOnboarding() }
+                    } else { clipboard.finishInitialChoice(save: clipboardSave); model.completeOnboarding() }
                 }.buttonStyle(PrimaryButton()).disabled(model.busy || model.requestingPermissions)
             }.padding(24)
         }.frame(width: 700, height: 620).foregroundStyle(Theme.ink).background(Theme.canvas).preferredColorScheme(.light)

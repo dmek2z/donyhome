@@ -24,8 +24,10 @@ final class ClipboardPanel: NSPanel {
     @Published private(set) var quickSettingsShown = false
     private var copiedChangeCount: Int?
     private var shortcutRecorder: (id: UUID, cancel: () -> Void)?
+    private var initialChoicePending = false
+    private var lastPurge = Date.distantPast
     @Published private(set) var items: [ClipboardItem] = []
-    @Published var preferences: ClipboardPreferences { didSet { savePreferences(); if oldValue.hotkeyEnabled != preferences.hotkeyEnabled || oldValue.hotkeyKeyCode != preferences.hotkeyKeyCode || oldValue.hotkeyModifiers != preferences.hotkeyModifiers { registerHotkey() } } }
+    @Published var preferences: ClipboardPreferences { didSet { savePreferences(); if oldValue.behavior?.expireDays != preferences.behavior?.expireDays { purgeExpired(force: true) }; if oldValue.hotkeyEnabled != preferences.hotkeyEnabled || oldValue.hotkeyKeyCode != preferences.hotkeyKeyCode || oldValue.hotkeyModifiers != preferences.hotkeyModifiers { registerHotkey() } } }
     @Published var query = ""
     @Published var status = ""
     @Published var ignoreNextCopy = false
@@ -70,10 +72,31 @@ final class ClipboardPanel: NSPanel {
         store = ClipboardStore(url: storeURL ?? directory.appendingPathComponent("history.json"))
         preferences = defaults.data(forKey: "clipboard.preferences").flatMap { try? JSONDecoder().decode(ClipboardPreferences.self, from: $0) } ?? ClipboardPreferences()
         preferences.hotkeyKeyCode = defaults.object(forKey: "clipboard.preferences") == nil ? 8 : preferences.hotkeyKeyCode // command shift C
+        // 처음 설치한 Mac은 첫 실행 설정에서 저장 여부를 고를 때까지 복사 기록을 저장하지 않는다.
+        if defaults.object(forKey: "clipboard.preferences") == nil, defaults.object(forKey: "clipboardChoiceMade") == nil, FirstLaunchSetup.shouldShow(defaults: defaults) {
+            initialChoicePending = true; preferences.paused = true
+        }
         do { items = try store.load() } catch { storeWritable = false; status = "기록 파일을 읽을 수 없어요. 원본을 보존했어요. 기록을 초기화하면 다시 저장해요." }
+    }
+    /// 첫 실행 설정에서 고른 복사 기록 저장 여부를 적용한다. 이미 설정을 쓰던 Mac에는 아무 영향이 없다.
+    func finishInitialChoice(save: Bool) {
+        guard initialChoicePending else { return }
+        initialChoicePending = false
+        defaults.set(true, forKey: "clipboardChoiceMade")
+        preferences.paused = !save
+    }
+    /// 보관 기간이 지난 고정하지 않은 기록을 지운다. 시작할 때와 설정을 바꿀 때, 그 외에는 한 시간에 한 번 실행한다.
+    func purgeExpired(force: Bool = false) {
+        guard force || Date().timeIntervalSince(lastPurge) > 3600 else { return }
+        lastPurge = Date()
+        let kept = ClipboardHistory.removingExpired(items, days: (preferences.behavior ?? ClipboardBehavior()).effectiveExpireDays)
+        guard kept.count != items.count else { return }
+        clipLog.notice("purge: removed \(self.items.count - kept.count, privacy: .public) expired items")
+        items = kept; persist()
     }
     func start() {
         guard timer == nil else { return }
+        purgeExpired(force: true)
         rememberSource(NSWorkspace.shared.frontmostApplication)
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
             let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
@@ -97,7 +120,7 @@ final class ClipboardPanel: NSPanel {
         RunLoop.main.add(captureTimer, forMode: .modalPanel)
         RunLoop.main.add(captureTimer, forMode: .eventTracking)
         timer = captureTimer
-        clipLog.notice("start: timer installed")
+        clipLog.notice("start: timer installed accessibilityTrusted=\(self.accessibilityAllowed, privacy: .public) path=\(Bundle.main.bundlePath, privacy: .public)")
         registerHotkey()
     }
     func stop() {
@@ -117,6 +140,7 @@ final class ClipboardPanel: NSPanel {
         sourceApp = app
     }
     func poll() {
+        purgeExpired()
         guard captureSession.hasPendingChange else { return }
         clipLog.debug("poll: change count=\(self.pasteboard.changeCount, privacy: .public)")
         currentCopiedItemID = nil; copiedChangeCount = nil
@@ -295,7 +319,7 @@ final class ClipboardPanel: NSPanel {
     func requestAccessibility() { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
     func paste(_ item: ClipboardItem, plainText: Bool = false) {
         guard copy(item, plainText: plainText) else { return }
-        guard accessibilityAllowed else { status = "복사했어요. 붙여넣기는 설정에서 손쉬운 사용 권한을 허용한 후 사용할 수 있어요."; return }
+        guard accessibilityAllowed else { status = "복사했어요. 붙여넣기는 손쉬운 사용 권한이 필요해요. 이미 켜져 있다면 시스템 설정 목록에서 DonyHome을 −로 지우고 다시 허용해 주세요."; return }
         guard let target = sourceApp, !target.isTerminated, target.processIdentifier != ProcessInfo.processInfo.processIdentifier else { status = "복사했어요. 붙여넣을 앱으로 돌아가 주세요."; return }
         let ticket = ClipboardPasteTicket(changeCount: pasteboard.changeCount, targetProcessIdentifier: target.processIdentifier)
         if stackActive, pasteStack.first == item.id { queueState.prepare(ticket: ticket); stackPreparedCount = ticket.changeCount }

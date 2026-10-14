@@ -46,6 +46,16 @@ public struct ClipboardItem: Codable, Identifiable, Equatable, Sendable {
 public enum ClipboardSort: String, Codable, CaseIterable, Sendable { case lastCopiedAt, firstCopiedAt, numberOfCopies }
 public enum ClipboardSearch: String, Codable, CaseIterable, Sendable { case exact, regexp, fuzzy, mixed }
 public struct ClipboardPreferences: Codable, Equatable, Sendable {
+    /// 새로 설치한 Mac의 기본 제외 패턴: 비공개 키, API 키·토큰, JWT, 주민등록번호, 카드번호처럼 보이는 텍스트는 기록하지 않는다.
+    public static let sensitivePatterns: [String] = [
+        #"-----BEGIN [A-Z ]*PRIVATE KEY-----"#,
+        #"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{20,}"#,
+        #"\bgh[pousr]_[A-Za-z0-9]{30,}"#,
+        #"\bAKIA[0-9A-Z]{16}\b"#,
+        #"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"#,
+        #"\b\d{6}-[1-4]\d{6}\b"#,
+        #"\b(?:\d{4}[ -]){3}\d{4}\b"#
+    ]
     public var pinShortcut: ClipboardKeyShortcut? = nil
     public var deleteShortcut: ClipboardKeyShortcut? = nil
     public var appearance: ClipboardAppearance? = nil
@@ -57,7 +67,7 @@ public struct ClipboardPreferences: Codable, Equatable, Sendable {
     public var ignoredApps: [String] = []
     public var onlyListedApps = false
     public var ignoredTypes: [String] = []
-    public var ignoredPatterns: [String] = []
+    public var ignoredPatterns: [String] = ClipboardPreferences.sensitivePatterns
     public var enabledTypes = ["public.utf8-plain-text", "public.rtf", "public.html", "public.png", "public.tiff", "public.jpeg", "public.heic", "public.file-url"]
     public var pinsAtBottom = false
     public var hotkeyEnabled = true
@@ -85,6 +95,10 @@ public struct ClipboardBehavior: Codable, Equatable, Sendable {
     public var plainText = false
     public var clearOnQuit = false
     public var clearSystemOnQuit = false
+    /// 고정하지 않은 기록을 지우는 기간(일). nil이면 기본값(30일), 0이면 지우지 않는다.
+    public var expireDays: Int? = nil
+    public static let defaultExpireDays = 30
+    public var effectiveExpireDays: Int { expireDays ?? Self.defaultExpireDays }
     public init() {}
 }
 public enum ClipboardSelection: Equatable, Sendable {
@@ -168,6 +182,12 @@ public struct ClipboardStore: Sendable {
     }
 }
 public enum ClipboardHistory {
+    /// 고정하지 않은 항목 중 마지막 복사가 `days`일보다 오래된 것을 지운다. `days`가 0 이하이면 그대로 둔다.
+    public static func removingExpired(_ items: [ClipboardItem], days: Int, now: Date = Date()) -> [ClipboardItem] {
+        guard days > 0 else { return items }
+        let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
+        return items.filter { $0.pinned || $0.lastCopiedAt >= cutoff }
+    }
     public static func adding(_ new: ClipboardItem, to items: [ClipboardItem], limit: Int) -> [ClipboardItem] {
         var result = items
         if let index = result.firstIndex(where: { $0.representations == new.representations }) {
