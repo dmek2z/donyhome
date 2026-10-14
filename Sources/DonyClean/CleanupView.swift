@@ -78,7 +78,7 @@ struct CacheCleanupView: View {
                 }
             }
             IssuesView(issues: model.cleanup.issues)
-        }.onChange(of: model.cleanupDate) { _, _ in selection.removeAll(); focus = nil; page = 0 }
+        }.onAppear { if !model.reviewSelection.isEmpty { selection = Set(model.reviewSelection); model.reviewSelection = [] } }.onChange(of: model.cleanupDate) { _, _ in selection.removeAll(); focus = nil; page = 0 }
             .onChange(of: filter) { _, _ in selection.removeAll(); focus = nil; page = 0 }
             .onChange(of: focus) { _, _ in page = 0 }
             .sheet(isPresented: $showSettings) { RetentionSettingsSheet() }

@@ -93,3 +93,40 @@ import Foundation
         #expect(found == ["grok", "node"])
     }
 }
+
+@Suite struct TrashRestoreTests {
+    private func fixture() throws -> (home: URL, source: URL, trashed: URL, record: ActionRecord) {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let dir = home.appendingPathComponent("docs"), trash = home.appendingPathComponent(".Trash")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+        let canonical = try FileSafety.canonicalRoot(home)
+        let source = canonical.appendingPathComponent("docs/a.txt"), trashed = canonical.appendingPathComponent(".Trash/a.txt")
+        try Data("x".utf8).write(to: source)
+        try FileManager.default.moveItem(at: source, to: trashed)
+        return (home, source, trashed, ActionRecord(kind: "휴지통 이동", sourcePath: source.path, trashPath: trashed.path, bytes: 1, success: true, message: ""))
+    }
+    @Test func restoresToOriginalLocationAndNeverOverwrites() throws {
+        let f = try fixture(); defer { try? FileManager.default.removeItem(at: f.home) }
+        #expect(TrashRestore.restore(f.record, home: f.home).success)
+        #expect(FileManager.default.fileExists(atPath: f.source.path))
+        #expect(!FileManager.default.fileExists(atPath: f.trashed.path))
+        // 같은 항목을 다시 휴지통에 넣고 원래 자리에 새 파일이 생긴 경우는 덮어쓰지 않는다.
+        try FileManager.default.moveItem(at: f.source, to: f.trashed)
+        try Data("new".utf8).write(to: f.source)
+        #expect(!TrashRestore.restore(f.record, home: f.home).success)
+        #expect(try String(contentsOf: f.source, encoding: .utf8) == "new")
+        #expect(FileManager.default.fileExists(atPath: f.trashed.path))
+    }
+    @Test func rejectsItemsOutsideTrashAndOutsideHome() throws {
+        let f = try fixture(); defer { try? FileManager.default.removeItem(at: f.home) }
+        let elsewhere = f.home.appendingPathComponent("docs/b.txt")
+        try Data("b".utf8).write(to: elsewhere)
+        let fake = ActionRecord(kind: "휴지통 이동", sourcePath: f.home.appendingPathComponent("docs/c.txt").path, trashPath: elsewhere.path, bytes: 1, success: true, message: "")
+        #expect(!TrashRestore.restore(fake, home: f.home).success)
+        #expect(FileManager.default.fileExists(atPath: elsewhere.path))
+        let outside = ActionRecord(kind: "휴지통 이동", sourcePath: "/etc/hosts-restored", trashPath: f.trashed.path, bytes: 1, success: true, message: "")
+        #expect(!TrashRestore.restore(outside, home: f.home).success)
+        #expect(FileManager.default.fileExists(atPath: f.trashed.path))
+    }
+}

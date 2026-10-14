@@ -34,6 +34,8 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var developmentMode = "도구 정리"
     /// 전체 검사의 「검토」에서 넘어온 추천 항목. 개발 캐시 화면이 열릴 때 한 번 선택해 준다.
     @Published var reviewSelection: [String] = []
+    /// 가장 최근 정리에서 휴지통으로 옮긴 기록. 「되돌리기」에 쓴다.
+    @Published var lastCleanupRecords: [ActionRecord] = []
     @Published var developmentToolFilter: AITool?
     @Published var performanceTool: AITool?
     @Published var toolStorage = ToolStorageResult()
@@ -532,6 +534,7 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
             if let inspectedApp, moved.contains(inspectedApp.url.path) { applications.apps.removeAll { $0.id == inspectedApp.id } }
             if smart != nil { smart?.cleanup = cleanup; smart?.duplicates = duplicates; smart?.largeFiles = largeFiles; smart?.developer = developer; smart?.leftovers = leftovers; smart?.clutter = clutter; smart?.space = spaceMap; smart?.similar = similar }
             let historyError = append(results)
+            lastCleanupRecords = results.filter { $0.success && $0.trashPath != nil }
             await measureCleanupOutcome(records: results, before: spaceMeasurement.beforeAvailable)
             operationBusy = false; scanEpoch = UUID(); sample()
             let failures = results.filter { !$0.success }.count

@@ -29,9 +29,9 @@ struct SmartCareView: View {
                 }
                 Text("정리할 항목 선택").font(Theme.font(15, weight: .semibold))
                 VStack(spacing: 0) {
-                    recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $cleanCaches, section: .cleanup, mode: "캐시 · 로그")
+                    recommendedRow("오래된 캐시 · 로그", icon: "sparkles", detail: "\(model.recommendedCleanup.count)개 · " + DisplayFormat.bytes(model.recommendedCleanup.reduce(0) { $0 + $1.bytes }), selected: $cleanCaches, section: .cleanup, mode: "캐시 · 로그", review: model.recommendedCleanup.map(\.id))
                     Divider()
-                    recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $cleanCopies, section: .files, mode: "중복 파일")
+                    recommendedRow("동일한 파일 사본", icon: "doc.on.doc", detail: "\(model.recommendedDuplicateCopies.count)개 · " + DisplayFormat.bytes(model.recommendedDuplicateCopies.reduce(0) { $0 + $1.bytes }), selected: $cleanCopies, section: .files, mode: "중복 파일", review: model.recommendedDuplicateCopies.map(\.id))
                     Divider()
                     recommendedRow("방치된 작업공간", icon: "folder", detail: "\(model.recommendedWorkspaces.count)개 · " + DisplayFormat.bytes(model.recommendedWorkspaces.reduce(0) { $0 + $1.bytes }), selected: $cleanWorkspaces, section: .development, mode: "캐시", reason: "\(model.projectRetentionDays)일 이상 활동 없음 · 변경·미푸시 없음 · 휴지통에서 복원 가능", review: model.recommendedWorkspaces.map(\.id))
                     Divider()

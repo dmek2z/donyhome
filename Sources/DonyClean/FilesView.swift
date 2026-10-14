@@ -50,7 +50,7 @@ struct FilesView: View {
                 }
             }
             IssuesView(issues: issues)
-        }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }.onChange(of: mode) { _, _ in selection.removeAll() }
+        }.onAppear { if mode == "중복 파일", !model.reviewSelection.isEmpty { selection = Set(model.reviewSelection); model.reviewSelection = [] } }.onChange(of: model.scanEpoch) { _, _ in selection.removeAll() }.onChange(of: mode) { _, _ in selection.removeAll() }
         }
     }
 }

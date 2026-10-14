@@ -30,6 +30,9 @@ struct HistoryView: View {
                                 Text(record.timestamp, format: .dateTime.month().day().hour().minute()).font(Theme.font(11)).foregroundStyle(Theme.secondary)
                             }
                             Spacer(minLength: 12)
+                            if model.canRestore(record) {
+                                Button { model.restoreCleanup([record]) } label: { Text("되돌리기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(model.busy)
+                            }
                             if let trash = record.trashPath, FileManager.default.fileExists(atPath: trash) {
                                 Button { model.showFinder(URL(fileURLWithPath: trash)) } label: { Text("항목 보기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())
                             }

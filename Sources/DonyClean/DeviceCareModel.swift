@@ -71,16 +71,7 @@ struct DeviceCareStatusView: View {
             if model.snapshot.pressure == .warning || model.snapshot.pressure == .critical {
                 SettingsActionRow(title: "메모리 압박 · " + model.snapshot.pressure.label, actionTitle: "사용량 확인") { model.section = .performance }.panel(20)
             }
-            if let outcome = model.lastCleanupOutcome {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("\(outcome.successful)개 " + (outcome.permanent ? "삭제" : "휴지통 이동") + " · " + DisplayFormat.bytes(outcome.movedBytes)).font(Theme.font(14, weight: .semibold))
-                        Text("측정된 공간 변화 " + (outcome.observedDelta.map { ($0 >= 0 ? "+" : "−") + DisplayFormat.bytes(abs($0)) } ?? "측정 불가") + (outcome.failed > 0 ? " · \(outcome.failed)개 건너뜀" : "")).font(Theme.font(12)).foregroundStyle(Theme.secondary)
-                        if !outcome.permanent { Text("공간이 늘지 않았다면 휴지통을 검토해 주세요.").font(Theme.font(12)).foregroundStyle(Theme.secondary) }
-                    }; Spacer()
-                    Button { model.section = outcome.permanent ? .history : .tools } label: { Text(outcome.permanent ? "정리 기록" : "휴지통 검토").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())
-                }.panel(20)
-            }
+            CleanupOutcomeCard()
         }
     }
 }
@@ -93,5 +84,28 @@ struct StorageCareSettingsView: View {
             Toggle("공간 부족 시 캐시·로그 검사", isOn: $model.automaticStorageCheck).toggleStyle(DonySwitch())
             HStack { Text("알림 기준").font(Theme.font(14)); Spacer(); TextField("GB", value: $model.storageWarningGB, format: .number).textFieldStyle(.roundedBorder).frame(width: 72); Text("GB 이하").font(Theme.font(12)).foregroundStyle(Theme.secondary) }
         }.panel().onChange(of: model.storageAlertsEnabled) { _, _ in model.saveStorageCare() }.onChange(of: model.automaticStorageCheck) { _, _ in model.saveStorageCare() }.onChange(of: model.storageWarningGB) { _, _ in model.saveStorageCare() }
+    }
+}
+
+struct CleanupOutcomeCard: View {
+    @EnvironmentObject var model: AppModel
+    var body: some View {
+        if let outcome = model.lastCleanupOutcome {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(outcome.successful)개 " + (outcome.permanent ? "삭제" : "휴지통 이동") + " · " + DisplayFormat.bytes(outcome.movedBytes)).font(Theme.font(14, weight: .semibold))
+                    Text("측정된 공간 변화 " + (outcome.observedDelta.map { ($0 >= 0 ? "+" : "−") + DisplayFormat.bytes(abs($0)) } ?? "측정 불가") + (outcome.failed > 0 ? " · \(outcome.failed)개 건너뜀" : "")).font(Theme.font(12)).foregroundStyle(Theme.secondary)
+                    if !outcome.permanent { Text("휴지통을 비워야 공간이 늘어요. 마음이 바뀌면 되돌릴 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary) }
+                }; Spacer()
+                if !outcome.permanent {
+                    if !model.lastCleanupRecords.isEmpty {
+                        Button { model.restoreCleanup(model.lastCleanupRecords) } label: { Text("되돌리기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(model.busy)
+                    }
+                    Button { model.scanTrash(); model.section = .tools } label: { Text("휴지통 비우기").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton()).disabled(model.busy)
+                } else {
+                    Button { model.section = .history } label: { Text("정리 기록").frame(width: Theme.actionWidth - 24) }.buttonStyle(QuietButton())
+                }
+            }.panel(20)
+        }
     }
 }
