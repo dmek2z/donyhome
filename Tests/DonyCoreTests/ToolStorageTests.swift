@@ -130,3 +130,32 @@ import Testing
     }
 
 }
+
+extension ToolStorageTests {
+    @Test func runningToolFilesAreProtectedUnlessTheOptionIsOnAndOpenFilesAreKnown() throws {
+        let url = try file(".codex/log/old.log")
+        // 기본: 실행 중인 도구의 파일은 열린 파일 정보가 완전해도 정리하지 않는다(닫힌 로그만 예외).
+        let cache = try file("Library/Caches/com.openai.codex/old.bin")
+        let none = OpenFileSnapshot(paths: [], complete: true)
+        let defaultScan = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: none)
+        #expect(defaultScan.items.first { $0.candidate.name == "old.bin" }?.isEligible == false)
+        // 옵션 켬 + 열린 파일 확인 완전 → 정리 가능
+        let allowed = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: none, allowRunningTools: true)
+        #expect(allowed.items.first { $0.candidate.name == "old.bin" }?.isEligible == true)
+        // 옵션을 켜도 열린 파일 확인이 없거나 불완전하면 정리하지 않는다
+        let unknown = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: nil, allowRunningTools: true)
+        #expect(unknown.items.first { $0.candidate.name == "old.bin" }?.isEligible == false)
+        let incomplete = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: OpenFileSnapshot(paths: [], complete: false), allowRunningTools: true)
+        #expect(incomplete.items.allSatisfy { !$0.isEligible })
+        // 옵션을 켜도 지금 열려 있는 파일은 정리하지 않는다
+        let cacheID = try #require(allowed.items.first { $0.candidate.name == "old.bin" }).candidate.id
+        let open = OpenFileSnapshot(paths: [cacheID], complete: true)
+        let held = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: open, allowRunningTools: true)
+        #expect(held.items.first { $0.candidate.name == "old.bin" }?.isEligible == false)
+        // 정리 기준(14일)보다 최근 파일은 옵션과 상관없이 정리하지 않는다
+        let recent = try file("Library/Caches/com.openai.codex/recent.bin", days: 2)
+        let recentScan = ToolStorage.scan(tools: [.codex], home: home, runningTools: [.codex], days: 14, token: ScanToken(), now: now, openFiles: none, allowRunningTools: true)
+        #expect(recentScan.items.first { $0.candidate.name == "recent.bin" }?.isEligible == false)
+        _ = url
+    }
+}

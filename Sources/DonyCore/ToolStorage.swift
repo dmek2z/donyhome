@@ -85,14 +85,16 @@ public enum ToolStorage {
               try FileSafety.canonicalRoot(root).path == root.path,
               try !containsProject(root) else { throw DonyError.unsafePath }
     }
-    private static func eligible(_ candidate: FileCandidate, owners: Set<AITool>, running: Set<AITool>, days: Int, now: Date, openFiles: OpenFileSnapshot? = nil) -> Bool {
+    private static func eligible(_ candidate: FileCandidate, owners: Set<AITool>, running: Set<AITool>, days: Int, now: Date, openFiles: OpenFileSnapshot? = nil, allowRunning: Bool = false) -> Bool {
         if let openFiles, !openFiles.complete { return false }
         let active = !owners.isDisjoint(with: running)
         let closedLog = candidate.kind == .log && openFiles?.complete == true && openFiles?.contains(candidate) == false
-        return (!active || closedLog) && openFiles?.contains(candidate) != true && (1...3650).contains(days) &&
+        // 옵션을 켜면 실행 중인 도구의 파일도 정리하지만, 열린 파일 확인이 완전할 때만 허용한다.
+        let allowedWhileRunning = allowRunning && openFiles?.complete == true
+        return (!active || closedLog || allowedWhileRunning) && openFiles?.contains(candidate) != true && (1...3650).contains(days) &&
             Double(candidate.fingerprint.seconds) + Double(candidate.fingerprint.nanoseconds) / 1e9 <= now.addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970
     }
-    public static func scan(tools: Set<AITool>, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), progress: Scanner.Progress? = nil, openFiles: OpenFileSnapshot? = nil, limit: Int = 1_000_000, timeout: TimeInterval = 120, candidateLimit: Int = 20_000) -> ToolStorageResult {
+    public static func scan(tools: Set<AITool>, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), progress: Scanner.Progress? = nil, openFiles: OpenFileSnapshot? = nil, allowRunningTools: Bool = false, limit: Int = 1_000_000, timeout: TimeInterval = 120, candidateLimit: Int = 20_000) -> ToolStorageResult {
         var result = ToolStorageResult()
         var seen = Set<String>(); var visited = 0
         let deadline = Date().addingTimeInterval(timeout)
@@ -116,7 +118,7 @@ public enum ToolStorage {
                         if location.kind == .log && !["log", "txt", "out"].contains(url.pathExtension.lowercased()) && !CacheScopes.isLog(url) { return }
                         guard result.items.count < candidateLimit else { throw DonyError.scanLimit }
                         let candidate = try FileCandidate.capture(url: url, root: location.root, kind: location.kind, token: token)
-                        let allowed = eligible(candidate, owners: location.owners, running: runningTools, days: days, now: now, openFiles: openFiles)
+                        let allowed = eligible(candidate, owners: location.owners, running: runningTools, days: days, now: now, openFiles: openFiles, allowRunning: allowRunningTools)
                         let reason = openFiles?.complete == false ? "실행 상태 확인 불가 · 보관" : allowed ? "\(days)일 이상 지난 캐시·로그" : openFiles?.contains(candidate) == true ? "열린 파일 · 보관" : candidate.kind == .log && !location.owners.isDisjoint(with: runningTools) && openFiles?.complete != true ? "열린 파일 확인 불가 · 보관" : !location.owners.isDisjoint(with: runningTools) ? "사용 중인 도구 · 보관" : "최근 변경 · 보관"
                         result.items.append(ToolStorageItem(candidate: candidate, owners: location.owners, isEligible: allowed, reason: reason))
                     }
@@ -134,7 +136,7 @@ public enum ToolStorage {
         result.items.sort { $0.candidate.bytes > $1.candidate.bytes }
         return result
     }
-    public static func validate(_ item: ToolStorageItem, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), openFiles: OpenFileSnapshot? = nil) throws {
+    public static func validate(_ item: ToolStorageItem, home: URL = FileManager.default.homeDirectoryForCurrentUser, runningTools: Set<AITool>, days: Int, token: ScanToken, now: Date = Date(), openFiles: OpenFileSnapshot? = nil, allowRunningTools: Bool = false) throws {
         try token.check()
         let base = try FileSafety.canonicalRoot(home)
         guard item.isEligible, let location = locations(home: base).first(where: { $0.root.path == item.candidate.root.path }),
@@ -147,7 +149,7 @@ public enum ToolStorage {
             guard FileSafety.isWithin(parent, root: location.root), try !containsProject(parent) else { throw DonyError.unsafePath }
             parent.deleteLastPathComponent()
         }
-        guard eligible(item.candidate, owners: item.owners, running: runningTools, days: days, now: now, openFiles: openFiles) else { throw DonyError.changed }
+        guard eligible(item.candidate, owners: item.owners, running: runningTools, days: days, now: now, openFiles: openFiles, allowRunning: allowRunningTools) else { throw DonyError.changed }
         try FileSafety.validate(item.candidate, token: token)
     }
 }

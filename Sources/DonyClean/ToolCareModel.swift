@@ -9,7 +9,7 @@ extension AppModel {
     }
     func scanToolStorage() {
         guard let (token, epoch) = begin("개발 도구 캐시·로그 검사") else { return }
-        let tools = connectedTools; let mapping = aiApplicationTools
+        let tools = connectedTools; let mapping = aiApplicationTools; let allowRunning = cleanRunningToolFiles
         let days = projectRetentionDays; let report = progress(epoch)
         toolStorageDate = nil
         Task {
@@ -17,7 +17,7 @@ extension AppModel {
                 let inventory = OwnedProcessInventory.read()
                 let running = Set(AITool.usage(inventory.processes, currentUID: getuid(), applicationTools: mapping).map(\.tool))
                 let open = inventory.openFiles(token: token)
-                return ToolStorage.scan(tools: tools, runningTools: running, days: days, token: token, progress: report, openFiles: open)
+                return ToolStorage.scan(tools: tools, runningTools: running, days: days, token: token, progress: report, openFiles: open, allowRunningTools: allowRunning)
             }.value
             guard days == projectRetentionDays else { finish(true, issues: []); return }
             toolStorage = result; toolStorageTools = tools; toolStorageDays = days; toolStorageDate = Date()
@@ -47,7 +47,7 @@ extension AppModel {
         Task {
             var records: [ActionRecord] = []
             for item in items {
-                let mapping = aiApplicationTools
+                let mapping = aiApplicationTools; let allowRunning = cleanRunningToolFiles
                 let originals = duplicateOriginals.values.map { $0.url.path } + similarOriginals.map { $0.url.path }
                 let record = await Task.detached(priority: .utility) {
                     do {
@@ -58,7 +58,7 @@ extension AppModel {
                         let owners = Set(usage.map(\.tool))
                         let open = inventory.openFiles(token: ScanToken())
                         let token = ScanToken()
-                        try ToolStorage.validate(item, runningTools: owners, days: days, token: token, openFiles: open)
+                        try ToolStorage.validate(item, runningTools: owners, days: days, token: token, openFiles: open, allowRunningTools: allowRunning)
                         return TrashService.move(item.candidate, token: token, beforeMutation: { measurement.captureBeforeMutation() })
                     } catch {
                         return ActionRecord(kind: "개발 도구 정리", sourcePath: item.id, trashPath: nil, bytes: 0, success: false, message: error.localizedDescription)

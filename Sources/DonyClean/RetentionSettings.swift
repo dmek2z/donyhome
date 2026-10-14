@@ -51,6 +51,10 @@ struct RetentionSettingsSheet: View {
                     set: { model.projectRetentionDays = Int($0.dropLast()) ?? 14 }
                 ))
             }.disabled(model.busy).padding(24).frame(maxWidth: .infinity).background(.white).clipShape(RoundedRectangle(cornerRadius: 20))
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("실행 중인 도구의 캐시도 정리", isOn: $model.cleanRunningToolFiles).toggleStyle(DonySwitch()).disabled(model.busy)
+                Text("기본은 꺼짐이에요. 켜면 Codex·Claude 같은 도구가 켜져 있어도, 지금 열려 있지 않고 정리 기준을 넘긴 캐시·로그를 정리해요. 도구가 캐시를 다시 만들 수 있지만, 아주 드물게 도구가 다시 느려지거나 오류가 날 수 있어요. 휴지통으로 이동하니 되돌릴 수 있어요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+            }.padding(.horizontal, 4)
             Text("캐시 · 로그 · 개발 캐시 · 프로젝트에 모두 적용돼요. 이 기간 안에 쓴 항목은 정리 추천에서 빼요.").font(Theme.font(12)).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
             HStack { Spacer(); Button("완료") { dismiss() }.buttonStyle(PrimaryButton()) }
         }

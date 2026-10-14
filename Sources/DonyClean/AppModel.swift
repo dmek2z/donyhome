@@ -133,6 +133,14 @@ struct ReliefObservation { let app: String; let before: SystemSnapshot; let afte
     @Published var toolStatuses: [AITool: String] = [:]
     @Published var notificationStatus = "확인 중"
     @Published var setupStep = 0
+    /// 켜면 실행 중인 도구의 캐시·로그도 정리한다(열린 파일이 아니고 정리 기준을 넘긴 것만). 기본은 꺼짐.
+    @Published var cleanRunningToolFiles = UserDefaults.standard.bool(forKey: "cleanRunningToolFiles") {
+        didSet {
+            guard oldValue != cleanRunningToolFiles else { return }
+            UserDefaults.standard.set(cleanRunningToolFiles, forKey: "cleanRunningToolFiles")
+            toolStorage = ToolStorageResult(); toolStorageDate = nil   // 이전 검사 결과는 새 기준에 맞지 않으므로 다시 검사하게 한다
+        }
+    }
     /// 도구별 실행 중 프로세스. 샘플링할 때 한 번만 계산해 화면은 저장된 값을 읽는다.
     @Published private(set) var aiUsage: [AIToolUsage] = []
     /// 첫 설치 때 설정보다 먼저 보여주는 소개 페이지. nil이면 소개를 건너뛴 상태.
