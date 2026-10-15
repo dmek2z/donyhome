@@ -70,7 +70,7 @@ public enum DevelopmentRuntime {
                 }
                 // Orca worktree ps returns a structured worktree record with path, not cwd.
                 if object["worktreeId"] as? String != nil, let path = object["path"] as? String, path.hasPrefix("/") { found.insert(path) }
-                for key in ["result", "data", "workspaces", "worktrees", "projects", "panes", "tabs", "agents", "repositories", "children"] {
+                for key in ["result", "data", "snapshot", "workspaces", "worktrees", "projects", "panes", "tabs", "agents", "repositories", "children"] {
                     if let child = object[key] { walk(child, depth: depth + 1) }
                 }
             } else if let array = value as? [Any] { for child in array.prefix(2000) { walk(child, depth: depth + 1) } }

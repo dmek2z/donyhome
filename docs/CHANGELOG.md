@@ -17,6 +17,10 @@ Finder에서 `build/DonyHome.app`을 `~/Applications`로 옮겨 사용할 수 �
 
 ## 기능
 
+### Herdr 프로젝트 탐색 수정
+- `herdr api snapshot` 응답의 `result.snapshot` 내부까지 경로를 탐색해, 연결됐는데 프로젝트가 발견되지 않던 문제를 고쳤어요.
+- 실제 응답의 중첩 구조를 사용해 로컬 경로 추출·원격 경로 제외와 빈 snapshot을 `metadataPaths` 진입점에서 확인하는 회귀 테스트를 추가했어요.
+
 ### CI: Swift 빌드 작업 추가
 - `PerformanceView` 타입 검사 시간 초과로 일부 컴파일러에서 빌드가 실패하던 문제를 기여자(@sunjae-kim)가 고쳐 병합했어요(#1). 같은 문제를 CI가 잡도록 macOS 러너에서 `scripts/build-app.sh`를 실행하는 Build 작업을 추가했어요.
 
