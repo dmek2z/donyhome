@@ -49,6 +49,16 @@ private final class AgentTaskFixture {
         #expect(AgentTaskControl.cliTool(process(600, name: "cursor")) == nil)
         #expect(AgentTaskControl.cliTool(process(601, name: "cursor-agent")) == .cursor)
     }
+    @Test func acceptsNativeInstallerVersionedExecutable() {
+        let native = "/Users/test/.local/share/claude/versions/2.1.299"
+        #expect(AgentTaskControl.cliTool(process(700, name: "2.1.299", path: native)) == .claude)
+        #expect(AgentTaskControl.cliTool(process(701, name: "2.1.299", path: "/Users/test/.local/share/claude/2.1.299")) == nil)
+        #expect(AgentTaskControl.cliTool(process(702, name: "2.1.299", path: native, hint: "codex")) == nil)
+        #expect(AgentTaskControl.cliTool(process(703, name: "2.1.299", path: "/Applications/Claude.app/Contents/claude/versions/2.1.299")) == nil)
+        let tasks = AgentTaskFixture([process(710, name: "2.1.299", path: native), process(711, parent: 710, name: "node")]).discover()
+        #expect(tasks.map(\.tool) == [.claude])
+        #expect(tasks.first?.members.map(\.pid) == [710, 711])
+    }
     @Test func excludesHostFamilyOwnAncestorsDescendantsAndProtectedMembers() {
         let host = process(100, name: "Codex", path: "/Applications/Codex.app/Contents/MacOS/Codex")
         let rows = [host, process(200, parent: 100), process(300), process(301, parent: 300, name: "tmux"), process(400), process(999, parent: 400, name: "DonyHome"), process(500, parent: 999)]

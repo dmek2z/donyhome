@@ -94,7 +94,7 @@ public final class AgentTaskControl: @unchecked Sendable {
     public static func cliTool(_ process: ProcessReading, arguments: [String] = []) -> AITool? {
         guard process.path.hasPrefix("/"), !process.path.lowercased().contains(".app/") else { return nil }
         let executable = URL(fileURLWithPath: process.path).lastPathComponent.lowercased()
-        if let tool = direct[executable] { return process.toolHint == nil || process.toolHint == tool.rawValue ? tool : nil }
+        if let tool = direct[executable] ?? AITool.versionedInstallName(process.path).flatMap({ direct[$0] }) { return process.toolHint == nil || process.toolHint == tool.rawValue ? tool : nil }
         guard ["node", "bun", "python", "python3", "ruby"].contains(executable) || executable.hasPrefix("python3."),
               arguments.count > 1, !arguments[1].hasPrefix("-"),
               let hint = process.toolHint.flatMap(AITool.init(rawValue:)) else { return nil }
