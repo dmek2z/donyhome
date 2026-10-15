@@ -48,6 +48,14 @@ import Testing
         #expect(Set(DevelopmentRuntime.paths(in: data)) == ["/Users/test/project", "/Users/test/second"])
         #expect(DevelopmentRuntime.tmuxPaths("42\t/Users/test/project\n43\t/Users/test/second\n") == ["/Users/test/project", "/Users/test/second"])
     }
+    @Test func herdrSnapshotEnvelopeCollectsOnlyLocalWorkspacePaths() {
+        let output = #"{"result":{"type":"session_snapshot","snapshot":{"workspaces":[{"cwd":"/Users/test/project"},{"cwd":"/remote/project","machine":"remote"}],"panes":[{"foreground_cwd":"/Users/test/second"},{"cwd":"/remote/pane","remote":true}],"agents":[],"prompt":"/tmp/never-use"}}}"#
+        #expect(DevelopmentRuntime.metadataPaths(output, tool: .herdr) == ["/Users/test/project", "/Users/test/second"])
+    }
+    @Test func emptyHerdrSnapshotIsValidDiscovery() {
+        let output = #"{"result":{"type":"session_snapshot","snapshot":{"workspaces":[],"panes":[],"agents":[]}}}"#
+        #expect(DevelopmentRuntime.metadataPaths(output, tool: .herdr) == [])
+    }
     @Test func folderLinkingSupportsMultipleToolsWithoutDuplicatingSameLink() {
         let existing = [LinkedProject(tool: .claude, path: "/project")]
         let linked = DevelopmentRuntime.link(projectPaths: ["/project"], tools: [.claude, .codex, .herdr], existing: existing)
